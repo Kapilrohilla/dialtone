@@ -17,9 +17,10 @@ Every inbound call gets its own room (`call-…`), and the dispatch rule sends t
 | `.env.example` | All config: pinned versions, keys, SIP trunk, agent settings |
 | `agent/` | Python agent (`agent.py`), pinned deps, Dockerfile |
 | `scripts/init.sh` | Creates `.env` and generates the LiveKit API key/secret |
-| `scripts/bootstrap-server.sh` | Fresh Ubuntu VM: installs Docker and sets up the firewall |
+| `scripts/bootstrap-server.sh` | Fresh Debian/Ubuntu VM: installs Docker (plus ufw if given provider IPs) |
 | `scripts/setup-sip.sh` | Creates the inbound trunk and dispatch rule (safe to re-run) |
 | `scripts/lk.sh` | Pinned LiveKit CLI via Docker, so there's nothing to install |
+| `infra/terraform/` | GCP VM, static IP and firewall rules (see its README) |
 
 ## Pinned versions
 
