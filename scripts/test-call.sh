@@ -17,11 +17,15 @@ cd "$(dirname "$0")/.."
 mobile=${1:?usage: $0 <your-mobile> [twilio-profile] [agent-number]}
 profile=${2:-}
 agent=${3:-}
-if [[ -z "$agent" && -f .env ]]; then
-  . scripts/lib.sh && load_env
-  agent=${SIP_NUMBERS%%,*}
-fi
-[[ -n "$agent" ]] || { echo "pass the agent number or set SIP_NUMBERS in .env" >&2; exit 1; }
+[[ -f .env ]] && . scripts/lib.sh && load_env
+agent=${agent:-${SIP_NUMBERS%%,*}}
+
+e164='^\+[0-9]{8,15}$'
+[[ "$mobile" =~ $e164 ]] || { echo "your-mobile must be E.164, e.g. +9198XXXXXXXX" >&2; exit 1; }
+[[ "$agent" =~ $e164 ]] || {
+  echo "agent number '${agent}' isn't a real number: pass it as the 3rd argument or set SIP_NUMBERS in .env" >&2
+  exit 1
+}
 
 p=()
 [[ -n "$profile" ]] && p=(-p "$profile")
