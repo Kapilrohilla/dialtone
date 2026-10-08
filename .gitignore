@@ -1,0 +1,6 @@
+.env
+sip/generated/
+__pycache__/
+*.pyc
+.venv/
+.DS_Store
