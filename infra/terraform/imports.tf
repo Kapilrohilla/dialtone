@@ -15,3 +15,8 @@ import {
   to = google_compute_firewall.media
   id = "projects/${var.project_id}/global/firewalls/${var.name}-allow-media"
 }
+
+import {
+  to = google_compute_firewall.sip[0]
+  id = "projects/${var.project_id}/global/firewalls/${var.name}-allow-sip"
+}

@@ -32,6 +32,11 @@ services:
           address: 127.0.0.1:${REDIS_PORT:-6380}
         prometheus:
           port: 6789
+        # Call events -> dashboard (call history).
+        webhook:
+          api_key: ${LIVEKIT_API_KEY}
+          urls:
+            - http://127.0.0.1:${DASHBOARD_PORT:-8787}/webhook
         logging:
           level: info
           json: true
@@ -55,6 +60,19 @@ services:
         logging:
           level: ${SIP_LOG_LEVEL:-info}
 
+  # Calls dashboard. Listens on localhost only; open it via `make tunnel`.
+  dashboard:
+    build: ./dashboard
+    image: ai-calling-dashboard:local
+    network_mode: host
+    restart: unless-stopped
+    depends_on: [livekit]
+    env_file: .env
+    environment:
+      DASHBOARD_HOST: 127.0.0.1
+    volumes:
+      - dashboard-data:/data
+
   # Agent worker. Runs on the media VM in phase 1; in phase 2 run only this
   # service on separate agent VMs with LIVEKIT_URL pointing at the media VM:
   #   docker compose --profile agent up -d agent
@@ -66,3 +84,6 @@ services:
     restart: unless-stopped
     env_file: .env
     stop_grace_period: 5m  # let in-progress calls finish on deploy
+
+volumes:
+  dashboard-data:

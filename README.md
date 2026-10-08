@@ -2,9 +2,13 @@
 
 Self-hosted inbound voice agent for Indian languages, built on LiveKit.
 
+You choose how the agent listens and speaks with `AGENT_PIPELINE` in `.env`:
+- **`gemini-live`** (default): Gemini Live speech-to-speech. One model listens, thinks and speaks, handles Hindi and regional languages natively, and needs only `GOOGLE_API_KEY`.
+- **`sarvam`**: Sarvam speech-to-text, then an OpenAI LLM, then Sarvam text-to-speech. Needs `SARVAM_API_KEY` and `OPENAI_API_KEY`.
+
 ```
 Caller ─► SIP provider ─► livekit-sip ─► livekit-server ◄─► agent worker
-                          (5060, RTP)    (rooms, Redis)      VAD → Sarvam STT → LLM → Sarvam TTS
+                          (5060, RTP)    (rooms, Redis)      Gemini Live (or Sarvam STT → LLM → TTS)
 ```
 
 Every inbound call gets its own room (`call-…`), and the dispatch rule sends the `phone-agent` worker into it.
@@ -16,6 +20,7 @@ Every inbound call gets its own room (`call-…`), and the dispatch rule sends t
 | `docker-compose.yml` | Redis, LiveKit server, LiveKit SIP, and the agent (`agent` profile) |
 | `.env.example` | All config: pinned versions, keys, SIP trunk, agent settings |
 | `agent/` | Python agent (`agent.py`), pinned deps, Dockerfile |
+| `dashboard/` | Calls dashboard: live calls, call history, trunks/dispatch rules |
 | `scripts/init.sh` | Creates `.env` and generates the LiveKit API key/secret |
 | `scripts/bootstrap-server.sh` | Fresh Debian/Ubuntu VM: installs Docker (plus ufw if given provider IPs) |
 | `scripts/setup-sip.sh` | Creates the inbound trunk and dispatch rule (safe to re-run) |
@@ -40,7 +45,7 @@ Use a Linux VM in Mumbai (4 vCPU / 8 GB, Ubuntu 24.04) with a static public IP.
 ```bash
 git clone <this repo> ai-calling && cd ai-calling
 sudo scripts/bootstrap-server.sh <provider-signalling-ip> [<more-ips>]   # then log out/in for docker group
-make init        # creates .env; fill SIP_*, SARVAM_API_KEY, OPENAI_API_KEY
+make init        # creates .env; fill SIP_* and GOOGLE_API_KEY (or the sarvam keys)
 make up          # redis + livekit + sip
 make sip         # trunk + dispatch rule; prints the SIP URI for your provider
 make agent       # build and start the agent worker
@@ -63,6 +68,20 @@ make lk a="room list"
 | INVITE rejected / 403 | Provider IP not in `SIP_ALLOWED_ADDRESSES`, or number not in `SIP_NUMBERS` |
 | Call connects, silence | UDP 10000–20000 blocked, or wrong external IP |
 | Room created, no agent | Agent not running, or `AGENT_NAME` mismatch |
+
+## Calls dashboard
+
+`make up` also starts the dashboard. It shows:
+- live calls: caller number, timer, whether the agent joined
+- call history, recorded from LiveKit webhooks into SQLite
+- today's stats
+- the configured trunks and dispatch rules
+
+It listens on the VM's localhost only, because it shows caller phone numbers. From your laptop, run:
+
+```bash
+make tunnel      # then open http://localhost:8787
+```
 
 ## Scale (phase 2: ~50 concurrent calls)
 

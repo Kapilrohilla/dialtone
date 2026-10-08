@@ -1,0 +1,12 @@
+# Twilio Elastic SIP Trunking signalling IPs, all edges.
+# Source: https://www.twilio.com/docs/sip-trunking/ip-addresses
+sip_provider_cidrs = [
+  "54.172.60.0/30",    # North America Virginia
+  "54.244.51.0/30",    # North America Oregon
+  "54.171.127.192/30", # Europe Ireland
+  "35.156.191.128/30", # Europe Frankfurt
+  "54.65.63.192/30",   # Asia-Pacific Tokyo
+  "54.169.127.128/30", # Asia-Pacific Singapore
+  "54.252.254.64/30",  # Asia-Pacific Sydney
+  "177.71.206.192/30", # South America Sao Paulo
+]

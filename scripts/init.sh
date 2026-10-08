@@ -22,8 +22,14 @@ set_if_empty() {
 set_if_empty LIVEKIT_API_KEY "API$(openssl rand -hex 6)"
 set_if_empty LIVEKIT_API_SECRET "$(openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 48)"
 
+pipeline=$(grep -E "^AGENT_PIPELINE=" .env | cut -d= -f2- || true)
+case "${pipeline:-gemini-live}" in
+  sarvam) ai_keys="SARVAM_API_KEY OPENAI_API_KEY" ;;
+  *)      ai_keys="GOOGLE_API_KEY" ;;
+esac
+
 missing=()
-for key in SIP_NUMBERS SIP_ALLOWED_ADDRESSES SARVAM_API_KEY OPENAI_API_KEY; do
+for key in SIP_NUMBERS SIP_ALLOWED_ADDRESSES $ai_keys; do
   val=$(grep -E "^${key}=" .env | cut -d= -f2- || true)
   [[ -z "$val" || "$val" == *XXXX* ]] && missing+=("$key")
 done
