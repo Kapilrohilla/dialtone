@@ -69,6 +69,19 @@ make lk a="room list"
 | Call connects, silence | UDP 10000–20000 blocked, or wrong external IP |
 | Room created, no agent | Agent not running, or `AGENT_NAME` mismatch |
 
+## Test call without dialing abroad
+
+If your mobile can't dial the agent's number (e.g. a US number from India), have Twilio ring you and bridge the call:
+
+```bash
+scripts/test-call.sh +91XXXXXXXXXX "<twilio-profile>"
+```
+
+On a Twilio **trial** account:
+- your mobile must be a verified caller ID
+- you must press a key during the trial message
+- set `AGENT_SIP_HOST=<public-ip>` to dial the server over SIP, because trial accounts can't dial unverified numbers
+
 ## Calls dashboard
 
 `make up` also starts the dashboard. It shows:
