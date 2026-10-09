@@ -11,7 +11,12 @@ services:
     image: redis:7.4-alpine
     network_mode: host
     restart: unless-stopped
-    command: ["redis-server", "--bind", "127.0.0.1", "--port", "${REDIS_PORT:-6380}", "--save", "", "--appendonly", "no"]
+    # Persist to disk: SIP trunks and dispatch rules live in Redis, so losing it
+    # on a restart means every inbound call is rejected (486 no-dispatch).
+    command: ["redis-server", "--bind", "127.0.0.1", "--port", "${REDIS_PORT:-6380}",
+              "--appendonly", "yes", "--appendfsync", "everysec", "--dir", "/data"]
+    volumes:
+      - redis-data:/data
 
   livekit:
     image: livekit/livekit-server:${LIVEKIT_VERSION:?set LIVEKIT_VERSION in .env}
@@ -87,3 +92,4 @@ services:
 
 volumes:
   dashboard-data:
+  redis-data:
