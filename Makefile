@@ -36,4 +36,4 @@ GCP_ZONE ?= asia-south1-c
 
 tunnel:          ## from your laptop: open the VM dashboard at http://localhost:8787
 	@echo "Dashboard: http://localhost:8787  (Ctrl-C to close)"
-	gcloud compute ssh $(VM) --project $(GCP_PROJECT) --zone $(GCP_ZONE) -- -N -L 8787:127.0.0.1:8787
+	gcloud compute ssh $(VM) --project $(GCP_PROJECT) --zone $(GCP_ZONE) -- -N -o ExitOnForwardFailure=yes -L 8787:127.0.0.1:8787
