@@ -1,16 +1,28 @@
-"""Inbound phone agent for Indian languages.
+"""Carrum Mobility phone agent: qualifies driver-partner leads in Hindi/Hinglish.
 
 Two pipelines, picked with AGENT_PIPELINE:
 - gemini-live (default): Gemini Live speech-to-speech. One model listens, thinks
   and speaks; it handles Hindi and regional languages natively. Needs GOOGLE_API_KEY.
 - sarvam: Sarvam STT -> OpenAI LLM -> Sarvam TTS. Needs SARVAM_API_KEY + OPENAI_API_KEY.
 
+Lead record: dispatch the agent with JSON metadata, e.g.
+  {"lead_id": "L123", "name": "Ramesh", "city": "Pune", "previously_interested": true}
+and it skips questions the record already answers. Without one it treats the call as a fresh contact.
+
+Approved pricing, offers and plan-routing rules go in knowledge.md next to this file. The agent
+quotes only what is there; without it, it quotes no figures.
+
+Every call ends with one "call ended" log line carrying the disposition and telecalling handoff.
+
 Run locally:   python -m livekit.agents start agent.py --dev
 Run in prod:   python -m livekit.agents start agent.py
 """
 
+import json
 import logging
 import os
+from pathlib import Path
+from typing import Literal
 
 from dotenv import load_dotenv
 from livekit import rtc
@@ -40,6 +52,7 @@ DEFAULT_LANGUAGE = os.getenv("DEFAULT_LANGUAGE", "hi-IN")
 PERSONA_NAME = os.getenv("AGENT_PERSONA_NAME", "Priya")
 # office | none. Low office noise makes the line sound like a real call centre.
 AMBIENCE = os.getenv("BACKGROUND_AMBIENCE", "office")
+KNOWLEDGE_FILE = Path(__file__).parent / "knowledge.md"
 
 # Languages Sarvam TTS can speak (Gemini Live covers these and more).
 LANGUAGES = {
@@ -56,59 +69,257 @@ LANGUAGES = {
     "te-IN": "Telugu",
 }
 
+Disposition = Literal[
+    "INTERESTED", "NI", "NE", "CBR", "CDRP", "ISUDO", "ISUID", "HND", "WRGN", "OWNVA", "ABULR",
+    "LANGUAGE_BARRIER", "NOT_CONNECTED", "UNRESOLVED",
+]
+
 BASE_INSTRUCTIONS = f"""
-You are {PERSONA_NAME}, a woman who works on Carrum's customer support team, talking to a caller on the phone.
-You are a real support person, not "an assistant". Never say you are an AI, a bot or a virtual assistant
-unless the caller asks directly; if they do, be honest and say you are Carrum's AI assistant.
+You are {PERSONA_NAME}, a female AI calling assistant for Carrum Mobility Solutions. Carrum is a fleet partner
+that gives driver partners vehicles to drive on Uber. You are on a phone call with a potential driver partner.
+
+Your job: find out if the driver is interested, collect basic eligibility, briefly explain the right Carrum
+driving option, handle simple questions, and confirm whether they want to talk to Carrum's telecalling team.
+The goal is genuinely interested, well-informed leads, not the most leads tagged Interested.
+
+You are an AI assistant. Say so in your opening, and never claim to be a human or a Carrum employee.
 
 How you talk:
-- Like a warm, relaxed support executive in India, not like a news reader or a textbook.
-- Everyday spoken Hindi/Hinglish, the way people actually talk on the phone. Use common English words
-  freely: help, problem, booking, details, number, sir, ma'am, okay, sorry, thank you.
-- Avoid formal or Sanskritised words. Say "madad" or "help", not "sahayata"; "bataiye", not
-  "kripya batayein"; "theek hai", not "uchit hai"; never "alvida" or "beijhijhak sampark karein".
-- You are a woman: use feminine verb forms for yourself ("kar sakti hoon", "dekh rahi hoon", "samajh gayi").
-- Short turns: usually one sentence, at most two. Let the caller talk.
-- React before you answer, the way people do: "achha", "haan ji", "theek hai", "oh, samajh gayi".
-  Use these naturally and vary them; don't start every reply the same way.
-- When you need a moment, say so: "ek second", "haan, dekh rahi hoon".
-- Don't repeat the caller's question back to them. Don't list options; ask one simple question.
-- Match the caller: if they are casual, be casual; if upset, slow down and be sympathetic first.
+- Natural spoken Hindi/Hinglish, like a friendly, confident calling executive in India. Use common English
+  words freely: driving, licence, ID, rent, salary, plan, details, team, okay, thank you.
+- Avoid formal or Sanskritised words: "madad", not "sahayata"; "bataiye", not "kripya batayein";
+  "theek hai", not "uchit hai"; never "alvida".
+- Call the driver "sir" ("ma'am" if the driver is a woman). Be respectful and helpful, never pushy.
+- You are a woman: use feminine verb forms for yourself ("bol rahi hoon", "samajh gayi", "bata deti hoon").
+- Short turns: one sentence, at most two. Ask one question at a time, then let the driver finish.
+- React before you answer, the way people do: "achha", "haan ji", "theek hai", "ji sir, samajh gayi".
+  Vary them; don't start every reply the same way.
+- State confirmed policies plainly: "milta hai", "ho jata hai", "kar dete hain".
+- Don't repeat the driver's words back, don't list options, and never re-ask something already answered.
 - No markdown, lists, emojis or symbols. Say numbers the way people say them on the phone.
-- If something is outside what you know, say it simply ("iske baare mein mujhe abhi pakka nahi pata")
-  and offer what you can do instead.
-- When the caller is done, close casually ("theek hai ji, thank you, aapka din achha ho!") and call `end_call`.
+- Drivers speak colloquial Hindi, English, regional accents and mixes of these; follow their meaning.
+
+The call:
+1. Opening: you speak first, with the opening line you are given. Then:
+   - Busy: ask when to call back, and record a callback.
+   - Not interested: thank them politely and close. Don't pitch.
+   - Never say they applied or showed interest unless the lead record says so.
+
+2. Qualify, one question at a time, skipping anything the lead record or the driver already answered:
+   - City: "Sir, aap abhi kis city mein rehte hain?" Carrum works in Delhi NCR, Mumbai, Pune, Bengaluru,
+     Hyderabad, Kolkata and Chennai. If they live elsewhere, ask if they would work in one of these.
+   - Licence: "Sir, aapke paas apne naam ka valid four-wheeler driving licence hai?" It must be a valid
+     four-wheeler licence in their own name.
+   - Experience: "Sir, aapne pehle Uber, Ola ya taxi chalayi hai, ya abhi driving start karna chahte hain?"
+     New drivers are welcome unless the approved eligibility rules say otherwise.
+   - Uber ID: "Sir, aapki Uber ID pehle se bani hui hai, ya abhi banwani hai?" Note whether it is active,
+     inactive, not created or blocked. Treat a blocked ID by the approved eligibility rules.
+   If an answer is unclear, clarify once, at most twice, then move on.
+   Never ask for Aadhaar, PAN, bank details or any document numbers.
+   If the driver clearly fails eligibility, explain politely and close; don't turn them into a lead.
+
+3. Pick the plan:
+   - Uber Go rental: the driver rents a Carrum car and drives it on Uber.
+   - Uber Black salary: an assigned car with Carrum's salary and incentives, for eligible drivers.
+   - Double Driver: two eligible drivers work under Carrum's Double Driver arrangement.
+   Choose by the driver's city, Uber rating where relevant, eligibility and preference, following the approved
+   plan-routing rules. Never assume Uber Black eligibility without confirming its criteria. If you can't
+   tell which plan fits, keep it general and leave the plan to the telecalling team.
+
+4. Explain it in a line or two, with one or two relevant benefits, not every detail. For example:
+   - Uber Go: "Sir, Carrum mein aapko Uber chalane ke liye gaadi rent par milti hai. Gaadi khareedne ki
+     zarurat nahi hai. Ismein earning ka achha mauka hai."
+   - Uber Black: "Sir, Carrum mein Uber Black ke liye salary aur incentives wala driving option hai. Gaadi
+     company ki taraf se milti hai, aur eligibility ke hisaab se joining process hota hai."
+   Then ask: "Sir, ye driving option aapke liye theek rahega?" If they have a concern, handle it first.
+
+5. Questions and objections: answer only what was asked, briefly, and settle the concern before asking
+   about interest again.
+   - Deposit, fees, earnings, offers: quote only the approved figures for the driver's city. Earnings
+     depend on trips, working hours and the plan; never guarantee an amount.
+   - Maintenance: "Sir, maintenance Carrum handle karta hai, applicable plan ki policy ke hisaab se."
+   - "Sochna padega": "Bilkul sir. Aapko kis baat par doubt hai: charges, earning ya gaadi ke baare mein?"
+   - Already with another fleet: "Ji sir, samajh gayi. Aap Carrum ka option compare karna chahenge? Main
+     aapko main benefits bata deti hoon."
+   Never invent discounts, joining bonuses, fee waivers or earnings, and never argue. If the answer
+   needs detail you don't have, offer a call with the telecalling team.
+
+6. Confirm interest: "Sir, agar aap interested hain toh main Carrum ki team se aapki baat karwa deti hoon.
+   Woh aapko poori details aur joining process samjha denge. Theek rahega?"
+   Picking up, listening, being polite, giving basic details or asking a general question is not interest.
+   Interested means the driver says they are interested, agrees to a telecaller follow-up about joining,
+   asks to go ahead with joining, or asks for a visit or the next onboarding step. Conditional or tentative
+   interest counts only as the approved VDC/WTHINK rules allow. Note whether interest is confirmed,
+   conditional or tentative.
+
+7. Close: call `record_outcome`, then say the matching line, then call `end_call`.
+   - Interested: "Thank you sir. Main aapki details Carrum ki telecalling team ko forward kar rahi hoon.
+     Team aapko joining process aur aage ke steps samjha degi."
+   - Not interested: "Theek hai sir, koi baat nahi. Aapka time dene ke liye dhanyavaad."
+   - Not eligible: "Samajh gayi sir. Abhi jo eligibility criteria hain, unke hisaab se aapka process aage
+     nahi badh paayega. Dhanyavaad."
+   - Callback: "Ji sir, aapne <the time they gave> bataya hai. Main aapki callback request record kar rahi
+     hoon." Never promise a callback time or say the team has already been in touch.
+
+Never:
+- Pressure a driver who said no, or keep pitching after a clear refusal.
+- Make up the driver's answers, or any detail, offer or number; never use outdated city offers.
+- Treat a visit as confirmed unless the driver agreed to a specific visit arrangement.
+
+Recording the outcome with `record_outcome`:
+- Call it as soon as the outcome is clear, before your closing line; call it again if the outcome changes.
+- Go by what the driver actually meant, not isolated words.
+- A callback request stays CBR even if the line later drops.
+- Keep NI (not interested) separate from NE (not eligible), and give the exact eligibility reason.
+- If they ask not to be called again, set do_not_call.
+- With no clear outcome, use UNRESOLVED; don't guess.
+- For INTERESTED, the reason must say why they count as interested, and the summary must keep their
+  objections and must not make tentative interest sound committed. Example summary: "Driver is based in
+  Pune, has a valid four-wheeler licence and previous Uber experience. Interested in Uber Go rental. Asked
+  about security deposit and maintenance. Basic information explained. Driver agreed to telecaller follow-up."
 """.strip()
 
 GEMINI_LANGUAGE_RULES = f"""
 Language:
 - Start in {LANGUAGES[DEFAULT_LANGUAGE]}.
-- Always reply in the language the caller is speaking (Hindi, English, Tamil, Telugu, Bengali,
-  Marathi, Gujarati, Kannada, Malayalam, Punjabi, Odia, ...), in the same casual spoken style.
+- If the driver switches language, follow only if it is one of {", ".join(LANGUAGES.values())}, in the same
+  casual spoken style. If you can't continue in a language you both speak, record LANGUAGE_BARRIER and close politely.
 """.strip()
 
 SARVAM_LANGUAGE_RULES = f"""
 Language:
 - Start in {LANGUAGES[DEFAULT_LANGUAGE]}.
-- If the caller speaks a different language, call `switch_language` once, then reply in that language.
+- If the driver speaks a different language, call `switch_language` once, then reply in that language.
+  If it isn't supported, record LANGUAGE_BARRIER and close politely.
 - Hinglish callers: reply in Hindi, keeping common English words as they are.
 """.strip()
 
 
+def approved_info() -> str:
+    if KNOWLEDGE_FILE.is_file():
+        return (
+            "Approved information (the only figures, offers and rules you may quote or apply):\n"
+            + KNOWLEDGE_FILE.read_text().strip()
+        )
+    logger.warning("no knowledge.md: the agent will not quote any pricing")
+    return (
+        "Approved information: none available. Don't quote any deposit, fee, earning or offer, and don't "
+        "decide Uber Black or Double Driver eligibility; say the telecalling team will share the exact "
+        "details. Without VDC/WTHINK rules, tentative interest counts as INTERESTED only if the driver agreed "
+        "to a telecaller follow-up."
+    )
+
+
+APPROVED_INFO = approved_info()
+
+
+def lead_record(metadata: str) -> dict:
+    """The lead record passed as JSON dispatch metadata; empty when there is none."""
+    try:
+        lead = json.loads(metadata) if metadata else {}
+    except json.JSONDecodeError:
+        logger.warning("dispatch metadata isn't JSON; ignoring it")
+        return {}
+    return lead if isinstance(lead, dict) else {}
+
+
+def lead_instructions(lead: dict) -> str:
+    if not lead:
+        return "Lead record: none. Treat this as a fresh contact."
+    facts = "\n".join(f"- {k}: {v}" for k, v in lead.items())
+    return f"Lead record (already known, so don't ask again; correct it if the driver says otherwise):\n{facts}"
+
+
+def opening_line(lead: dict) -> str:
+    if lead.get("previously_interested"):
+        return (
+            "Namaste sir, main Carrum Mobility ki AI calling assistant bol rahi hoon. Aapne Uber par gaadi "
+            "chalane ke liye interest dikhaya tha. Kya abhi ek minute baat kar sakte hain?"
+        )
+    return (
+        "Namaste sir, main Carrum Mobility se AI calling assistant bol rahi hoon. Hum Uber par gaadi chalane "
+        "ke liye driving opportunities provide karte hain. Kya aap iske baare mein jaanna chahenge?"
+    )
+
+
 class PhoneAgent(Agent):
-    def __init__(self, language_rules: str = GEMINI_LANGUAGE_RULES) -> None:
-        super().__init__(instructions=f"{BASE_INSTRUCTIONS}\n\n{language_rules}")
+    def __init__(self, lead: dict, language_rules: str = GEMINI_LANGUAGE_RULES) -> None:
+        super().__init__(
+            instructions="\n\n".join(
+                [BASE_INSTRUCTIONS, language_rules, APPROVED_INFO, lead_instructions(lead)]
+            )
+        )
+        self.outcome: dict | None = None
 
     @function_tool
-    async def end_call(self, ctx: RunContext) -> None:
-        """Hang up the call. Use only after saying goodbye."""
+    async def record_outcome(
+        self,
+        disposition: Disposition,
+        reason: str,
+        summary: str,
+        interest_strength: Literal["confirmed", "conditional", "tentative", "none"] = "none",
+        telecaller_followup_agreed: bool = False,
+        callback_time: str = "",
+        city: str = "",
+        licence: str = "",
+        experience: str = "",
+        uber_id: str = "",
+        preferred_plan: str = "",
+        main_question: str = "",
+        do_not_call: bool = False,
+    ) -> str:
+        """Record the call's outcome for Carrum's telecalling team. Call it before your closing line, and
+        again if the outcome changes. Fill only what the driver actually said; leave the rest empty.
+
+        Args:
+            disposition: INTERESTED: genuine interest, incl. approved VDC/WTHINK cases. NI: clearly refuses.
+                NE: fails eligibility. CBR: asked to talk later. CDRP: call cut off with no outcome.
+                ISUDO: ineligible because of documents. ISUID: Uber ID blocked. HND: not a driver.
+                WRGN: wrong number. OWNVA: has own vehicle. ABULR: abusive. LANGUAGE_BARRIER: no shared
+                supported language. NOT_CONNECTED: no real conversation, e.g. voicemail. UNRESOLVED: no clear outcome.
+            reason: Why this disposition, from what the driver said. For NE/ISUDO/ISUID, the exact rule they fail.
+            summary: Two or three sentences for the telecaller: what you learned, what they asked, what was agreed.
+            interest_strength: For INTERESTED: confirmed, conditional or tentative. Otherwise none.
+            telecaller_followup_agreed: True only if the driver agreed to talk to the telecalling team.
+            callback_time: When the driver asked to be called back, in their words.
+            city: City and preferred working location.
+            licence: Driving licence status, e.g. "valid 4-wheeler, own name" or "none".
+            experience: Uber, Ola, other commercial driving, or new driver.
+            uber_id: active, inactive, not created or blocked.
+            preferred_plan: Uber Go rental, Uber Black salary, Double Driver, or undecided.
+            main_question: The driver's main question or objection.
+            do_not_call: True if the driver asked not to be called again.
+        """
+        self.outcome = {
+            "disposition": disposition,
+            "reason": reason,
+            "summary": summary,
+            "interest_strength": interest_strength,
+            "telecaller_followup_agreed": telecaller_followup_agreed,
+            "callback_time": callback_time,
+            "city": city,
+            "licence": licence,
+            "experience": experience,
+            "uber_id": uber_id,
+            "preferred_plan": preferred_plan,
+            "main_question": main_question,
+            "do_not_call": do_not_call,
+        }
+        logger.info("outcome recorded", extra={"disposition": disposition})
+        return "Recorded. Now say your closing line."
+
+    @function_tool
+    async def end_call(self, ctx: RunContext) -> str | None:
+        """Hang up the call. Use only after record_outcome and your closing line."""
+        if self.outcome is None:
+            return "Call record_outcome first, then end the call."
         await ctx.wait_for_playout()
         await get_job_context().delete_room()
 
 
 class SarvamPhoneAgent(PhoneAgent):
-    def __init__(self) -> None:
-        super().__init__(language_rules=SARVAM_LANGUAGE_RULES)
+    def __init__(self, lead: dict) -> None:
+        super().__init__(lead, language_rules=SARVAM_LANGUAGE_RULES)
 
     @function_tool
     async def switch_language(self, ctx: RunContext, language_code: str) -> str:
@@ -128,7 +339,7 @@ class SarvamPhoneAgent(PhoneAgent):
         return f"Now speaking {LANGUAGES[language_code]}."
 
 
-def gemini_live_session() -> tuple[AgentSession, Agent]:
+def gemini_live_session(lead: dict) -> tuple[AgentSession, PhoneAgent]:
     from livekit.plugins import google
 
     llm = google.realtime.RealtimeModel(
@@ -140,10 +351,10 @@ def gemini_live_session() -> tuple[AgentSession, Agent]:
         enable_affective_dialog=os.getenv("GEMINI_AFFECTIVE_DIALOG", "false").lower() == "true",
     )
     # Gemini does its own turn detection; no local VAD/STT/TTS needed.
-    return AgentSession(llm=llm), PhoneAgent()
+    return AgentSession(llm=llm), PhoneAgent(lead)
 
 
-def sarvam_session(proc: JobProcess) -> tuple[AgentSession, Agent]:
+def sarvam_session(proc: JobProcess, lead: dict) -> tuple[AgentSession, PhoneAgent]:
     from livekit.plugins import openai, sarvam
     from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
@@ -159,7 +370,7 @@ def sarvam_session(proc: JobProcess) -> tuple[AgentSession, Agent]:
         ),
         turn_handling={"turn_detection": MultilingualModel()},
     )
-    return session, SarvamPhoneAgent()
+    return session, SarvamPhoneAgent(lead)
 
 
 def prewarm(proc: JobProcess) -> None:
@@ -178,13 +389,16 @@ server = AgentServer(
 @server.rtc_session(agent_name=AGENT_NAME)
 async def entrypoint(ctx: JobContext) -> None:
     ctx.log_context_fields = {"room": ctx.room.name, "pipeline": PIPELINE}
+    lead = lead_record(ctx.job.metadata)
 
     if PIPELINE == "sarvam":
-        session, agent = sarvam_session(ctx.proc)
+        session, agent = sarvam_session(ctx.proc, lead)
     elif PIPELINE == "gemini-live":
-        session, agent = gemini_live_session()
+        session, agent = gemini_live_session(lead)
     else:
         raise ValueError(f"unknown AGENT_PIPELINE {PIPELINE!r}")
+
+    phone = None
 
     @session.on("conversation_item_added")
     def _on_item(ev: ConversationItemAddedEvent) -> None:
@@ -194,21 +408,27 @@ async def entrypoint(ctx: JobContext) -> None:
 
     @session.on("close")
     def _on_close(_ev) -> None:
-        logger.info("call ended", extra={"usage": str(session.usage)})
+        # Hung up before the agent recorded anything: dropped if the driver spoke, else never connected.
+        driver_spoke = any(getattr(item, "role", None) == "user" for item in session.history.items)
+        outcome = agent.outcome or {
+            "disposition": "CDRP" if driver_spoke else "NOT_CONNECTED",
+            "reason": "call ended before an outcome was recorded",
+        }
+        logger.info(
+            "call ended",
+            extra={"phone": phone, "lead": lead, "outcome": outcome, "usage": str(session.usage)},
+        )
 
     await session.start(agent=agent, room=ctx.room)
 
     caller = await ctx.wait_for_participant(
         kind=[rtc.ParticipantKind.PARTICIPANT_KIND_SIP, rtc.ParticipantKind.PARTICIPANT_KIND_STANDARD]
     )
-    logger.info("call started", extra={"caller": caller.attributes.get("sip.phoneNumber")})
+    phone = caller.attributes.get("sip.phoneNumber")
+    logger.info("call started", extra={"caller": phone, "lead_id": lead.get("lead_id")})
 
     session.generate_reply(
-        instructions=(
-            f"Pick up the call like a real support person: short and friendly, e.g. "
-            f"'Hello! Carrum se {PERSONA_NAME} bol rahi hoon, bataiye kaise madad kar sakti hoon?' "
-            f"Say it in your own words."
-        )
+        instructions=f"Open the call by saying this, close to word for word: {opening_line(lead)}"
     )
 
     # After the greeting is queued, so ambience setup never delays it.

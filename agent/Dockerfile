@@ -10,7 +10,8 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
-COPY agent.py .
+# agent.py plus knowledge.md (approved pricing/plan rules) when present.
+COPY . .
 
 USER agent
 # Bake model weights (VAD, turn detector) into the image so calls don't wait on downloads.

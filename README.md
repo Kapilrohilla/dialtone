@@ -13,6 +13,14 @@ Caller ─► SIP provider ─► livekit-sip ─► livekit-server ◄─► ag
 
 Every inbound call gets its own room (`call-…`), and the dispatch rule sends the `phone-agent` worker into it.
 
+## What the agent does
+
+It's Carrum Mobility's AI calling assistant for driver-partner leads. It speaks Hindi/Hinglish, checks city, licence, driving experience and Uber ID, pitches the fitting plan (Uber Go rental, Uber Black salary, Double Driver), and confirms whether the driver wants a telecaller follow-up.
+
+- **Approved pricing and rules:** put city-wise deposits, fees, offers, plan-routing and VDC/WTHINK rules in `agent/knowledge.md`, then run `make agent`. The agent quotes only what's in that file. Without it, the agent quotes no figures and refers those questions to the telecalling team.
+- **Lead record (optional):** dispatch the agent with JSON metadata, e.g. `{"lead_id": "L123", "city": "Pune", "previously_interested": true}`. The agent skips questions the record answers. `previously_interested` picks the "aapne interest dikhaya tha" opening.
+- **Outcome:** every call logs one `call ended` line (`make logs s=agent`) with the disposition (INTERESTED, NI, NE, CBR, …), the reason, interest strength, the qualification answers, the summary and `do_not_call`. If the driver hangs up before the agent records an outcome, the call is logged as `CDRP`, or as `NOT_CONNECTED` if the driver never spoke.
+
 ## Layout
 
 | Path | What |
