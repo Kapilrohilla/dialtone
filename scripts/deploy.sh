@@ -38,7 +38,7 @@ trap 'rm -f "$bundle"' EXIT
 extra=()
 # knowledge.md holds approved pricing; ship it even if you keep it out of git.
 [[ -f agent/knowledge.md ]] && ! git ls-files --error-unmatch agent/knowledge.md >/dev/null 2>&1 && extra+=(agent/knowledge.md)
-COPYFILE_DISABLE=1 tar czf "$bundle" $(git ls-files | grep -v '^infra/') "${extra[@]}"
+COPYFILE_DISABLE=1 tar czf "$bundle" $(git ls-files | grep -v '^infra/') ${extra[@]+"${extra[@]}"}
 gcloud compute scp "$bundle" "$VM:~/ai-calling-deploy.tgz" --project "$GCP_PROJECT" --zone "$GCP_ZONE" --quiet >/dev/null
 
 ssh_vm "set -euo pipefail

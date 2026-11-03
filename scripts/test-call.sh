@@ -31,7 +31,7 @@ p=()
 [[ -n "$profile" ]] && p=(-p "$profile")
 
 # Any Twilio number on the account works as the caller ID for the leg to your phone.
-from=$(twilio phone-numbers:list "${p[@]}" --properties phoneNumber --no-header | head -1 | xargs)
+from=$(twilio phone-numbers:list ${p[@]+"${p[@]}"} --properties phoneNumber --no-header | head -1 | xargs)
 [[ -n "$from" ]] || { echo "no phone number on this Twilio account" >&2; exit 1; }
 
 # The leg to the agent shows your mobile as caller ID (allowed because it's verified).
@@ -43,5 +43,5 @@ fi
 twiml="<Response><Say>Connecting you to the A I agent.</Say><Dial callerId=\"${mobile}\" timeout=\"30\">${target}</Dial></Response>"
 
 echo "Calling ${mobile} from ${from}; on answer, bridging to ${target}..."
-twilio api:core:calls:create "${p[@]}" --to "$mobile" --from "$from" --twiml "$twiml" \
+twilio api:core:calls:create ${p[@]+"${p[@]}"} --to "$mobile" --from "$from" --twiml "$twiml" \
   --properties sid,status
