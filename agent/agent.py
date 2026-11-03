@@ -4,6 +4,7 @@ Two pipelines, picked with AGENT_PIPELINE:
 - gemini-live (default): Gemini Live speech-to-speech. One model listens, thinks
   and speaks; it handles Hindi and regional languages natively. Needs GOOGLE_API_KEY.
 - sarvam: Sarvam STT -> OpenAI LLM -> Sarvam TTS. Needs SARVAM_API_KEY + OPENAI_API_KEY.
+- elevenlabs: same as sarvam, but ElevenLabs speaks. Also needs ELEVEN_API_KEY.
 
 Lead record: dispatch the agent with JSON metadata, e.g.
   {"lead_id": "L123", "name": "Ramesh", "city": "Pune", "previously_interested": true}
@@ -63,7 +64,7 @@ AMBIENCE_CLIPS = {
 }
 KNOWLEDGE_FILE = Path(__file__).parent / "knowledge.md"
 
-# Languages Sarvam TTS can speak (Gemini Live covers these and more).
+# Languages the agent can switch to on the cascaded pipelines (Gemini Live covers these and more).
 LANGUAGES = {
     "hi-IN": "Hindi",
     "en-IN": "English",
@@ -342,13 +343,16 @@ class SarvamPhoneAgent(PhoneAgent):
         Args:
             language_code: One of hi-IN, en-IN, bn-IN, gu-IN, kn-IN, ml-IN, mr-IN, od-IN, pa-IN, ta-IN, te-IN.
         """
-        from livekit.plugins import sarvam
+        from livekit.plugins import elevenlabs, sarvam
 
         if language_code not in LANGUAGES:
             return f"Unsupported language. Use one of: {', '.join(LANGUAGES)}"
         tts = ctx.session.tts
         if isinstance(tts, sarvam.TTS):
             tts.update_options(target_language_code=language_code)
+        elif isinstance(tts, elevenlabs.TTS):
+            # ElevenLabs takes ISO 639-1 codes: "hi", not "hi-IN".
+            tts.update_options(language=language_code.split("-")[0])
         logger.info("switched language", extra={"language": language_code})
         return f"Now speaking {LANGUAGES[language_code]}."
 
@@ -368,7 +372,29 @@ def gemini_live_session(lead: dict) -> tuple[AgentSession, PhoneAgent]:
     return AgentSession(llm=llm), PhoneAgent(lead)
 
 
-def sarvam_session(proc: JobProcess, lead: dict) -> tuple[AgentSession, PhoneAgent]:
+def sarvam_tts():
+    from livekit.plugins import sarvam
+
+    return sarvam.TTS(
+        target_language_code=DEFAULT_LANGUAGE,
+        model="bulbul:v3",
+        speaker=os.getenv("TTS_SPEAKER", "priya"),
+    )
+
+
+def elevenlabs_tts():
+    from livekit.plugins import elevenlabs
+
+    return elevenlabs.TTS(
+        # Default: Sarah, a premade voice (free plans can't use library voices over the API).
+        voice_id=os.getenv("ELEVENLABS_VOICE_ID", "EXAVITQu4vr4xnSDxMaL"),
+        # Flash is the lowest-latency model and speaks Hindi; eleven_multilingual_v2 sounds richer but lags.
+        model=os.getenv("ELEVENLABS_MODEL", "eleven_flash_v2_5"),
+        language=DEFAULT_LANGUAGE.split("-")[0],
+    )
+
+
+def cascaded_session(proc: JobProcess, lead: dict, tts) -> tuple[AgentSession, PhoneAgent]:
     from livekit.plugins import openai, sarvam
     from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
@@ -377,11 +403,7 @@ def sarvam_session(proc: JobProcess, lead: dict) -> tuple[AgentSession, PhoneAge
         # "unknown" lets Sarvam auto-detect the caller's language.
         stt=sarvam.STT(language="unknown", model="saaras:v4"),
         llm=openai.LLM(model=os.getenv("LLM_MODEL", "gpt-4.1-mini")),
-        tts=sarvam.TTS(
-            target_language_code=DEFAULT_LANGUAGE,
-            model="bulbul:v3",
-            speaker=os.getenv("TTS_SPEAKER", "priya"),
-        ),
+        tts=tts,
         turn_handling={"turn_detection": MultilingualModel()},
     )
     return session, SarvamPhoneAgent(lead)
@@ -389,7 +411,7 @@ def sarvam_session(proc: JobProcess, lead: dict) -> tuple[AgentSession, PhoneAge
 
 def prewarm(proc: JobProcess) -> None:
     # Loaded once per worker process, shared by every call it handles.
-    if PIPELINE == "sarvam":
+    if PIPELINE in ("sarvam", "elevenlabs"):
         proc.userdata["vad"] = silero.VAD.load()
 
 
@@ -422,7 +444,9 @@ async def entrypoint(ctx: JobContext) -> None:
     lead = lead_record(ctx.job.metadata)
 
     if PIPELINE == "sarvam":
-        session, agent = sarvam_session(ctx.proc, lead)
+        session, agent = cascaded_session(ctx.proc, lead, sarvam_tts())
+    elif PIPELINE == "elevenlabs":
+        session, agent = cascaded_session(ctx.proc, lead, elevenlabs_tts())
     elif PIPELINE == "gemini-live":
         session, agent = gemini_live_session(lead)
     else:

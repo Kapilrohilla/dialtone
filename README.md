@@ -5,6 +5,7 @@ Self-hosted inbound voice agent for Indian languages, built on LiveKit.
 You choose how the agent listens and speaks with `AGENT_PIPELINE` in `.env`:
 - **`gemini-live`** (default): Gemini Live speech-to-speech. One model listens, thinks and speaks, handles Hindi and regional languages natively, and needs only `GOOGLE_API_KEY`.
 - **`sarvam`**: Sarvam speech-to-text, then an OpenAI LLM, then Sarvam text-to-speech. Needs `SARVAM_API_KEY` and `OPENAI_API_KEY`.
+- **`elevenlabs`**: like `sarvam`, but ElevenLabs speaks. Also needs `ELEVEN_API_KEY`; pick the voice with `ELEVENLABS_VOICE_ID`. Free ElevenLabs plans only get premade voices over the API and don't allow commercial use.
 
 ```
 Caller ─► SIP provider ─► livekit-sip ─► livekit-server ◄─► agent worker
