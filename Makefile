@@ -1,4 +1,4 @@
-.PHONY: init up down restart agent agent-dev sip logs ps lk tunnel
+.PHONY: init up down restart agent agent-dev sip logs ps lk deploy tunnel
 
 init:            ## create .env and generate LiveKit keys
 	scripts/init.sh
@@ -33,6 +33,9 @@ lk:              ## run the LiveKit CLI, e.g. make lk a="sip inbound list"
 VM ?= ai-calling
 GCP_PROJECT ?= carrum-agent-pilot-dev
 GCP_ZONE ?= asia-south1-c
+
+deploy:          ## from your laptop: ship committed code to the VM and restart (ROLLBACK=1 to undo)
+	scripts/deploy.sh
 
 tunnel:          ## from your laptop: open the VM dashboard at http://localhost:8787
 	@echo "Dashboard: http://localhost:8787  (Ctrl-C to close)"

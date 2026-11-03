@@ -77,6 +77,19 @@ make lk a="room list"
 | Call connects, silence | UDP 10000–20000 blocked, or wrong external IP |
 | Room created, no agent | Agent not running, or `AGENT_NAME` mismatch |
 
+## Deploying changes
+
+From your laptop, after committing:
+
+```bash
+make deploy              # ships HEAD to the VM, rebuilds, waits for the agent to register
+ROLLBACK=1 make deploy   # back to the previous version
+```
+
+- It deploys only committed code. The VM keeps its own `.env` and its Docker volumes (Redis, call history).
+- It refuses to run while a call is in progress, because restarting the agent drops the call (`FORCE=1` overrides).
+- New images are built while the old containers keep serving. Even so, the agent is offline for about 20 s while it restarts.
+
 ## Test call without dialing abroad
 
 If your mobile can't dial the agent's number (e.g. a US number from India), have Twilio ring you and bridge the call:
