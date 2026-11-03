@@ -50,8 +50,17 @@ AGENT_NAME = os.getenv("AGENT_NAME", "phone-agent")
 PIPELINE = os.getenv("AGENT_PIPELINE", "gemini-live")
 DEFAULT_LANGUAGE = os.getenv("DEFAULT_LANGUAGE", "hi-IN")
 PERSONA_NAME = os.getenv("AGENT_PERSONA_NAME", "Priya")
-# office | none. Low office noise makes the line sound like a real call centre.
+# Background sound under the call: office | callcenter | city | none | path to an audio file
+# (relative to this folder, e.g. sounds/my-office.ogg). A real line is never silent.
 AMBIENCE = os.getenv("BACKGROUND_AMBIENCE", "office")
+# Built-in clips are recorded at very different levels (office is ~30x quieter than the
+# crowded room), so each gets its own default gain. These land the noise ~25 dB under
+# the voice: noticeable, never in the way. Override with BACKGROUND_VOLUME.
+AMBIENCE_CLIPS = {
+    "office": (BuiltinAudioClip.OFFICE_AMBIENCE, 3.0),
+    "callcenter": (BuiltinAudioClip.CROWDED_ROOM, 0.08),
+    "city": (BuiltinAudioClip.CITY_AMBIENCE, 0.3),
+}
 KNOWLEDGE_FILE = Path(__file__).parent / "knowledge.md"
 
 # Languages Sarvam TTS can speak (Gemini Live covers these and more).
@@ -384,6 +393,22 @@ def prewarm(proc: JobProcess) -> None:
         proc.userdata["vad"] = silero.VAD.load()
 
 
+def ambient_sound() -> AudioConfig | None:
+    if AMBIENCE == "none":
+        return None
+    if AMBIENCE in AMBIENCE_CLIPS:
+        source, volume = AMBIENCE_CLIPS[AMBIENCE]
+    else:
+        path = Path(AMBIENCE) if Path(AMBIENCE).is_absolute() else Path(__file__).parent / AMBIENCE
+        if not path.is_file():
+            logger.warning("BACKGROUND_AMBIENCE file not found, no background sound", extra={"path": str(path)})
+            return None
+        source, volume = str(path), 1.0
+    volume = float(os.getenv("BACKGROUND_VOLUME") or volume)
+    # Fade in so the noise doesn't start abruptly under the greeting.
+    return AudioConfig(source, volume=volume, fade_in=1.5)
+
+
 server = AgentServer(
     setup_fnc=prewarm,
     num_idle_processes=int(os.getenv("NUM_IDLE_PROCESSES", "3")),
@@ -437,13 +462,13 @@ async def entrypoint(ctx: JobContext) -> None:
     )
 
     # After the greeting is queued, so ambience setup never delays it.
-    if AMBIENCE == "office":
+    if ambient := ambient_sound():
         background = BackgroundAudioPlayer(
-            ambient_sound=AudioConfig(BuiltinAudioClip.OFFICE_AMBIENCE, volume=0.12),
+            ambient_sound=ambient,
             # Typing while the agent "looks something up" (tool calls).
             thinking_sound=[
-                AudioConfig(BuiltinAudioClip.KEYBOARD_TYPING, volume=0.35),
-                AudioConfig(BuiltinAudioClip.KEYBOARD_TYPING2, volume=0.3),
+                AudioConfig(BuiltinAudioClip.KEYBOARD_TYPING, volume=0.5),
+                AudioConfig(BuiltinAudioClip.KEYBOARD_TYPING2, volume=0.45),
             ],
         )
         await background.start(room=ctx.room, agent_session=session)
