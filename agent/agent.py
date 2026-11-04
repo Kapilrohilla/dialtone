@@ -47,9 +47,10 @@ from livekit.agents.metrics import EOUMetrics, LLMMetrics, RealtimeModelMetrics,
 from livekit.plugins import silero
 
 from adapt import apply_mood
+from behavior import BehaviorTracker
 from dead_air import DeadAirConfig, DeadAirWatcher
 from metrics import LatencyStats
-from mood import MoodTracker
+from mood import MoodReading, MoodTracker
 from sentiment import make_classifier
 
 load_dotenv()
@@ -513,11 +514,16 @@ async def entrypoint(ctx: JobContext) -> None:
     classifier = make_classifier(PIPELINE) if MOOD_ENABLED else None
     call_start = time.monotonic()
     last_agent_line = ""
+    behavior = BehaviorTracker()
+    listening_at: float | None = None  # when the agent last started waiting for the caller
+    reply_latency: float | None = None  # how long the caller took to start their current reply
 
     async def classify_turn(agent_line: str, caller_text: str, at_s: float) -> None:
         reading = await classifier.classify(agent_line, caller_text, at_s)
-        if reading is None:
-            return
+        if reading is not None:
+            await handle_reading(reading)
+
+    async def handle_reading(reading: MoodReading) -> None:
         changed = tracker.observe(reading)
         if changed is not None:
             logger.info("mood changed", extra={"mood": changed, "source": reading.source})
@@ -540,24 +546,37 @@ async def entrypoint(ctx: JobContext) -> None:
 
     @session.on("agent_state_changed")
     def _on_agent_state(ev) -> None:
-        nonlocal agent_state
+        nonlocal agent_state, listening_at
         agent_state = ev.new_state
         if ev.new_state == "listening":
-            watcher.agent_listening(time.monotonic())
+            listening_at = time.monotonic()
+            watcher.agent_listening(listening_at)
         elif ev.new_state in ("thinking", "speaking"):
             watcher.agent_busy(time.monotonic())
 
+    @session.on("speech_created")
+    def _on_speech(ev) -> None:
+        if MOOD_ENABLED:
+            ev.speech_handle.add_done_callback(
+                lambda handle: behavior.agent_turn_ended(time.monotonic(), handle.interrupted)
+            )
+
     @session.on("user_state_changed")
     def _on_user_state(ev) -> None:
+        nonlocal listening_at, reply_latency
         if ev.new_state == "speaking":
-            watcher.user_activity(time.monotonic())
+            now = time.monotonic()
+            if listening_at is not None and reply_latency is None:
+                reply_latency = now - listening_at
+            listening_at = None
+            watcher.user_activity(now)
         elif ev.new_state == "listening" and agent_state == "listening":
             # The caller stopped and the agent isn't replying: silence starts counting again.
             watcher.agent_listening(time.monotonic())
 
     @session.on("conversation_item_added")
     def _on_item(ev: ConversationItemAddedEvent) -> None:
-        nonlocal last_agent_line
+        nonlocal last_agent_line, listening_at, reply_latency
         text = getattr(ev.item, "text_content", None)
         if text:
             logger.info("transcript", extra={"role": ev.item.role, "text": text})
@@ -566,9 +585,19 @@ async def entrypoint(ctx: JobContext) -> None:
                 watcher.user_activity(time.monotonic(), text)
                 if agent_state == "listening":
                     watcher.agent_listening(time.monotonic())
+                at_s = time.monotonic() - call_start
                 if classifier is not None:
                     # Runs alongside the call; the result only shapes the next reply.
-                    start_background(classify_turn(last_agent_line, text, time.monotonic() - call_start))
+                    start_background(classify_turn(last_agent_line, text, at_s))
+                if MOOD_ENABLED:
+                    # No speaking-state event (some pipelines): measure up to the transcript instead.
+                    if reply_latency is None and listening_at is not None:
+                        reply_latency = time.monotonic() - listening_at
+                    behavior.user_turn(time.monotonic(), text, reply_latency or 0.0)
+                    reply_latency = None
+                    listening_at = None
+                    if signal := behavior.poll(at_s):
+                        start_background(handle_reading(signal))
             elif ev.item.role == "assistant":
                 last_agent_line = text
 
@@ -589,7 +618,8 @@ async def entrypoint(ctx: JobContext) -> None:
                 "outcome": outcome,
                 "dead_air": watcher.events,
                 "latency": latency.summary(),
-                "mood": tracker.summary() if classifier is not None else None,
+                "mood": tracker.summary() if MOOD_ENABLED else None,
+                "behavior": behavior.features() if MOOD_ENABLED else None,
                 "usage": str(session.usage),
             },
         )
