@@ -44,3 +44,9 @@ def test_elevenlabs_speed_without_settings_uses_defaults():
 
 def test_unknown_tts_is_skipped():
     assert set_tts_speed(object(), 0.9) is False
+
+
+async def test_apply_mood_passes_handoff_flag():
+    agent = FakeAgent()
+    await apply_mood(agent, None, "angry", "BASE", handoff_available=True)
+    assert agent.instructions_set == ["BASE\n\n" + mood_message("angry", handoff_available=True)]

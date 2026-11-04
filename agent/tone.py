@@ -59,12 +59,16 @@ TONE_POLICY: dict[Emotion, ToneDirective] = {
 }
 
 
-def mood_message(emotion: Emotion) -> str:
+HANDOFF_NOTE = "If they agree to speak to a person now, call record_outcome, then transfer_to_telecaller."
+
+
+def mood_message(emotion: Emotion, handoff_available: bool = False) -> str:
     """The system note telling the LLM how to adjust. Each one replaces the previous one."""
     if emotion == "neutral":
         return "[Caller mood: neutral] Talk normally. This replaces any earlier caller-mood note."
-    note = TONE_POLICY[emotion].note
+    directive = TONE_POLICY[emotion]
+    handoff = f" {HANDOFF_NOTE}" if directive.offer_handoff and handoff_available else ""
     return (
-        f"[Caller mood: {emotion}] {note} Never tell the caller you can tell how they feel. "
+        f"[Caller mood: {emotion}] {directive.note}{handoff} Never tell the caller you can tell how they feel. "
         "This replaces any earlier caller-mood note."
     )

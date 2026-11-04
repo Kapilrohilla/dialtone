@@ -19,3 +19,10 @@ def test_neutral_policy_and_message():
     assert mood_message("neutral") == (
         "[Caller mood: neutral] Talk normally. This replaces any earlier caller-mood note."
     )
+
+
+def test_handoff_note_only_when_enabled():
+    assert "transfer_to_telecaller" in mood_message("angry", handoff_available=True)
+    assert "transfer_to_telecaller" not in mood_message("angry", handoff_available=False)
+    # Moods without offer_handoff never mention it.
+    assert "transfer_to_telecaller" not in mood_message("confused", handoff_available=True)

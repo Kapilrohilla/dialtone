@@ -28,7 +28,7 @@ from pathlib import Path
 from typing import Literal
 
 from dotenv import load_dotenv
-from livekit import rtc
+from livekit import api, rtc
 from livekit.agents import (
     Agent,
     AgentServer,
@@ -83,6 +83,8 @@ DEAD_AIR_CONFIG = DeadAirConfig(
 )
 # Caller mood: classify each caller turn and adapt tone and pace. Off until accuracy is checked.
 MOOD_ENABLED = os.getenv("MOOD_ENABLED", "false").lower() == "true"
+# Live transfer to a person (tel:+91… or sip:…) for upset callers who agree to it. Empty = off.
+HANDOFF_SIP_URI = os.getenv("HANDOFF_SIP_URI", "").strip()
 
 DEAD_AIR_PROMPTS = {
     "nudge": "The driver has gone quiet. In one short sentence, gently check if they can hear you, "
@@ -293,6 +295,7 @@ class PhoneAgent(Agent):
         )
         super().__init__(instructions=self.base_instructions)
         self.outcome: dict | None = None
+        self.caller_identity: str | None = None
 
     @function_tool
     async def record_outcome(
@@ -358,6 +361,33 @@ class PhoneAgent(Agent):
             return "Call record_outcome first, then end the call."
         await ctx.wait_for_playout()
         await get_job_context().delete_room()
+
+
+    @function_tool
+    async def transfer_to_telecaller(self, ctx: RunContext) -> str:
+        """Connect the driver to a person on Carrum's telecalling team right now. Use only when the
+        driver agreed to talk to a person now. Call record_outcome first, and tell the driver in one
+        short sentence that you're connecting them before calling this."""
+        if not HANDOFF_SIP_URI:
+            return "Live transfer isn't available. Offer a callback from the telecalling team instead."
+        if self.outcome is None:
+            return "Call record_outcome first."
+        await ctx.wait_for_playout()
+        job = get_job_context()
+        try:
+            await job.api.sip.transfer_sip_participant(
+                api.TransferSIPParticipantRequest(
+                    room_name=job.room.name,
+                    participant_identity=self.caller_identity or "",
+                    transfer_to=HANDOFF_SIP_URI,
+                    play_dialtone=True,
+                )
+            )
+        except Exception:
+            logger.exception("transfer to telecaller failed")
+            return "Transfer failed. Apologise briefly and offer a callback from the telecalling team."
+        logger.info("transferred to telecaller")
+        return "Transferred."
 
 
 class SarvamPhoneAgent(PhoneAgent):
@@ -527,7 +557,9 @@ async def entrypoint(ctx: JobContext) -> None:
         changed = tracker.observe(reading)
         if changed is not None:
             logger.info("mood changed", extra={"mood": changed, "source": reading.source})
-            await apply_mood(agent, session.tts, changed, agent.base_instructions)
+            await apply_mood(
+                agent, session.tts, changed, agent.base_instructions, handoff_available=bool(HANDOFF_SIP_URI)
+            )
 
     def start_background(coro) -> None:
         task = asyncio.create_task(coro)
@@ -630,6 +662,7 @@ async def entrypoint(ctx: JobContext) -> None:
         kind=[rtc.ParticipantKind.PARTICIPANT_KIND_SIP, rtc.ParticipantKind.PARTICIPANT_KIND_STANDARD]
     )
     phone = caller.attributes.get("sip.phoneNumber")
+    agent.caller_identity = caller.identity
     logger.info("call started", extra={"caller": phone, "lead_id": lead.get("lead_id")})
 
     session.generate_reply(
