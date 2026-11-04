@@ -19,9 +19,11 @@ Run locally:   python -m livekit.agents start agent.py --dev
 Run in prod:   python -m livekit.agents start agent.py
 """
 
+import asyncio
 import json
 import logging
 import os
+import time
 from pathlib import Path
 from typing import Literal
 
@@ -43,6 +45,8 @@ from livekit.agents import (
 )
 from livekit.plugins import silero
 
+from dead_air import DeadAirConfig, DeadAirWatcher
+
 load_dotenv()
 
 logger = logging.getLogger("phone-agent")
@@ -63,6 +67,21 @@ AMBIENCE_CLIPS = {
     "city": (BuiltinAudioClip.CITY_AMBIENCE, 0.3),
 }
 KNOWLEDGE_FILE = Path(__file__).parent / "knowledge.md"
+
+# Caller silence: check in, check in again, then hang up politely (seconds of silence).
+DEAD_AIR_ENABLED = os.getenv("DEAD_AIR_ENABLED", "true").lower() == "true"
+DEAD_AIR_CONFIG = DeadAirConfig(
+    nudge_s=float(os.getenv("DEAD_AIR_NUDGE_S") or 4),
+    second_nudge_s=float(os.getenv("DEAD_AIR_SECOND_NUDGE_S") or 9),
+    hang_up_s=float(os.getenv("DEAD_AIR_HANG_UP_S") or 15),
+)
+DEAD_AIR_PROMPTS = {
+    "nudge": "The driver has gone quiet. In one short sentence, gently check if they can hear you, "
+    "e.g. 'Hello sir, aap sun pa rahe hain?'",
+    "second_nudge": "Still no reply. In one short sentence, say the line may be unclear and ask once more "
+    "if they can hear you; say you'll try again later if not.",
+    "hang_up": "Say a brief polite goodbye: you'll try again another time.",
+}
 
 # Languages the agent can switch to on the cascaded pipelines (Gemini Live covers these and more).
 LANGUAGES = {
@@ -431,6 +450,31 @@ def ambient_sound() -> AudioConfig | None:
     return AudioConfig(source, volume=volume, fade_in=1.5)
 
 
+def driver_spoke(session: AgentSession) -> bool:
+    return any(getattr(item, "role", None) == "user" for item in session.history.items)
+
+
+async def watch_dead_air(session: AgentSession, agent: PhoneAgent, watcher: DeadAirWatcher) -> None:
+    """Act on caller silence until the call ends or the agent hangs up."""
+    while True:
+        await asyncio.sleep(0.5)
+        action = watcher.poll(time.monotonic())
+        if action is None:
+            continue
+        logger.info("dead air", extra={"action": action})
+        if action != "hang_up":
+            session.generate_reply(instructions=DEAD_AIR_PROMPTS[action])
+            continue
+        if agent.outcome is None:
+            agent.outcome = {
+                "disposition": "UNRESOLVED" if driver_spoke(session) else "NOT_CONNECTED",
+                "reason": f"caller silent for {watcher.config.hang_up_s:g} s",
+            }
+        await session.generate_reply(instructions=DEAD_AIR_PROMPTS["hang_up"])
+        await get_job_context().delete_room()
+        return
+
+
 server = AgentServer(
     setup_fnc=prewarm,
     num_idle_processes=int(os.getenv("NUM_IDLE_PROCESSES", "3")),
@@ -453,24 +497,56 @@ async def entrypoint(ctx: JobContext) -> None:
         raise ValueError(f"unknown AGENT_PIPELINE {PIPELINE!r}")
 
     phone = None
+    watcher = DeadAirWatcher(DEAD_AIR_CONFIG)
+    background_tasks: set[asyncio.Task] = set()
+    agent_state = "initializing"
+
+    @session.on("agent_state_changed")
+    def _on_agent_state(ev) -> None:
+        nonlocal agent_state
+        agent_state = ev.new_state
+        if ev.new_state == "listening":
+            watcher.agent_listening(time.monotonic())
+        elif ev.new_state in ("thinking", "speaking"):
+            watcher.agent_busy(time.monotonic())
+
+    @session.on("user_state_changed")
+    def _on_user_state(ev) -> None:
+        if ev.new_state == "speaking":
+            watcher.user_activity(time.monotonic())
+        elif ev.new_state == "listening" and agent_state == "listening":
+            # The caller stopped and the agent isn't replying: silence starts counting again.
+            watcher.agent_listening(time.monotonic())
 
     @session.on("conversation_item_added")
     def _on_item(ev: ConversationItemAddedEvent) -> None:
         text = getattr(ev.item, "text_content", None)
         if text:
             logger.info("transcript", extra={"role": ev.item.role, "text": text})
+            if ev.item.role == "user":
+                # Also covers pipelines that don't report the caller's speaking state.
+                watcher.user_activity(time.monotonic(), text)
+                if agent_state == "listening":
+                    watcher.agent_listening(time.monotonic())
 
     @session.on("close")
     def _on_close(_ev) -> None:
+        for task in background_tasks:
+            task.cancel()
         # Hung up before the agent recorded anything: dropped if the driver spoke, else never connected.
-        driver_spoke = any(getattr(item, "role", None) == "user" for item in session.history.items)
         outcome = agent.outcome or {
-            "disposition": "CDRP" if driver_spoke else "NOT_CONNECTED",
+            "disposition": "CDRP" if driver_spoke(session) else "NOT_CONNECTED",
             "reason": "call ended before an outcome was recorded",
         }
         logger.info(
             "call ended",
-            extra={"phone": phone, "lead": lead, "outcome": outcome, "usage": str(session.usage)},
+            extra={
+                "phone": phone,
+                "lead": lead,
+                "outcome": outcome,
+                "dead_air": watcher.events,
+                "usage": str(session.usage),
+            },
         )
 
     await session.start(agent=agent, room=ctx.room)
@@ -484,6 +560,9 @@ async def entrypoint(ctx: JobContext) -> None:
     session.generate_reply(
         instructions=f"Open the call by saying this, close to word for word: {opening_line(lead)}"
     )
+
+    if DEAD_AIR_ENABLED:
+        background_tasks.add(asyncio.create_task(watch_dead_air(session, agent, watcher)))
 
     # After the greeting is queued, so ambience setup never delays it.
     if ambient := ambient_sound():

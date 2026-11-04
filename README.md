@@ -20,7 +20,8 @@ It's Carrum Mobility's AI calling assistant for driver-partner leads. It speaks 
 
 - **Approved pricing and rules:** put city-wise deposits, fees, offers, plan-routing and VDC/WTHINK rules in `agent/knowledge.md`, then run `make agent`. The agent quotes only what's in that file. Without it, the agent quotes no figures and refers those questions to the telecalling team.
 - **Lead record (optional):** dispatch the agent with JSON metadata, e.g. `{"lead_id": "L123", "city": "Pune", "previously_interested": true}`. The agent skips questions the record answers. `previously_interested` picks the "aapne interest dikhaya tha" opening.
-- **Outcome:** every call logs one `call ended` line (`make logs s=agent`) with the disposition (INTERESTED, NI, NE, CBR, …), the reason, interest strength, the qualification answers, the summary and `do_not_call`. If the driver hangs up before the agent records an outcome, the call is logged as `CDRP`, or as `NOT_CONNECTED` if the driver never spoke.
+- **Dead air:** if the driver goes quiet, the agent checks in after 4 s and again after 9 s, then says goodbye and hangs up at 15 s, logged as `UNRESOLVED` (or `NOT_CONNECTED` if they never spoke). The agent's own speech doesn't restart the count; the driver speaking does. "Ek minute", "ruko" or "wait" triples the timings for that pause. Tune or turn off with the `DEAD_AIR_*` settings.
+- **Outcome:** every call logs one `call ended` line (`make logs s=agent`) with the disposition (INTERESTED, NI, NE, CBR, …), the reason, interest strength, the qualification answers, the summary, `do_not_call` and any dead-air check-ins. If the driver hangs up before the agent records an outcome, the call is logged as `CDRP`, or as `NOT_CONNECTED` if the driver never spoke.
 
 ## Layout
 
