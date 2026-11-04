@@ -1,13 +1,14 @@
 from datetime import datetime
 
-from django.db import models
+from django.db import models, transaction
+
+from .evaluation import EMOTIONS, UNCLEAR, align_predictions
 
 DATETIME_FIELDS = ("started_at", "answered_at", "ended_at", "agent_joined_at")
 TEXT_FIELDS = ("caller", "called", "sip_call_id", "end_reason")
 REPORT_FIELDS = ("disposition", "final_mood", "worst_mood", "avg_sentiment", "dead_air_nudges", "llm_ttft_p50_ms")
 
-# Copied from agent/mood.py (Emotion); the dashboard must not import the agent.
-EMOTIONS = ("neutral", "interested", "confused", "frustrated", "rushed", "suspicious", "angry", "disengaged")
+LABEL_CHOICES = [(e, e) for e in EMOTIONS] + [(UNCLEAR, UNCLEAR)]
 
 
 class Call(models.Model):
@@ -87,6 +88,7 @@ class CallReport(models.Model):
         return f"report for {self.call.room}"
 
     @classmethod
+    @transaction.atomic
     def store(cls, report: dict) -> "CallReport":
         """Save a report; it may arrive before the room's webhooks, and a later report replaces an earlier one."""
         call = Call.record_first(report["room"])
@@ -105,4 +107,31 @@ class CallReport(models.Model):
                 "data": report,
             },
         )
+        turns = report.get("turns")
+        if isinstance(turns, list):
+            timeline = [r for r in report.get("timeline") or [] if isinstance(r, dict)]
+            for row in align_predictions([t for t in turns if isinstance(t, dict)], timeline):
+                # update_or_create leaves `label` alone, so telecaller labels survive a re-store.
+                TurnLabel.objects.update_or_create(
+                    report=obj,
+                    at_s=row["at_s"],
+                    defaults={"caller_text": row["caller_text"], "predicted": row["predicted"]},
+                )
         return obj
+
+
+class TurnLabel(models.Model):
+    """One caller turn with the agent's mood reading, for a telecaller to label."""
+
+    report = models.ForeignKey(CallReport, on_delete=models.CASCADE, related_name="turns")
+    at_s = models.FloatField()
+    caller_text = models.TextField()
+    predicted = models.CharField(max_length=32)
+    label = models.CharField(max_length=32, blank=True, choices=LABEL_CHOICES)
+
+    class Meta:
+        unique_together = ("report", "at_s")
+        ordering = ["report", "at_s"]
+
+    def __str__(self) -> str:
+        return f"{self.report.call.room} @ {self.at_s:.1f}s"

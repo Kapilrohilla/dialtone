@@ -113,6 +113,7 @@ On a Twilio **trial** account:
 - call history, recorded from LiveKit webhooks into SQLite
 - today's stats
 - the configured trunks and dispatch rules
+- per-call mood reports from the agent: outcome, final mood (worst mood on hover) and dead-air nudges; click a row for the mood readings over the call, latency p50s and dead-air events
 
 It listens on the VM's localhost only, because it shows caller phone numbers, and every page needs a login. From your laptop, run:
 
@@ -134,6 +135,34 @@ docker compose exec dashboard python manage.py import_legacy_calls --path /data/
 The import copies the history recorded by the old dashboard. Running it again creates no duplicates. "Calls today" counts from midnight India time (it used to be UTC).
 
 Run the tests locally with `make test` (needs `dashboard/.venv` with `dashboard/requirements-dev.txt`).
+
+The agent POSTs its report to `/api/report` when a call ends, if `DASHBOARD_REPORT_URL` is set (on the VM: `http://127.0.0.1:8787/api/report`). The request carries a LiveKit-signed token with identity `agent-report` instead of a login. A report may arrive before LiveKit's `room_finished` webhook, and a later report for the same room replaces the earlier one. `/admin/` filters calls by final mood and outcome and shows each full report.
+
+## Evaluating caller mood
+
+Keep `MOOD_ENABLED=false` until telecaller labels show the mood readings are good enough.
+
+1. Set `MOOD_ENABLED=true MOOD_EVAL_CAPTURE=true` for one week of real calls. Reports then include the caller's turns, and each caller turn becomes a row to label.
+2. Create telecaller accounts in `/admin/auth/user/` with **Staff status** on and only the `calls | turn label` "Can view" and "Can change" permissions.
+3. Telecallers label 300 or more turns in `/admin/calls/turnlabel/`. Pick the mood from the dropdown in the list and press Save at the bottom of the page. Use `unclear` when you can't tell; those turns are not scored.
+4. Score them:
+
+   ```bash
+   docker compose exec dashboard python manage.py mood_eval              # all labels
+   docker compose exec dashboard python manage.py mood_eval --since 2026-11-10
+   ```
+
+   It prints accuracy, precision/recall per mood, a confusion matrix and a PASS/FAIL line.
+
+**Go-live gate:** precision of at least 0.7 for `angry`, `frustrated` and `confused`. Below that, tighten `CLASSIFIER_PROMPT` and re-score, or keep `MOOD_ENABLED=false`.
+
+Afterwards, set `MOOD_EVAL_CAPTURE=false` and delete the captured speech, because the turns hold what callers said:
+
+```bash
+docker compose exec dashboard python manage.py purge_turns
+```
+
+Also compare the CDRP and NI rates for calls with mood on and off, using the admin's outcome and mood filters.
 
 ## Scale (phase 2: ~50 concurrent calls)
 

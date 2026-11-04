@@ -3,7 +3,7 @@ import json
 from django.contrib import admin
 from django.utils.html import format_html
 
-from .models import Call, CallReport
+from .models import Call, CallReport, TurnLabel
 
 
 class CallReportInline(admin.StackedInline):
@@ -39,3 +39,15 @@ class CallAdmin(admin.ModelAdmin):
     @admin.display(ordering="report__final_mood")
     def final_mood(self, obj):
         return getattr(getattr(obj, "report", None), "final_mood", "") or "–"
+
+
+@admin.register(TurnLabel)
+class TurnLabelAdmin(admin.ModelAdmin):
+    """Telecallers label caller turns straight in the list view."""
+
+    list_display = ("caller_text", "predicted", "label")
+    list_display_links = None
+    list_editable = ("label",)
+    list_filter = ("predicted", "label")
+    list_per_page = 50
+    search_fields = ("caller_text",)
