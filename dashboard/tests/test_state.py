@@ -13,6 +13,8 @@ LEGACY_KEYS = {
     "room", "started_at", "answered_at", "ended_at", "caller", "called",
     "sip_call_id", "agent_joined_at", "end_reason",
 }
+# Added by the per-call report (Task 11); None when a call has no report.
+REPORT_KEYS = {"disposition", "final_mood", "worst_mood", "avg_sentiment", "dead_air_nudges", "llm_ttft_p50_ms"}
 
 
 @pytest.fixture
@@ -65,7 +67,7 @@ def test_state_shape_when_livekit_down(monkeypatch, staff_client):
     assert data["live"] == [] and data["trunks"] == [] and data["rules"] == []
 
     assert [c["room"] for c in data["recent"]] == ["late", "early", "yesterday"]
-    assert set(data["recent"][0]) == LEGACY_KEYS
+    assert set(data["recent"][0]) == LEGACY_KEYS | REPORT_KEYS
     assert data["recent"][1]["started_at"] == int((midnight + timedelta(seconds=10)).timestamp())
 
     assert data["today"]["total"] == 2
