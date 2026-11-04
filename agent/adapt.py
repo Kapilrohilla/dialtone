@@ -31,6 +31,12 @@ async def apply_mood(
         set_tts_speed(tts, TONE_POLICY[emotion].tts_speed)
 
 
+def sends_mood_notes(pipeline: str) -> bool:
+    """Gemini Live gets the tone guide up front instead: each instruction update there adds the
+    whole prompt to the conversation as a model turn, so mid-call notes would pile up."""
+    return pipeline != "gemini-live"
+
+
 def set_tts_speed(tts, speed: float) -> bool:
     """Set the speaking pace on TTS engines that support it. Returns False for any other engine."""
     if isinstance(tts, sarvam.TTS):

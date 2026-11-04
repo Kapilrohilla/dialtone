@@ -46,13 +46,14 @@ from livekit.agents import (
 from livekit.agents.metrics import EOUMetrics, LLMMetrics, RealtimeModelMetrics, TTSMetrics
 from livekit.plugins import silero
 
-from adapt import apply_mood
+from adapt import apply_mood, sends_mood_notes
 from behavior import BehaviorTracker
 from dead_air import DeadAirConfig, DeadAirWatcher
 from metrics import LatencyStats
 from mood import MoodReading, MoodTracker
 from report import build_report, send_report
 from sentiment import make_classifier
+from tone import tone_guide
 
 load_dotenv()
 
@@ -432,7 +433,11 @@ def gemini_live_session(lead: dict) -> tuple[AgentSession, PhoneAgent]:
         enable_affective_dialog=os.getenv("GEMINI_AFFECTIVE_DIALOG", "false").lower() == "true",
     )
     # Gemini does its own turn detection; no local VAD/STT/TTS needed.
-    return AgentSession(llm=llm), PhoneAgent(lead)
+    rules = GEMINI_LANGUAGE_RULES
+    if MOOD_ENABLED:
+        # Gemini hears the caller's tone itself; it gets the guide once instead of mid-call notes.
+        rules += "\n\n" + tone_guide(handoff_available=bool(HANDOFF_SIP_URI))
+    return AgentSession(llm=llm), PhoneAgent(lead, language_rules=rules)
 
 
 def sarvam_tts():
@@ -563,6 +568,8 @@ async def entrypoint(ctx: JobContext) -> None:
         changed = tracker.observe(reading)
         if changed is not None:
             logger.info("mood changed", extra={"mood": changed, "source": reading.source})
+            if not sends_mood_notes(PIPELINE):
+                return
             await apply_mood(
                 agent, session.tts, changed, agent.base_instructions, handoff_available=bool(HANDOFF_SIP_URI)
             )

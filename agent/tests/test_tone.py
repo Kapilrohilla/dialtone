@@ -26,3 +26,15 @@ def test_handoff_note_only_when_enabled():
     assert "transfer_to_telecaller" not in mood_message("angry", handoff_available=False)
     # Moods without offer_handoff never mention it.
     assert "transfer_to_telecaller" not in mood_message("confused", handoff_available=True)
+
+
+def test_tone_guide_covers_every_mood_once():
+    from tone import tone_guide
+
+    guide = tone_guide()
+    for e in get_args(Emotion):
+        if e != "neutral":
+            assert TONE_POLICY[e].note in guide
+    assert "Never tell the caller" in guide
+    assert "transfer_to_telecaller" not in guide
+    assert "transfer_to_telecaller" in tone_guide(handoff_available=True)

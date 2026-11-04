@@ -72,3 +72,16 @@ def mood_message(emotion: Emotion, handoff_available: bool = False) -> str:
         f"[Caller mood: {emotion}] {directive.note}{handoff} Never tell the caller you can tell how they feel. "
         "This replaces any earlier caller-mood note."
     )
+
+
+def tone_guide(handoff_available: bool = False) -> str:
+    """The whole tone policy as one block for the starting instructions, for models that hear the
+    caller's voice themselves (Gemini Live) and so get no mid-call mood notes."""
+    lines = ["Adapting to the caller: listen to how they sound as well as what they say."]
+    for emotion, directive in TONE_POLICY.items():
+        if emotion == "neutral":
+            continue
+        handoff = f" {HANDOFF_NOTE}" if directive.offer_handoff and handoff_available else ""
+        lines.append(f"- {emotion}: {directive.note}{handoff}")
+    lines.append("Never tell the caller you can tell how they feel. Otherwise, talk normally.")
+    return "\n".join(lines)

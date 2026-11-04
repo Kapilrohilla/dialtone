@@ -50,3 +50,11 @@ async def test_apply_mood_passes_handoff_flag():
     agent = FakeAgent()
     await apply_mood(agent, None, "angry", "BASE", handoff_available=True)
     assert agent.instructions_set == ["BASE\n\n" + mood_message("angry", handoff_available=True)]
+
+
+def test_mood_notes_only_on_cascaded_pipelines():
+    from adapt import sends_mood_notes
+
+    assert sends_mood_notes("gemini-live") is False
+    assert sends_mood_notes("sarvam") is True
+    assert sends_mood_notes("elevenlabs") is True
