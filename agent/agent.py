@@ -46,8 +46,11 @@ from livekit.agents import (
 from livekit.agents.metrics import EOUMetrics, LLMMetrics, RealtimeModelMetrics, TTSMetrics
 from livekit.plugins import silero
 
+from adapt import apply_mood
 from dead_air import DeadAirConfig, DeadAirWatcher
 from metrics import LatencyStats
+from mood import MoodTracker
+from sentiment import make_classifier
 
 load_dotenv()
 
@@ -77,6 +80,9 @@ DEAD_AIR_CONFIG = DeadAirConfig(
     second_nudge_s=float(os.getenv("DEAD_AIR_SECOND_NUDGE_S") or 9),
     hang_up_s=float(os.getenv("DEAD_AIR_HANG_UP_S") or 15),
 )
+# Caller mood: classify each caller turn and adapt tone and pace. Off until accuracy is checked.
+MOOD_ENABLED = os.getenv("MOOD_ENABLED", "false").lower() == "true"
+
 DEAD_AIR_PROMPTS = {
     "nudge": "The driver has gone quiet. In one short sentence, gently check if they can hear you, "
     "e.g. 'Hello sir, aap sun pa rahe hain?'",
@@ -280,11 +286,11 @@ def opening_line(lead: dict) -> str:
 
 class PhoneAgent(Agent):
     def __init__(self, lead: dict, language_rules: str = GEMINI_LANGUAGE_RULES) -> None:
-        super().__init__(
-            instructions="\n\n".join(
-                [BASE_INSTRUCTIONS, language_rules, APPROVED_INFO, lead_instructions(lead)]
-            )
+        # Kept so a caller-mood note can be swapped in and out without losing the base prompt.
+        self.base_instructions = "\n\n".join(
+            [BASE_INSTRUCTIONS, language_rules, APPROVED_INFO, lead_instructions(lead)]
         )
+        super().__init__(instructions=self.base_instructions)
         self.outcome: dict | None = None
 
     @function_tool
@@ -503,6 +509,24 @@ async def entrypoint(ctx: JobContext) -> None:
     background_tasks: set[asyncio.Task] = set()
     agent_state = "initializing"
     latency = LatencyStats()
+    tracker = MoodTracker()
+    classifier = make_classifier(PIPELINE) if MOOD_ENABLED else None
+    call_start = time.monotonic()
+    last_agent_line = ""
+
+    async def classify_turn(agent_line: str, caller_text: str, at_s: float) -> None:
+        reading = await classifier.classify(agent_line, caller_text, at_s)
+        if reading is None:
+            return
+        changed = tracker.observe(reading)
+        if changed is not None:
+            logger.info("mood changed", extra={"mood": changed, "source": reading.source})
+            await apply_mood(agent, session.tts, changed, agent.base_instructions)
+
+    def start_background(coro) -> None:
+        task = asyncio.create_task(coro)
+        background_tasks.add(task)
+        task.add_done_callback(background_tasks.discard)
 
     @session.on("metrics_collected")
     def _on_metrics(ev) -> None:
@@ -533,6 +557,7 @@ async def entrypoint(ctx: JobContext) -> None:
 
     @session.on("conversation_item_added")
     def _on_item(ev: ConversationItemAddedEvent) -> None:
+        nonlocal last_agent_line
         text = getattr(ev.item, "text_content", None)
         if text:
             logger.info("transcript", extra={"role": ev.item.role, "text": text})
@@ -541,10 +566,15 @@ async def entrypoint(ctx: JobContext) -> None:
                 watcher.user_activity(time.monotonic(), text)
                 if agent_state == "listening":
                     watcher.agent_listening(time.monotonic())
+                if classifier is not None:
+                    # Runs alongside the call; the result only shapes the next reply.
+                    start_background(classify_turn(last_agent_line, text, time.monotonic() - call_start))
+            elif ev.item.role == "assistant":
+                last_agent_line = text
 
     @session.on("close")
     def _on_close(_ev) -> None:
-        for task in background_tasks:
+        for task in list(background_tasks):
             task.cancel()
         # Hung up before the agent recorded anything: dropped if the driver spoke, else never connected.
         outcome = agent.outcome or {
@@ -559,6 +589,7 @@ async def entrypoint(ctx: JobContext) -> None:
                 "outcome": outcome,
                 "dead_air": watcher.events,
                 "latency": latency.summary(),
+                "mood": tracker.summary() if classifier is not None else None,
                 "usage": str(session.usage),
             },
         )
@@ -576,7 +607,7 @@ async def entrypoint(ctx: JobContext) -> None:
     )
 
     if DEAD_AIR_ENABLED:
-        background_tasks.add(asyncio.create_task(watch_dead_air(session, agent, watcher)))
+        start_background(watch_dead_air(session, agent, watcher))
 
     # After the greeting is queued, so ambience setup never delays it.
     if ambient := ambient_sound():
