@@ -22,7 +22,11 @@ set_if_empty() {
 set_if_empty LIVEKIT_API_KEY "API$(openssl rand -hex 6)"
 set_if_empty LIVEKIT_API_SECRET "$(openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 48)"
 # Older .env files predate the Django dashboard; add the key so it gets generated.
-grep -qE "^DJANGO_SECRET_KEY=" .env || echo "DJANGO_SECRET_KEY=" >> .env
+if ! grep -qE "^DJANGO_SECRET_KEY=" .env; then
+  # Start on a new line even if the file doesn't end with one.
+  [[ -s .env && $(tail -c1 .env) != "" ]] && echo >> .env
+  echo "DJANGO_SECRET_KEY=" >> .env
+fi
 set_if_empty DJANGO_SECRET_KEY "$(openssl rand -base64 64 | tr -dc 'A-Za-z0-9' | head -c 50)"
 
 pipeline=$(grep -E "^AGENT_PIPELINE=" .env | cut -d= -f2- || true)

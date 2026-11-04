@@ -54,6 +54,10 @@ tar xzf ai-calling-deploy.tgz -C ai-calling.new 2>/dev/null && rm ai-calling-dep
 echo ${commit} > ai-calling.new/DEPLOYED_COMMIT
 # Carry over VM-only state: secrets and generated SIP config.
 cp ai-calling/.env ai-calling.new/.env
+# Fill in settings newer code needs (e.g. DJANGO_SECRET_KEY); never overwrites existing values.
+(cd ai-calling.new && scripts/init.sh >/dev/null)
+grep -qE '^DJANGO_SECRET_KEY=.+' ai-calling.new/.env || { echo 'DJANGO_SECRET_KEY missing from .env; not deploying.'; exit 1; }
+cp ai-calling.new/.env ai-calling/.env
 [ -d ai-calling/sip/generated ] && cp -r ai-calling/sip/generated ai-calling.new/sip/ || true
 
 # Build new images while the old containers keep serving calls.
