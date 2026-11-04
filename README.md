@@ -111,11 +111,26 @@ On a Twilio **trial** account:
 - today's stats
 - the configured trunks and dispatch rules
 
-It listens on the VM's localhost only, because it shows caller phone numbers. From your laptop, run:
+It listens on the VM's localhost only, because it shows caller phone numbers, and every page needs a login. From your laptop, run:
 
 ```bash
-make tunnel      # then open http://localhost:8787
+make tunnel      # then open http://localhost:8787 and log in
 ```
+
+The dashboard is a Django app (`dashboard/`). Call history lives in `/data/dashboard.sqlite3` in the `dashboard-data` volume, and `/admin/` lists and searches all calls.
+
+After the first deploy of the Django dashboard, run these once on the VM:
+
+```bash
+scripts/init.sh                 # adds DJANGO_SECRET_KEY to an older .env
+docker compose up -d dashboard  # restart it with the new key
+make dashboard-admin            # create your login
+docker compose exec dashboard python manage.py import_legacy_calls --path /data/calls.db
+```
+
+The import copies the history recorded by the old dashboard. Running it again creates no duplicates. "Calls today" counts from midnight India time (it used to be UTC).
+
+Run the tests locally with `make test` (needs `dashboard/.venv` with `dashboard/requirements-dev.txt`).
 
 ## Scale (phase 2: ~50 concurrent calls)
 

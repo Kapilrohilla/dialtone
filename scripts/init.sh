@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Creates .env from .env.example and generates a LiveKit API key/secret.
+# Creates .env from .env.example and generates a LiveKit API key/secret and Django secret key.
 # Safe to re-run: never overwrites existing values.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -21,6 +21,9 @@ set_if_empty() {
 
 set_if_empty LIVEKIT_API_KEY "API$(openssl rand -hex 6)"
 set_if_empty LIVEKIT_API_SECRET "$(openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 48)"
+# Older .env files predate the Django dashboard; add the key so it gets generated.
+grep -qE "^DJANGO_SECRET_KEY=" .env || echo "DJANGO_SECRET_KEY=" >> .env
+set_if_empty DJANGO_SECRET_KEY "$(openssl rand -base64 64 | tr -dc 'A-Za-z0-9' | head -c 50)"
 
 pipeline=$(grep -E "^AGENT_PIPELINE=" .env | cut -d= -f2- || true)
 case "${pipeline:-gemini-live}" in
