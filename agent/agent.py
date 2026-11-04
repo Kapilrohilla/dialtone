@@ -51,6 +51,7 @@ from behavior import BehaviorTracker
 from dead_air import DeadAirConfig, DeadAirWatcher
 from metrics import LatencyStats
 from mood import MoodReading, MoodTracker
+from report import build_report, send_report
 from sentiment import make_classifier
 
 load_dotenv()
@@ -85,6 +86,10 @@ DEAD_AIR_CONFIG = DeadAirConfig(
 MOOD_ENABLED = os.getenv("MOOD_ENABLED", "false").lower() == "true"
 # Live transfer to a person (tel:+91… or sip:…) for upset callers who agree to it. Empty = off.
 HANDOFF_SIP_URI = os.getenv("HANDOFF_SIP_URI", "").strip()
+# Per-call report to the dashboard (on the media VM: http://127.0.0.1:8787/api/report). Empty = off.
+DASHBOARD_REPORT_URL = os.getenv("DASHBOARD_REPORT_URL", "").strip()
+# Include caller/agent turn text in reports, for labelling mood accuracy. Turn off afterwards.
+MOOD_EVAL_CAPTURE = os.getenv("MOOD_EVAL_CAPTURE", "false").lower() == "true"
 
 DEAD_AIR_PROMPTS = {
     "nudge": "The driver has gone quiet. In one short sentence, gently check if they can hear you, "
@@ -543,6 +548,7 @@ async def entrypoint(ctx: JobContext) -> None:
     tracker = MoodTracker()
     classifier = make_classifier(PIPELINE) if MOOD_ENABLED else None
     call_start = time.monotonic()
+    call_start_wall = time.time()
     last_agent_line = ""
     behavior = BehaviorTracker()
     listening_at: float | None = None  # when the agent last started waiting for the caller
@@ -633,15 +639,18 @@ async def entrypoint(ctx: JobContext) -> None:
             elif ev.item.role == "assistant":
                 last_agent_line = text
 
+    def final_outcome() -> dict:
+        # Hung up before the agent recorded anything: dropped if the driver spoke, else never connected.
+        return agent.outcome or {
+            "disposition": "CDRP" if driver_spoke(session) else "NOT_CONNECTED",
+            "reason": "call ended before an outcome was recorded",
+        }
+
     @session.on("close")
     def _on_close(_ev) -> None:
         for task in list(background_tasks):
             task.cancel()
-        # Hung up before the agent recorded anything: dropped if the driver spoke, else never connected.
-        outcome = agent.outcome or {
-            "disposition": "CDRP" if driver_spoke(session) else "NOT_CONNECTED",
-            "reason": "call ended before an outcome was recorded",
-        }
+        outcome = final_outcome()
         logger.info(
             "call ended",
             extra={
@@ -655,6 +664,37 @@ async def entrypoint(ctx: JobContext) -> None:
                 "usage": str(session.usage),
             },
         )
+
+    async def send_call_report() -> None:
+        # Shutdown callbacks are awaited, so the report goes out before the job process exits.
+        if not DASHBOARD_REPORT_URL:
+            return
+        turns = None
+        if MOOD_EVAL_CAPTURE:
+            turns = [
+                {
+                    "role": item.role,
+                    "text": item.text_content,
+                    "at_s": round(max(0.0, getattr(item, "created_at", call_start_wall) - call_start_wall), 2),
+                }
+                for item in session.history.items
+                if getattr(item, "role", None) in ("user", "assistant") and getattr(item, "text_content", None)
+            ]
+        report = build_report(
+            room=ctx.room.name,
+            outcome=final_outcome(),
+            mood=tracker.summary() if MOOD_ENABLED else None,
+            timeline=tracker.timeline,
+            dead_air=watcher.events,
+            latency=latency.summary(),
+            behavior=behavior.features() if MOOD_ENABLED else None,
+            turns=turns,
+        )
+        await send_report(
+            DASHBOARD_REPORT_URL, report, os.environ["LIVEKIT_API_KEY"], os.environ["LIVEKIT_API_SECRET"]
+        )
+
+    ctx.add_shutdown_callback(send_call_report)
 
     await session.start(agent=agent, room=ctx.room)
 
