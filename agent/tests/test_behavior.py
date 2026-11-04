@@ -50,3 +50,10 @@ def test_features():
         "median_reply_latency_s": 2.0,
         "median_reply_words": 3,
     }
+
+
+def test_reply_latency_not_trusted_on_gemini():
+    from behavior import reply_latency_reliable
+
+    assert reply_latency_reliable("gemini-live") is False
+    assert reply_latency_reliable("sarvam") is True

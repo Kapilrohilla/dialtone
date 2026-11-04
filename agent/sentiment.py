@@ -38,9 +38,10 @@ Labels:
 - rushed: short on time, busy, wants it quick or later.
 - suspicious: wary, doubts the call is genuine, worried about documents or money.
 - angry: hostile, shouting, abusive, or demands not to be called.
-- disengaged: barely paying attention, one-word replies, not involved.
+- disengaged: distracted or not following: off-topic replies, talking to someone else, "hmm" without answering.
 
 A plain "no" or "nahi" is neutral unless the wording shows irritation.
+Short direct answers to the question asked ("Pune", "haan ji", "nahi hai") are neutral, not disengaged.
 """
 
 

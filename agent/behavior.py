@@ -15,6 +15,12 @@ DISENGAGED_MIN_LATENCY_S = 2.5
 BEHAVIOR_CONFIDENCE = 0.7
 
 
+def reply_latency_reliable(pipeline: str) -> bool:
+    """On Gemini Live the caller's speaking state arrives when the reply starts generating, so the
+    measured latency includes the caller's own speech; it can't drive the disengaged rule there."""
+    return pipeline != "gemini-live"
+
+
 class BehaviorTracker:
     def __init__(self) -> None:
         self._interrupted: list[bool] = []

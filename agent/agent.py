@@ -47,7 +47,7 @@ from livekit.agents.metrics import EOUMetrics, LLMMetrics, RealtimeModelMetrics,
 from livekit.plugins import silero
 
 from adapt import apply_mood, sends_mood_notes
-from behavior import BehaviorTracker
+from behavior import BehaviorTracker, reply_latency_reliable
 from dead_air import DeadAirConfig, DeadAirWatcher
 from metrics import LatencyStats
 from mood import MoodReading, MoodTracker
@@ -638,7 +638,8 @@ async def entrypoint(ctx: JobContext) -> None:
                     # No speaking-state event (some pipelines): measure up to the transcript instead.
                     if reply_latency is None and listening_at is not None:
                         reply_latency = time.monotonic() - listening_at
-                    behavior.user_turn(time.monotonic(), text, reply_latency or 0.0)
+                    latency_s = (reply_latency or 0.0) if reply_latency_reliable(PIPELINE) else 0.0
+                    behavior.user_turn(time.monotonic(), text, latency_s)
                     reply_latency = None
                     listening_at = None
                     if signal := behavior.poll(at_s):

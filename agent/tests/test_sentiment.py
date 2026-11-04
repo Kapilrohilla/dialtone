@@ -57,3 +57,10 @@ async def test_classify_passes_context():
     _, user = seen[0]
     assert "Kya aap gaadi chalate hain?" in user
     assert "haan ji, batao" in user
+
+
+def test_short_answers_are_not_disengaged():
+    from sentiment import CLASSIFIER_PROMPT
+
+    assert "one-word" not in CLASSIFIER_PROMPT
+    assert "Short direct answers" in CLASSIFIER_PROMPT
