@@ -25,6 +25,11 @@
   h1 { font-size: 20px; margin: 0; letter-spacing: -0.01em; }
   h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 28px 0 10px; font-weight: 600; }
   .status { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+  .actions { display: inline-flex; align-items: center; gap: 16px; }
+  .logout { margin: 0; }
+  .logout button { background: none; border: 1px solid var(--line); border-radius: 6px; color: var(--muted);
+                   font: inherit; font-size: 13px; padding: 3px 10px; cursor: pointer; }
+  .logout button:hover { color: var(--text); }
   .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
   .dot.ok { background: var(--ok); box-shadow: 0 0 0 3px var(--ok-bg); }
   .dot.bad { background: var(--bad); box-shadow: 0 0 0 3px var(--bad-bg); }
@@ -68,14 +73,17 @@
 <main>
   <header>
     <h1>AI Calling</h1>
-    <span class="status"><span id="dot" class="dot"></span><span id="status">Connecting…</span></span>
+    <span class="actions">
+      <span class="status"><span id="dot" class="dot"></span><span id="status">Connecting…</span></span>
+      <form method="post" action="/admin/logout/" class="logout">{% csrf_token %}<button type="submit">Log out</button></form>
+    </span>
   </header>
 
   <div id="error" class="error"></div>
 
   <section class="stats">
     <div class="stat"><div class="label">Live calls</div><div class="value" id="s-live">–</div></div>
-    <div class="stat"><div class="label">Calls today (UTC)</div><div class="value" id="s-today">–</div></div>
+    <div class="stat"><div class="label">Calls today (IST)</div><div class="value" id="s-today">–</div></div>
     <div class="stat"><div class="label">Answered by agent</div><div class="value" id="s-answered">–</div></div>
     <div class="stat"><div class="label">Avg duration</div><div class="value" id="s-avg">–</div></div>
   </section>

@@ -1,0 +1,7 @@
+.venv/
+staticfiles/
+tests/
+__pycache__/
+*.pyc
+*.sqlite3
+.pytest_cache/
