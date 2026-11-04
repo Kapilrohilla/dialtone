@@ -1,3 +1,4 @@
+import json
 import logging
 import time
 from datetime import datetime, timezone
@@ -7,7 +8,7 @@ from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ImproperlyConfigured
 from django.http import HttpResponse, JsonResponse
-from django.shortcuts import render
+from django.shortcuts import get_object_or_404, render
 from django.utils import timezone as djtz
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
@@ -15,7 +16,7 @@ from livekit import api
 from livekit.protocol.models import ParticipantInfo
 
 from .livekit_state import fetch_livekit_state
-from .models import Call
+from .models import Call, CallReport
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,8 @@ if not (settings.LIVEKIT_API_KEY and settings.LIVEKIT_API_SECRET):
     raise ImproperlyConfigured("LIVEKIT_API_KEY and LIVEKIT_API_SECRET must be set")
 
 receiver = api.WebhookReceiver(api.TokenVerifier(settings.LIVEKIT_API_KEY, settings.LIVEKIT_API_SECRET))
+report_verifier = api.TokenVerifier(settings.LIVEKIT_API_KEY, settings.LIVEKIT_API_SECRET)
+REPORT_IDENTITY = "agent-report"
 
 
 def _dt(epoch: int) -> datetime:
@@ -73,7 +76,7 @@ def webhook(request):
 
 
 def _history() -> dict:
-    recent = [c.as_dict() for c in Call.objects.all()[:50]]
+    recent = [c.as_dict() for c in Call.objects.select_related("report")[:50]]
     # Local (Asia/Kolkata) midnight; the aiohttp version used UTC midnight.
     day_start = djtz.localtime().replace(hour=0, minute=0, second=0, microsecond=0)
     todays = list(Call.objects.filter(started_at__gte=day_start))
@@ -93,3 +96,33 @@ async def state(request):
     result.update(await fetch_livekit_state())
     result.update(await sync_to_async(_history)())
     return JsonResponse(result)
+
+
+@csrf_exempt
+@require_POST
+def report_ingest(request):
+    bearer = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+    try:
+        claims = report_verifier.verify(bearer)
+    except Exception:
+        claims = None
+    if claims is None or claims.identity != REPORT_IDENTITY:
+        logger.warning("rejected call report with invalid token")
+        return HttpResponse(status=401)
+
+    try:
+        report = json.loads(request.body)
+    except (ValueError, UnicodeDecodeError):
+        return HttpResponse("invalid JSON", status=400)
+    if not isinstance(report, dict) or not isinstance(report.get("room"), str) or not report["room"]:
+        return HttpResponse("missing room", status=400)
+
+    CallReport.store(report)
+    return HttpResponse("ok")
+
+
+@login_required
+@require_GET
+def report_detail(request, room: str):
+    report = get_object_or_404(CallReport, call__room=room)
+    return JsonResponse(report.data)

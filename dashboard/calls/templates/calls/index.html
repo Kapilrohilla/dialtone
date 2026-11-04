@@ -66,6 +66,20 @@
   .setup dt { color: var(--muted); }
   .setup dd { margin: 0; word-break: break-all; }
   .setup .item + .item { border-top: 1px solid var(--line); margin-top: 10px; padding-top: 10px; }
+  .badge.mood-none { background: var(--chip); color: var(--text); }
+  .badge.mood-grey { background: var(--chip); color: var(--muted); }
+  tr.clickable { cursor: pointer; }
+  tr.clickable:hover td { background: var(--chip); }
+  tr.detail td { white-space: normal; background: var(--bg); }
+  .strip { position: relative; height: 22px; margin: 6px 8px 12px; border-bottom: 2px solid var(--line); }
+  .strip .m { position: absolute; top: 4px; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%;
+              background: var(--muted); border: 2px solid var(--panel); }
+  .strip .m.bad { background: var(--bad); } .strip .m.warn { background: var(--warn); }
+  .strip .m.ok { background: var(--ok); } .strip .m.mood-none { background: var(--accent); }
+  .strip .m.behavior { border-radius: 2px; }
+  .detail dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; font-size: 13px; }
+  .detail dt { color: var(--muted); }
+  .detail dd { margin: 0; }
   .error { background: var(--bad-bg); color: var(--bad); border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; display: none; }
 </style>
 </head>
@@ -94,7 +108,7 @@
   <h2>Recent calls</h2>
   <section class="panel table-wrap">
     <table>
-      <thead><tr><th>Started</th><th>Caller</th><th>Number called</th><th>Duration</th><th>Agent</th><th>Ended</th></tr></thead>
+      <thead><tr><th>Started</th><th>Caller</th><th>Number called</th><th>Duration</th><th>Agent</th><th>Ended</th><th>Outcome</th><th>Mood</th><th>Dead air</th></tr></thead>
       <tbody id="recent"></tbody>
     </table>
   </section>
@@ -161,24 +175,85 @@ function renderLive() {
   }).join("");
 }
 
+const RECENT_COLS = 9;
+const DASH = '<span class="muted">–</span>';
+// angry/frustrated red, confused/suspicious amber, rushed/disengaged grey, interested green, neutral none.
+const MOOD_CLASS = { angry: "bad", frustrated: "bad", confused: "warn", suspicious: "warn",
+                     rushed: "mood-grey", disengaged: "mood-grey", interested: "ok", neutral: "mood-none" };
+function moodBadge(c) {
+  if (!c.final_mood) return DASH;
+  const tip = c.worst_mood ? ` title="Worst mood: ${esc(c.worst_mood)}"` : "";
+  return `<span class="badge ${MOOD_CLASS[c.final_mood] || "mood-none"}"${tip}>${esc(c.final_mood)}</span>`;
+}
+let openRoom = null;      // the recent-calls row whose report is expanded
+let openDetail = "";      // its rendered detail HTML, kept across 2 s refreshes
+
+function renderReport(rep) {
+  const timeline = rep.timeline || [];
+  const end = Math.max(1, ...timeline.map((t) => t.at_s || 0));
+  const dots = timeline.map((t) => {
+    const left = (100 * (t.at_s || 0)) / end;
+    const cls = `${MOOD_CLASS[t.emotion] || "mood-none"} ${t.source === "behavior" ? "behavior" : ""}`;
+    const tip = `${fmtDur(t.at_s)} · ${t.emotion} (${t.source}, ${Math.round(100 * (t.confidence || 0))}%)`;
+    return `<span class="m ${cls}" style="left:${left.toFixed(1)}%" title="${esc(tip)}"></span>`;
+  }).join("");
+  const lat = Object.entries(rep.latency || {}).map(([k, v]) => `${esc(k)} ${esc(v.p50_ms)} ms`).join(" · ");
+  const dead = (rep.dead_air || []).map((e) => `${esc(String(e.action).replace(/_/g, " "))} at ${esc(e.silence_s)} s silence`).join(" · ");
+  const mood = rep.mood || {};
+  return `<div><strong>Mood over the call</strong>${timeline.length ? "" : ' <span class="muted">(no readings)</span>'}</div>
+    <div class="strip">${dots}</div>
+    <dl>
+      <dt>Mood</dt><dd>final ${esc(mood.final || "–")}, worst ${esc(mood.worst || "–")}, avg sentiment ${esc(mood.avg_sentiment ?? "–")}</dd>
+      <dt>Latency p50</dt><dd>${lat || "–"}</dd>
+      <dt>Dead air</dt><dd>${dead || "none"}</dd>
+    </dl>`;
+}
+
+async function toggleReport(room) {
+  if (openRoom === room) { openRoom = null; openDetail = ""; renderRecent(); return; }
+  openRoom = room;
+  openDetail = '<span class="muted">Loading…</span>';
+  renderRecent();
+  try {
+    const res = await fetch(`api/report/${encodeURIComponent(room)}`, { cache: "no-store" });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const html = renderReport(await res.json());
+    if (openRoom === room) openDetail = html;
+  } catch (e) {
+    if (openRoom === room) openDetail = `<span class="muted">Could not load the report (${esc(e.message)}).</span>`;
+  }
+  renderRecent();
+}
+
+document.addEventListener("click", (ev) => {
+  const row = ev.target.closest("tr[data-room]");
+  if (row) toggleReport(row.dataset.room);
+});
+
 function renderRecent() {
   const rows = state.recent;
   if (!rows.length) {
-    $("recent").innerHTML = `<tr><td colspan="6" class="empty">No calls yet.</td></tr>`;
+    $("recent").innerHTML = `<tr><td colspan="${RECENT_COLS}" class="empty">No calls yet.</td></tr>`;
     return;
   }
   $("recent").innerHTML = rows.map((c) => {
     const start = c.answered_at || c.started_at;
     const dur = c.ended_at && start ? c.ended_at - start : null;
     const ongoing = !c.ended_at;
-    return `<tr>
+    const hasReport = c.final_mood != null || c.disposition != null;
+    const detail = hasReport && openRoom === c.room
+      ? `<tr class="detail"><td colspan="${RECENT_COLS}">${openDetail}</td></tr>` : "";
+    return `<tr${hasReport ? ` class="clickable" data-room="${esc(c.room)}"` : ""}>
       <td class="num">${fmtTime(c.started_at)}</td>
       <td class="num">${esc(c.caller) || '<span class="muted">–</span>'}</td>
       <td class="num">${esc(c.called) || '<span class="muted">–</span>'}</td>
       <td class="num">${ongoing ? '<span class="badge ok">live</span>' : fmtDur(dur)}</td>
       <td>${c.agent_joined_at ? '<span class="badge ok">yes</span>' : '<span class="badge bad">no</span>'}</td>
       <td class="muted">${ongoing ? "" : esc((c.end_reason || "").replace(/_/g, " "))}</td>
-    </tr>`;
+      <td>${c.disposition ? esc(c.disposition.replace(/_/g, " ")) : DASH}</td>
+      <td>${moodBadge(c)}</td>
+      <td class="num">${c.dead_air_nudges == null ? DASH : c.dead_air_nudges}</td>
+    </tr>${detail}`;
   }).join("");
 }
 
