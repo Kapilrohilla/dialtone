@@ -12,9 +12,11 @@ from typing import Literal
 DeadAirAction = Literal["nudge", "second_nudge", "hang_up"]
 
 # Phrases that mean "hold on": the next silence gets longer thresholds.
+# Latin and Devanagari forms: STT and Gemini often transcribe Hindi in Devanagari.
 HOLD_PHRASES: tuple[str, ...] = (
     "ek minute", "ek min", "ek second", "do minute", "ruko", "rukiye",
     "hold", "wait", "one minute", "one second",
+    "एक मिनट", "एक सेकंड", "दो मिनट", "रुको", "रुकिए", "रुकिये", "होल्ड", "वेट",
 )
 
 
@@ -44,14 +46,17 @@ class DeadAirWatcher:
         """The agent is thinking or speaking: pause the count, keep what has accumulated."""
         self._pause(now)
 
-    def user_activity(self, now: float, text: str = "") -> None:
-        """The caller spoke: start over. A hold phrase stretches the thresholds for the next silence."""
+    def user_activity(self, now: float, text: str | None = None) -> None:
+        """The caller spoke: start over. A transcript with a hold phrase stretches the thresholds for
+        the next silence; any other transcript clears that. Activity with no transcript (a speaking
+        event, possibly just background noise) leaves the hold as it is."""
         self._listening_since = None
         self._silence = 0.0
         self._fired.clear()
-        lowered = text.lower()
-        holding = any(phrase in lowered for phrase in HOLD_PHRASES)
-        self._multiplier = self.config.hold_multiplier if holding else 1.0
+        if text is not None:
+            lowered = text.lower()
+            holding = any(phrase in lowered for phrase in HOLD_PHRASES)
+            self._multiplier = self.config.hold_multiplier if holding else 1.0
 
     def poll(self, now: float) -> DeadAirAction | None:
         """The action due now, if any. Each fires once per silence; if several are due at once,

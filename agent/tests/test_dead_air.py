@@ -43,7 +43,7 @@ def test_hold_phrase_triples_thresholds_once():
     assert w.poll(11.9) is None
     assert w.poll(12) == "nudge"
     assert w.poll(45) == "hang_up"
-    w.user_activity(50)
+    w.user_activity(50, "haan ji")  # a real reply ends the hold
     w.agent_listening(50)
     assert w.poll(54) == "nudge"
 
@@ -57,3 +57,23 @@ def test_events_recorded():
     w.agent_listening(0)
     w.poll(4)
     assert w.events == [{"action": "nudge", "silence_s": 4.0}]
+
+
+def test_devanagari_hold_phrase():
+    w = watcher()
+    w.user_activity(0, "हाँ एक मिनट रुको")
+    w.agent_listening(0)
+    assert w.poll(11.9) is None
+    assert w.poll(12) == "nudge"
+
+
+def test_noise_without_transcript_keeps_hold():
+    w = watcher()
+    w.user_activity(0, "ek minute")
+    w.user_activity(5)  # speaking state from background noise, no transcript
+    w.agent_listening(5)
+    assert w.poll(16.9) is None
+    assert w.poll(17) == "nudge"
+    w.user_activity(30, "haan bataiye")  # a real reply clears the hold
+    w.agent_listening(30)
+    assert w.poll(34) == "nudge"
