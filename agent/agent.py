@@ -19,14 +19,16 @@ Run locally:   python -m livekit.agents start agent.py --dev
 Run in prod:   python -m livekit.agents start agent.py
 """
 
+import asyncio
 import json
 import logging
 import os
+import time
 from pathlib import Path
 from typing import Literal
 
 from dotenv import load_dotenv
-from livekit import rtc
+from livekit import api, rtc
 from livekit.agents import (
     Agent,
     AgentServer,
@@ -41,7 +43,17 @@ from livekit.agents import (
     function_tool,
     get_job_context,
 )
+from livekit.agents.metrics import EOUMetrics, LLMMetrics, RealtimeModelMetrics, TTSMetrics
 from livekit.plugins import silero
+
+from adapt import apply_mood, sends_mood_notes
+from behavior import BehaviorTracker, reply_latency_reliable
+from dead_air import DeadAirConfig, DeadAirWatcher
+from metrics import LatencyStats
+from mood import MoodReading, MoodTracker
+from report import build_report, send_report
+from sentiment import make_classifier
+from tone import tone_guide
 
 load_dotenv()
 
@@ -63,6 +75,30 @@ AMBIENCE_CLIPS = {
     "city": (BuiltinAudioClip.CITY_AMBIENCE, 0.3),
 }
 KNOWLEDGE_FILE = Path(__file__).parent / "knowledge.md"
+
+# Caller silence: check in, check in again, then hang up politely (seconds of silence).
+DEAD_AIR_ENABLED = os.getenv("DEAD_AIR_ENABLED", "true").lower() == "true"
+DEAD_AIR_CONFIG = DeadAirConfig(
+    nudge_s=float(os.getenv("DEAD_AIR_NUDGE_S") or 4),
+    second_nudge_s=float(os.getenv("DEAD_AIR_SECOND_NUDGE_S") or 9),
+    hang_up_s=float(os.getenv("DEAD_AIR_HANG_UP_S") or 15),
+)
+# Caller mood: classify each caller turn and adapt tone and pace. Off until accuracy is checked.
+MOOD_ENABLED = os.getenv("MOOD_ENABLED", "false").lower() == "true"
+# Live transfer to a person (tel:+91… or sip:…) for upset callers who agree to it. Empty = off.
+HANDOFF_SIP_URI = os.getenv("HANDOFF_SIP_URI", "").strip()
+# Per-call report to the dashboard (on the media VM: http://127.0.0.1:8787/api/report). Empty = off.
+DASHBOARD_REPORT_URL = os.getenv("DASHBOARD_REPORT_URL", "").strip()
+# Include caller/agent turn text in reports, for labelling mood accuracy. Turn off afterwards.
+MOOD_EVAL_CAPTURE = os.getenv("MOOD_EVAL_CAPTURE", "false").lower() == "true"
+
+DEAD_AIR_PROMPTS = {
+    "nudge": "The driver has gone quiet. In one short sentence, gently check if they can hear you, "
+    "e.g. 'Hello sir, aap sun pa rahe hain?'",
+    "second_nudge": "Still no reply. In one short sentence, say the line may be unclear and ask once more "
+    "if they can hear you; say you'll try again later if not.",
+    "hang_up": "Say a brief polite goodbye: you'll try again another time.",
+}
 
 # Languages the agent can switch to on the cascaded pipelines (Gemini Live covers these and more).
 LANGUAGES = {
@@ -259,12 +295,13 @@ def opening_line(lead: dict) -> str:
 
 class PhoneAgent(Agent):
     def __init__(self, lead: dict, language_rules: str = GEMINI_LANGUAGE_RULES) -> None:
-        super().__init__(
-            instructions="\n\n".join(
-                [BASE_INSTRUCTIONS, language_rules, APPROVED_INFO, lead_instructions(lead)]
-            )
+        # Kept so a caller-mood note can be swapped in and out without losing the base prompt.
+        self.base_instructions = "\n\n".join(
+            [BASE_INSTRUCTIONS, language_rules, APPROVED_INFO, lead_instructions(lead)]
         )
+        super().__init__(instructions=self.base_instructions)
         self.outcome: dict | None = None
+        self.caller_identity: str | None = None
 
     @function_tool
     async def record_outcome(
@@ -332,6 +369,33 @@ class PhoneAgent(Agent):
         await get_job_context().delete_room()
 
 
+    @function_tool
+    async def transfer_to_telecaller(self, ctx: RunContext) -> str:
+        """Connect the driver to a person on Carrum's telecalling team right now. Use only when the
+        driver agreed to talk to a person now. Call record_outcome first, and tell the driver in one
+        short sentence that you're connecting them before calling this."""
+        if not HANDOFF_SIP_URI:
+            return "Live transfer isn't available. Offer a callback from the telecalling team instead."
+        if self.outcome is None:
+            return "Call record_outcome first."
+        await ctx.wait_for_playout()
+        job = get_job_context()
+        try:
+            await job.api.sip.transfer_sip_participant(
+                api.TransferSIPParticipantRequest(
+                    room_name=job.room.name,
+                    participant_identity=self.caller_identity or "",
+                    transfer_to=HANDOFF_SIP_URI,
+                    play_dialtone=True,
+                )
+            )
+        except Exception:
+            logger.exception("transfer to telecaller failed")
+            return "Transfer failed. Apologise briefly and offer a callback from the telecalling team."
+        logger.info("transferred to telecaller")
+        return "Transferred."
+
+
 class SarvamPhoneAgent(PhoneAgent):
     def __init__(self, lead: dict) -> None:
         super().__init__(lead, language_rules=SARVAM_LANGUAGE_RULES)
@@ -369,7 +433,11 @@ def gemini_live_session(lead: dict) -> tuple[AgentSession, PhoneAgent]:
         enable_affective_dialog=os.getenv("GEMINI_AFFECTIVE_DIALOG", "false").lower() == "true",
     )
     # Gemini does its own turn detection; no local VAD/STT/TTS needed.
-    return AgentSession(llm=llm), PhoneAgent(lead)
+    rules = GEMINI_LANGUAGE_RULES
+    if MOOD_ENABLED:
+        # Gemini hears the caller's tone itself; it gets the guide once instead of mid-call notes.
+        rules += "\n\n" + tone_guide(handoff_available=bool(HANDOFF_SIP_URI))
+    return AgentSession(llm=llm), PhoneAgent(lead, language_rules=rules)
 
 
 def sarvam_tts():
@@ -431,6 +499,31 @@ def ambient_sound() -> AudioConfig | None:
     return AudioConfig(source, volume=volume, fade_in=1.5)
 
 
+def driver_spoke(session: AgentSession) -> bool:
+    return any(getattr(item, "role", None) == "user" for item in session.history.items)
+
+
+async def watch_dead_air(session: AgentSession, agent: PhoneAgent, watcher: DeadAirWatcher) -> None:
+    """Act on caller silence until the call ends or the agent hangs up."""
+    while True:
+        await asyncio.sleep(0.5)
+        action = watcher.poll(time.monotonic())
+        if action is None:
+            continue
+        logger.info("dead air", extra={"action": action})
+        if action != "hang_up":
+            session.generate_reply(instructions=DEAD_AIR_PROMPTS[action])
+            continue
+        if agent.outcome is None:
+            agent.outcome = {
+                "disposition": "UNRESOLVED" if driver_spoke(session) else "NOT_CONNECTED",
+                "reason": f"caller silent for {watcher.config.hang_up_s:g} s",
+            }
+        await session.generate_reply(instructions=DEAD_AIR_PROMPTS["hang_up"])
+        await get_job_context().delete_room()
+        return
+
+
 server = AgentServer(
     setup_fnc=prewarm,
     num_idle_processes=int(os.getenv("NUM_IDLE_PROCESSES", "3")),
@@ -453,25 +546,163 @@ async def entrypoint(ctx: JobContext) -> None:
         raise ValueError(f"unknown AGENT_PIPELINE {PIPELINE!r}")
 
     phone = None
+    watcher = DeadAirWatcher(DEAD_AIR_CONFIG)
+    background_tasks: set[asyncio.Task] = set()
+    agent_state = "initializing"
+    latency = LatencyStats()
+    tracker = MoodTracker()
+    classifier = make_classifier(PIPELINE) if MOOD_ENABLED else None
+    call_start = time.monotonic()
+    call_start_wall = time.time()
+    last_agent_line = ""
+    behavior = BehaviorTracker()
+    listening_at: float | None = None  # when the agent last started waiting for the caller
+    reply_latency: float | None = None  # how long the caller took to start their current reply
+
+    async def classify_turn(agent_line: str, caller_text: str, at_s: float) -> None:
+        reading = await classifier.classify(agent_line, caller_text, at_s)
+        if reading is not None:
+            await handle_reading(reading)
+
+    async def handle_reading(reading: MoodReading) -> None:
+        changed = tracker.observe(reading)
+        if changed is not None:
+            logger.info("mood changed", extra={"mood": changed, "source": reading.source})
+            if not sends_mood_notes(PIPELINE):
+                return
+            await apply_mood(
+                agent, session.tts, changed, agent.base_instructions, handoff_available=bool(HANDOFF_SIP_URI)
+            )
+
+    def start_background(coro) -> None:
+        task = asyncio.create_task(coro)
+        background_tasks.add(task)
+        task.add_done_callback(background_tasks.discard)
+
+    @session.on("metrics_collected")
+    def _on_metrics(ev) -> None:
+        m = ev.metrics
+        if isinstance(m, EOUMetrics):
+            latency.add("eou", m.end_of_utterance_delay)
+        elif isinstance(m, (LLMMetrics, RealtimeModelMetrics)):
+            latency.add("llm_ttft", m.ttft)
+        elif isinstance(m, TTSMetrics):
+            latency.add("tts_ttfb", m.ttfb)
+
+    @session.on("agent_state_changed")
+    def _on_agent_state(ev) -> None:
+        nonlocal agent_state, listening_at
+        agent_state = ev.new_state
+        if ev.new_state == "listening":
+            listening_at = time.monotonic()
+            watcher.agent_listening(listening_at)
+        elif ev.new_state in ("thinking", "speaking"):
+            watcher.agent_busy(time.monotonic())
+
+    @session.on("speech_created")
+    def _on_speech(ev) -> None:
+        if MOOD_ENABLED:
+            ev.speech_handle.add_done_callback(
+                lambda handle: behavior.agent_turn_ended(time.monotonic(), handle.interrupted)
+            )
+
+    @session.on("user_state_changed")
+    def _on_user_state(ev) -> None:
+        nonlocal listening_at, reply_latency
+        if ev.new_state == "speaking":
+            now = time.monotonic()
+            if listening_at is not None and reply_latency is None:
+                reply_latency = now - listening_at
+            listening_at = None
+            watcher.user_activity(now)
+        elif ev.new_state == "listening" and agent_state == "listening":
+            # The caller stopped and the agent isn't replying: silence starts counting again.
+            watcher.agent_listening(time.monotonic())
 
     @session.on("conversation_item_added")
     def _on_item(ev: ConversationItemAddedEvent) -> None:
+        nonlocal last_agent_line, listening_at, reply_latency
         text = getattr(ev.item, "text_content", None)
         if text:
             logger.info("transcript", extra={"role": ev.item.role, "text": text})
+            if ev.item.role == "user":
+                # Also covers pipelines that don't report the caller's speaking state.
+                watcher.user_activity(time.monotonic(), text)
+                if agent_state == "listening":
+                    watcher.agent_listening(time.monotonic())
+                at_s = time.monotonic() - call_start
+                if classifier is not None:
+                    # Runs alongside the call; the result only shapes the next reply.
+                    start_background(classify_turn(last_agent_line, text, at_s))
+                if MOOD_ENABLED:
+                    # No speaking-state event (some pipelines): measure up to the transcript instead.
+                    if reply_latency is None and listening_at is not None:
+                        reply_latency = time.monotonic() - listening_at
+                    latency_s = (reply_latency or 0.0) if reply_latency_reliable(PIPELINE) else 0.0
+                    behavior.user_turn(time.monotonic(), text, latency_s)
+                    reply_latency = None
+                    listening_at = None
+                    if signal := behavior.poll(at_s):
+                        start_background(handle_reading(signal))
+            elif ev.item.role == "assistant":
+                last_agent_line = text
+
+    def final_outcome() -> dict:
+        # Hung up before the agent recorded anything: dropped if the driver spoke, else never connected.
+        return agent.outcome or {
+            "disposition": "CDRP" if driver_spoke(session) else "NOT_CONNECTED",
+            "reason": "call ended before an outcome was recorded",
+        }
 
     @session.on("close")
     def _on_close(_ev) -> None:
-        # Hung up before the agent recorded anything: dropped if the driver spoke, else never connected.
-        driver_spoke = any(getattr(item, "role", None) == "user" for item in session.history.items)
-        outcome = agent.outcome or {
-            "disposition": "CDRP" if driver_spoke else "NOT_CONNECTED",
-            "reason": "call ended before an outcome was recorded",
-        }
+        for task in list(background_tasks):
+            task.cancel()
+        outcome = final_outcome()
         logger.info(
             "call ended",
-            extra={"phone": phone, "lead": lead, "outcome": outcome, "usage": str(session.usage)},
+            extra={
+                "phone": phone,
+                "lead": lead,
+                "outcome": outcome,
+                "dead_air": watcher.events,
+                "latency": latency.summary(),
+                "mood": tracker.summary() if MOOD_ENABLED else None,
+                "behavior": behavior.features() if MOOD_ENABLED else None,
+                "usage": str(session.usage),
+            },
         )
+
+    async def send_call_report() -> None:
+        # Shutdown callbacks are awaited, so the report goes out before the job process exits.
+        if not DASHBOARD_REPORT_URL:
+            return
+        turns = None
+        if MOOD_EVAL_CAPTURE:
+            turns = [
+                {
+                    "role": item.role,
+                    "text": item.text_content,
+                    "at_s": round(max(0.0, getattr(item, "created_at", call_start_wall) - call_start_wall), 2),
+                }
+                for item in session.history.items
+                if getattr(item, "role", None) in ("user", "assistant") and getattr(item, "text_content", None)
+            ]
+        report = build_report(
+            room=ctx.room.name,
+            outcome=final_outcome(),
+            mood=tracker.summary() if MOOD_ENABLED else None,
+            timeline=tracker.timeline,
+            dead_air=watcher.events,
+            latency=latency.summary(),
+            behavior=behavior.features() if MOOD_ENABLED else None,
+            turns=turns,
+        )
+        await send_report(
+            DASHBOARD_REPORT_URL, report, os.environ["LIVEKIT_API_KEY"], os.environ["LIVEKIT_API_SECRET"]
+        )
+
+    ctx.add_shutdown_callback(send_call_report)
 
     await session.start(agent=agent, room=ctx.room)
 
@@ -479,11 +710,15 @@ async def entrypoint(ctx: JobContext) -> None:
         kind=[rtc.ParticipantKind.PARTICIPANT_KIND_SIP, rtc.ParticipantKind.PARTICIPANT_KIND_STANDARD]
     )
     phone = caller.attributes.get("sip.phoneNumber")
+    agent.caller_identity = caller.identity
     logger.info("call started", extra={"caller": phone, "lead_id": lead.get("lead_id")})
 
     session.generate_reply(
         instructions=f"Open the call by saying this, close to word for word: {opening_line(lead)}"
     )
+
+    if DEAD_AIR_ENABLED:
+        start_background(watch_dead_air(session, agent, watcher))
 
     # After the greeting is queued, so ambience setup never delays it.
     if ambient := ambient_sound():

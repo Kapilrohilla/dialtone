@@ -20,7 +20,10 @@ It's Carrum Mobility's AI calling assistant for driver-partner leads. It speaks 
 
 - **Approved pricing and rules:** put city-wise deposits, fees, offers, plan-routing and VDC/WTHINK rules in `agent/knowledge.md`, then run `make agent`. The agent quotes only what's in that file. Without it, the agent quotes no figures and refers those questions to the telecalling team.
 - **Lead record (optional):** dispatch the agent with JSON metadata, e.g. `{"lead_id": "L123", "city": "Pune", "previously_interested": true}`. The agent skips questions the record answers. `previously_interested` picks the "aapne interest dikhaya tha" opening.
-- **Outcome:** every call logs one `call ended` line (`make logs s=agent`) with the disposition (INTERESTED, NI, NE, CBR, …), the reason, interest strength, the qualification answers, the summary and `do_not_call`. If the driver hangs up before the agent records an outcome, the call is logged as `CDRP`, or as `NOT_CONNECTED` if the driver never spoke.
+- **Dead air:** if the driver goes quiet, the agent checks in after 4 s and again after 9 s, then says goodbye and hangs up at 15 s, logged as `UNRESOLVED` (or `NOT_CONNECTED` if they never spoke). The agent's own speech doesn't restart the count; the driver speaking does. "Ek minute", "ruko" or "wait" triples the timings for that pause. Tune or turn off with the `DEAD_AIR_*` settings.
+- **Caller mood (off by default):** with `MOOD_ENABLED=true`, a small model labels each driver reply (interested, confused, frustrated, rushed, suspicious, angry, disengaged or neutral). Once two replies agree (or one is clearly angry), the agent adjusts: shorter and calmer when the driver is frustrated, slower and simpler when confused, straight to the point when rushed. On `sarvam`/`elevenlabs` it also changes speaking pace. It never tells the driver it noticed their mood. Leave it off until the accuracy check has passed.
+- **Live handoff (optional):** set `HANDOFF_SIP_URI` and, when mood is on and a driver is frustrated or angry, the agent offers to connect them to a telecaller and transfers the call if they agree. Your SIP trunk must support call transfer (REFER); test it by setting the URI to your own mobile first.
+- **Outcome:** every call logs one `call ended` line (`make logs s=agent`) with the disposition (INTERESTED, NI, NE, CBR, …), the reason, interest strength, the qualification answers, the summary, `do_not_call` and any dead-air check-ins. If the driver hangs up before the agent records an outcome, the call is logged as `CDRP`, or as `NOT_CONNECTED` if the driver never spoke.
 
 ## Layout
 
@@ -111,12 +114,54 @@ On a Twilio **trial** account:
 - call history, recorded from LiveKit webhooks into SQLite
 - today's stats
 - the configured trunks and dispatch rules
+- per-call mood reports from the agent: outcome, final mood (worst mood on hover) and dead-air nudges; click a row for the mood readings over the call, latency p50s and dead-air events
 
-It listens on the VM's localhost only, because it shows caller phone numbers. From your laptop, run:
+It listens on the VM's localhost only, because it shows caller phone numbers, and every page needs a login. From your laptop, run:
 
 ```bash
-make tunnel      # then open http://localhost:8787
+make tunnel      # then open http://localhost:8787 and log in
 ```
+
+The dashboard is a Django app (`dashboard/`). Call history lives in `/data/dashboard.sqlite3` in the `dashboard-data` volume, and `/admin/` lists and searches all calls.
+
+`make deploy` adds a `DJANGO_SECRET_KEY` to the VM's `.env` if it doesn't have one. After the first deploy of the Django dashboard, run these once on the VM (from `~/ai-calling`):
+
+```bash
+make dashboard-admin            # create your login
+docker compose exec dashboard python manage.py import_legacy_calls --path /data/calls.db   # old call history; run once
+```
+
+The import copies the history recorded by the old dashboard. Running it again creates no duplicates. "Calls today" counts from midnight India time (it used to be UTC).
+
+Run the tests locally with `make test` (needs `dashboard/.venv` with `dashboard/requirements-dev.txt`).
+
+The agent POSTs its report to `/api/report` when a call ends, if `DASHBOARD_REPORT_URL` is set (on the VM: `http://127.0.0.1:8787/api/report`). The request carries a LiveKit-signed token with identity `agent-report` instead of a login. A report may arrive before LiveKit's `room_finished` webhook, and a later report for the same room replaces the earlier one. `/admin/` filters calls by final mood and outcome and shows each full report.
+
+## Evaluating caller mood
+
+Keep `MOOD_ENABLED=false` until telecaller labels show the mood readings are good enough.
+
+1. Set `MOOD_ENABLED=true MOOD_EVAL_CAPTURE=true` for one week of real calls. Reports then include the caller's turns, and each caller turn becomes a row to label.
+2. Create telecaller accounts in `/admin/auth/user/` with **Staff status** on and only the `calls | turn label` "Can view" and "Can change" permissions.
+3. Telecallers label 300 or more turns in `/admin/calls/turnlabel/`. Pick the mood from the dropdown in the list and press Save at the bottom of the page. Use `unclear` when you can't tell; those turns are not scored.
+4. Score them:
+
+   ```bash
+   docker compose exec dashboard python manage.py mood_eval              # all labels
+   docker compose exec dashboard python manage.py mood_eval --since 2026-11-10
+   ```
+
+   It prints accuracy, precision/recall per mood, a confusion matrix and a PASS/FAIL line.
+
+**Go-live gate:** precision of at least 0.7 for `angry`, `frustrated` and `confused`. Below that, tighten `CLASSIFIER_PROMPT` and re-score, or keep `MOOD_ENABLED=false`.
+
+Afterwards, set `MOOD_EVAL_CAPTURE=false` and delete the captured speech, because the turns hold what callers said:
+
+```bash
+docker compose exec dashboard python manage.py purge_turns
+```
+
+Also compare the CDRP and NI rates for calls with mood on and off, using the admin's outcome and mood filters.
 
 ## Scale (phase 2: ~50 concurrent calls)
 

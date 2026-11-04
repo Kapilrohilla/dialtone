@@ -1,0 +1,3 @@
+staticfiles/
+*.sqlite3
+.pytest_cache/
