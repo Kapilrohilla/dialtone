@@ -43,9 +43,11 @@ from livekit.agents import (
     function_tool,
     get_job_context,
 )
+from livekit.agents.metrics import EOUMetrics, LLMMetrics, RealtimeModelMetrics, TTSMetrics
 from livekit.plugins import silero
 
 from dead_air import DeadAirConfig, DeadAirWatcher
+from metrics import LatencyStats
 
 load_dotenv()
 
@@ -500,6 +502,17 @@ async def entrypoint(ctx: JobContext) -> None:
     watcher = DeadAirWatcher(DEAD_AIR_CONFIG)
     background_tasks: set[asyncio.Task] = set()
     agent_state = "initializing"
+    latency = LatencyStats()
+
+    @session.on("metrics_collected")
+    def _on_metrics(ev) -> None:
+        m = ev.metrics
+        if isinstance(m, EOUMetrics):
+            latency.add("eou", m.end_of_utterance_delay)
+        elif isinstance(m, (LLMMetrics, RealtimeModelMetrics)):
+            latency.add("llm_ttft", m.ttft)
+        elif isinstance(m, TTSMetrics):
+            latency.add("tts_ttfb", m.ttfb)
 
     @session.on("agent_state_changed")
     def _on_agent_state(ev) -> None:
@@ -545,6 +558,7 @@ async def entrypoint(ctx: JobContext) -> None:
                 "lead": lead,
                 "outcome": outcome,
                 "dead_air": watcher.events,
+                "latency": latency.summary(),
                 "usage": str(session.usage),
             },
         )
