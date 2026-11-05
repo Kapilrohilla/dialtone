@@ -39,9 +39,10 @@ class AgentListItemSerializer(AgentListSerializer):
     """A row of GET /api/agents; the queryset must annotate `calls_this_week`."""
 
     calls_this_week = serializers.IntegerField(read_only=True)
+    workflow = serializers.PrimaryKeyRelatedField(read_only=True)  # the workflows list shows which agents use each one
 
     class Meta(AgentListSerializer.Meta):
-        fields = AgentListSerializer.Meta.fields + ["calls_this_week"]
+        fields = AgentListSerializer.Meta.fields + ["workflow", "calls_this_week"]
 
 
 class AgentDetailSerializer(AgentListSerializer):

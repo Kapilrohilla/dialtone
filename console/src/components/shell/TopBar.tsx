@@ -3,7 +3,7 @@ import { ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 import styles from "./TopBar.module.css";
 
-/** `node` replaces the crumb's text, e.g. an inline rename button; `label` still names it. */
+/** `node` replaces the crumb's text (or, for the last crumb, the heading's), e.g. an inline rename button; `label` still names it. */
 export type Crumb = { label: string; href?: string; node?: ReactNode };
 
 export type TopBarProps = {
@@ -22,7 +22,8 @@ export type TopBarProps = {
 /** First thing in every console page. */
 export function TopBar({ title, breadcrumb, chip, status, secondary, primary }: TopBarProps) {
   const trail = breadcrumb ?? [];
-  const heading = title ?? trail[trail.length - 1]?.label ?? "";
+  const last = trail[trail.length - 1];
+  const heading = title ?? last?.node ?? last?.label ?? "";
   const parents = title ? trail : trail.slice(0, -1);
   return (
     <header className={styles.bar}>

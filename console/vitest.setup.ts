@@ -30,6 +30,20 @@ if (!Range.prototype.getClientRects) {
   Range.prototype.getBoundingClientRect = () => new DOMRect();
 }
 
+// React Flow sizes the canvas with ResizeObserver and reads the zoom from a DOMMatrixReadOnly; jsdom has neither.
+if (typeof globalThis.ResizeObserver === "undefined") {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver;
+}
+if (typeof globalThis.DOMMatrixReadOnly === "undefined") {
+  globalThis.DOMMatrixReadOnly = class {
+    m22 = 1;
+  } as unknown as typeof DOMMatrixReadOnly;
+}
+
 beforeAll(() => server.listen({ onUnhandledFrame: "error" }));
 afterEach(() => {
   cleanup();

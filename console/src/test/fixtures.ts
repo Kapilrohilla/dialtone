@@ -5,10 +5,12 @@ import type {
   CallPage,
   CallRow,
   Dashboard,
+  Graph,
   KnowledgeDoc,
   LiveCall,
   Me,
   PhoneNumber,
+  Step,
   Voice,
   Workflow,
 } from "@/lib/types";
@@ -73,6 +75,7 @@ export const agentListItem: AgentListItem = {
   updated_at: agent.updated_at,
   updated_by_name: agent.updated_by_name,
   is_outdated: agent.is_outdated,
+  workflow: agent.workflow,
   calls_this_week: 42,
 };
 
@@ -164,3 +167,41 @@ export const voices: Voice[] = [
   { id: "Kore", name: "Kore", description: "Female, firm", sample: "/voices/kore.wav" },
   { id: "priya", name: "Priya", description: "Female, Hindi", sample: null },
 ];
+
+const step = (id: string, type: Step["type"], name: string, x: number, y: number, extra: Partial<Step> = {}): Step => ({
+  id,
+  type,
+  name,
+  position: { x, y },
+  ...extra,
+});
+
+/** The seeded "Driver onboarding" graph (dashboard/voiceagents/management/commands/seed_carrum.py). Paths carry no ids. */
+export const onboardingGraph = (): Graph => ({
+  steps: [
+    step("greeting", "start", "Greeting", 0, 160, { prompt: "नमस्ते, मैं Carrum से बोल रही हूँ। क्या अभी दो मिनट बात कर सकते हैं?" }),
+    step("ask_city", "prompt", "Ask city", 280, 160, { prompt: "आप अभी किस शहर में रहते हैं?" }),
+    step("ask_licence", "collect", "Ask licence and experience", 560, 80, {
+      field: "licence",
+      prompt: "क्या आपके पास अपने नाम का चार-पहिया ड्राइविंग लाइसेंस है, और आपने पहले गाड़ी चलाई है?",
+    }),
+    step("explain_plan", "prompt", "Explain the plan", 840, 80, {
+      prompt: "[[expr:excited]]{{lead.city}} में हमारे plan के बारे में बताऊँ?[[expr:pause:1]]",
+    }),
+    step("end_interested", "end", "End: interested", 1120, 0, { outcome: "INTERESTED", prompt: "बहुत अच्छा, मैं आपकी details हमारी team को भेज रही हूँ।" }),
+    step("schedule_callback", "end", "Schedule a call back", 1120, 160, { outcome: "CBR", prompt: "ठीक है, आप बताइए कब फ़ोन करूँ?" }),
+    step("transfer", "transfer", "Transfer to a telecaller", 1120, 320, { prompt: "मैं आपकी बात हमारी team के एक साथी से करवाती हूँ।" }),
+    step("end_city", "end", "End: not in your city", 560, 280, { outcome: "NE", prompt: "अभी हम सिर्फ़ कुछ शहरों में हैं, समय देने के लिए धन्यवाद।" }),
+    step("end_no_licence", "end", "End: not eligible", 840, 280, { outcome: "NE", prompt: "बिना लाइसेंस के हम आगे नहीं बढ़ पाएँगे, धन्यवाद।" }),
+  ],
+  paths: [
+    { from: "greeting", to: "ask_city", label: "Next" },
+    { from: "ask_city", to: "ask_licence", label: "Pune or Delhi" },
+    { from: "ask_city", to: "end_city", label: "Other city" },
+    { from: "ask_licence", to: "explain_plan", label: "Has licence" },
+    { from: "ask_licence", to: "end_no_licence", label: "No licence" },
+    { from: "explain_plan", to: "end_interested", label: "Interested" },
+    { from: "explain_plan", to: "schedule_callback", label: "Busy" },
+    { from: "explain_plan", to: "transfer", label: "Upset" },
+  ],
+});

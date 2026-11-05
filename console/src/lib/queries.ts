@@ -17,6 +17,8 @@ import type {
   Revision,
   SimResponse,
   VoicesResponse,
+  Graph,
+  Workflow,
   WorkflowListItem,
 } from "@/lib/types";
 
@@ -304,6 +306,64 @@ export const workflowsKey = ["workflows"] as const;
 
 export function useWorkflows() {
   return useQuery({ queryKey: workflowsKey, queryFn: () => apiFetch<WorkflowListItem[]>("/api/workflows") });
+}
+
+export const workflowKey = (id: number) => ["workflow", id] as const;
+
+export function useWorkflow(id: number) {
+  return useQuery({ queryKey: workflowKey(id), queryFn: () => apiFetch<Workflow>(`/api/workflows/${id}`) });
+}
+
+/** The graph a new workflow starts with: one start step. */
+export const NEW_WORKFLOW_GRAPH: Graph = {
+  steps: [{ id: "start", type: "start", name: "Greeting", prompt: "", position: { x: 0, y: 0 } }],
+  paths: [],
+};
+
+/** POST creates an empty workflow, then its first revision is saved with the start step. */
+export function useCreateWorkflow() {
+  const qc = useQueryClient();
+  const toast = useToast();
+  return useMutation({
+    mutationFn: async (body: { name: string }) => {
+      const created = await apiFetch<Workflow>("/api/workflows", { method: "POST", json: body });
+      return apiFetch<Workflow>(`/api/workflows/${created.id}`, { method: "PATCH", json: { graph: NEW_WORKFLOW_GRAPH } });
+    },
+    onSuccess: (wf) => {
+      qc.setQueryData(workflowKey(wf.id), wf);
+      return qc.invalidateQueries({ queryKey: workflowsKey });
+    },
+    onError: (e) => toast.show(e instanceof ApiError ? e.detail : "Could not create the workflow.", "bad"),
+  });
+}
+
+export type WorkflowUpdate = { name?: string; graph?: Graph };
+
+/** PATCH the name or the whole graph. A saved graph is toasted with what happens next; `errors` in the answer
+ *  are the server's checks of the saved graph. Signed out keeps the draft on the page. `onSaved` runs with the
+ *  saved workflow in the same tick the cache is updated. */
+export function useSaveWorkflow(id: number, onSaved?: (wf: Workflow, sent: WorkflowUpdate) => void) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  return useMutation({
+    mutationFn: (body: WorkflowUpdate) =>
+      apiFetch<Workflow>(`/api/workflows/${id}`, { method: "PATCH", json: body, signInRedirect: false }),
+    onSuccess: async (wf, sent) => {
+      onSaved?.(wf, sent);
+      qc.setQueryData(workflowKey(id), wf);
+      qc.invalidateQueries({ queryKey: workflowsKey });
+      if (!sent.graph) return;
+      const agents = await qc
+        .ensureQueryData({ queryKey: agentsKey, queryFn: () => apiFetch<AgentListItem[]>("/api/agents") })
+        .catch(() => undefined);
+      const used = agents?.some((a) => a.workflow === id && a.status !== "archived");
+      toast.show(used ? "Saved. Agents using this workflow need republishing before callers hear the change." : "Saved.", "ok");
+      // Their "older version" flags change with the workflow.
+      if (used) qc.invalidateQueries({ queryKey: agentsKey });
+    },
+    onError: (e) =>
+      toast.show(isSignedOut(e) ? "You were signed out. Sign in again in another tab, then save." : e instanceof ApiError ? e.detail : "Could not save.", "bad"),
+  });
 }
 
 // ---- sim ----

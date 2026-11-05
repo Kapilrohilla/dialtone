@@ -3,10 +3,10 @@
 import { useRef, useState } from "react";
 import styles from "./editor.module.css";
 
-export type NameCrumbProps = { name: string; editable: boolean; onSave: (name: string) => void };
+export type NameCrumbProps = { name: string; editable: boolean; onSave: (name: string) => void; inputLabel?: string };
 
-/** The agent's name in the breadcrumb: a text button that turns into an input. Enter or blur saves, Escape cancels. */
-export function NameCrumb({ name, editable, onSave }: NameCrumbProps) {
+/** The agent's (or a workflow's) name in the breadcrumb: a text button that turns into an input. Enter or blur saves, Escape cancels. */
+export function NameCrumb({ name, editable, onSave, inputLabel = "Agent name" }: NameCrumbProps) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(name);
   const done = useRef(false);
@@ -40,7 +40,7 @@ export function NameCrumb({ name, editable, onSave }: NameCrumbProps) {
   return (
     <input
       className={styles.nameInput}
-      aria-label="Agent name"
+      aria-label={inputLabel}
       value={value}
       maxLength={200}
       autoFocus

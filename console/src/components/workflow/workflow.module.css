@@ -1,0 +1,141 @@
+/* Workflows list */
+.page { display: flex; flex-direction: column; gap: var(--row-gap); padding: var(--gutter); }
+.srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.rowName { font-size: 15px; font-weight: 500; }
+.usedBy { color: var(--ink-2); }
+.rowActions { text-align: right; }
+
+/* Builder */
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; height: calc(100vh - 72px); min-height: 480px; }
+.main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.notice { margin: 0; padding: 12px var(--gutter); border-bottom: 1px solid var(--border); color: var(--ink-2); font-size: 15px; }
+.errors { padding: 12px var(--gutter); border-bottom: 1px solid var(--border); background: var(--bad-tint); color: var(--bad); font-size: 15px; }
+.errorsTitle { margin: 0; font-weight: 500; }
+.errors ul { margin: 4px 0 0; padding-left: 20px; }
+.errorLink {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  vertical-align: top;
+  cursor: pointer;
+}
+.dialogText { margin: 0; color: var(--ink-2); font-size: 15px; }
+
+/* Canvas */
+.canvas { position: relative; flex: 1; min-height: 0; background: var(--page); outline: none; }
+.dots { opacity: 0.6; }
+.canvasTools { display: flex; gap: 4px; padding: 4px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); }
+.toolButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--ink-2);
+}
+.toolButton:hover { background: var(--well); }
+.canvas :global(.react-flow__edge-text) { fill: var(--ink-2); font-size: 13px; font-family: var(--font-sans); }
+.canvas :global(.react-flow__edge-textbg) { fill: var(--page); }
+.canvas :global(.react-flow__attribution) { background: none; color: var(--muted); font-size: 13px; }
+.canvas :global(.react-flow__attribution a) { color: var(--muted); }
+.canvas :global(.react-flow__node:focus-visible) { outline: none; }
+.canvas :global(.react-flow__node:focus-visible) > .node { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* Step card */
+.node {
+  width: 260px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--ink);
+}
+.selected { outline: 2px solid var(--primary-fill); outline-offset: -1px; }
+.nodeTitle { font-size: 15px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nodeKind { font-size: 13px; color: var(--muted); }
+.nodeSays { margin-top: 4px; font-size: 14px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.handle { width: 8px; height: 8px; background: var(--panel); border: 1px solid var(--rule-strong); }
+.handle:not(:global(.connectable)) { visibility: hidden; }
+
+/* Add step menu */
+.addMenu { position: relative; }
+.addButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 500;
+}
+.addButton:hover, .addButton[aria-expanded="true"] { background: var(--well); }
+.menu {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 0;
+  z-index: 20;
+  min-width: 220px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.menuItem { height: 36px; padding: 0 12px; border: 0; border-radius: 6px; background: none; color: var(--ink); text-align: left; font-size: 15px; }
+.menuItem:hover, .menuItem:focus-visible { background: var(--well); }
+
+/* Side panel */
+.panel { display: flex; flex-direction: column; gap: var(--row-gap); padding: var(--gutter); border-left: 1px solid var(--border); background: var(--panel); overflow-y: auto; }
+.panelEmpty { margin: 0; color: var(--muted); font-size: 15px; }
+.panelHeading { margin: 0; font-size: 18px; font-weight: 500; overflow-wrap: anywhere; }
+.group { display: flex; flex-direction: column; gap: 8px; }
+.label { font-size: 14px; font-weight: 500; color: var(--ink-2); }
+.says { min-height: 40px; padding: 8px 12px; background: var(--well); border-radius: var(--radius); }
+.muted { margin: 0; color: var(--muted); font-size: 15px; }
+.pathRow { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr) 32px; gap: 8px; align-items: center; }
+.pathRowReadOnly { display: flex; justify-content: space-between; gap: 8px; font-size: 15px; }
+.pathTarget { color: var(--ink-2); }
+.input {
+  width: 100%;
+  min-width: 0;
+  height: var(--control-h);
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: var(--well);
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+}
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+}
+.iconButton:hover { background: var(--well); color: var(--bad); }
+.addPath { align-self: flex-start; }
+.advanced { display: flex; flex-direction: column; gap: var(--row-gap); }
+

@@ -97,6 +97,8 @@ export type AgentListItem = {
   updated_at: string;
   updated_by_name: string | null;
   is_outdated: boolean;
+  /** Workflow id, or null. */
+  workflow: number | null;
   calls_this_week: number;
 };
 
@@ -109,8 +111,6 @@ export type Agent = Omit<AgentListItem, "calls_this_week"> & {
   custom_expressions: Record<string, string>;
   /** Knowledge document ids. */
   knowledge: number[];
-  /** Workflow id, or null. */
-  workflow: number | null;
   published_version: number | null;
   created_at: string;
 };
