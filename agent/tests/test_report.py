@@ -29,3 +29,10 @@ def test_build_report_disposition_from_outcome():
 async def test_send_report_false_on_connection_error():
     report = build_report(**ARGS, turns=None)
     assert await send_report("http://127.0.0.1:9/x", report, "key", "s" * 32) is False
+
+
+def test_report_includes_version_and_step_path():
+    report = build_report(**ARGS, turns=None, agent_version_id=7, step_path=["a", "b"])
+    assert report["agent_version_id"] == 7 and report["step_path"] == ["a", "b"]
+    plain = build_report(**ARGS, turns=None)
+    assert "agent_version_id" not in plain and "step_path" not in plain
