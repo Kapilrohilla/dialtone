@@ -18,6 +18,24 @@ services:
     volumes:
       - redis-data:/data
 
+  # Dashboard database. Localhost only, data in the postgres-data volume.
+  postgres:
+    image: postgres:16.4-alpine
+    network_mode: host
+    restart: unless-stopped
+    command: ["postgres", "-c", "listen_addresses=127.0.0.1"]
+    environment:
+      POSTGRES_DB: "${POSTGRES_DB:-dashboard}"
+      POSTGRES_USER: "${POSTGRES_USER:-dashboard}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?run scripts/init.sh}"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -h 127.0.0.1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   livekit:
     image: livekit/livekit-server:${LIVEKIT_VERSION:?set LIVEKIT_VERSION in .env}
     network_mode: host
@@ -71,7 +89,11 @@ services:
     image: ai-calling-dashboard:local
     network_mode: host
     restart: unless-stopped
-    depends_on: [livekit]
+    depends_on:
+      livekit:
+        condition: service_started
+      postgres:
+        condition: service_healthy
     env_file: .env
     environment:
       DASHBOARD_HOST: 127.0.0.1
@@ -92,4 +114,5 @@ services:
 
 volumes:
   dashboard-data:
+  postgres-data:
   redis-data:

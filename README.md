@@ -111,7 +111,7 @@ On a Twilio **trial** account:
 
 `make up` also starts the dashboard. It shows:
 - live calls: caller number, timer, whether the agent joined
-- call history, recorded from LiveKit webhooks into SQLite
+- call history, recorded from LiveKit webhooks into PostgreSQL
 - today's stats
 - the configured trunks and dispatch rules
 - per-call mood reports from the agent: outcome, final mood (worst mood on hover) and dead-air nudges; click a row for the mood readings over the call, latency p50s and dead-air events
@@ -122,7 +122,7 @@ It listens on the VM's localhost only, because it shows caller phone numbers, an
 make tunnel      # then open http://localhost:8787 and log in
 ```
 
-The dashboard is a Django app (`dashboard/`). Call history lives in `/data/dashboard.sqlite3` in the `dashboard-data` volume, and `/admin/` lists and searches all calls.
+The dashboard is a Django app (`dashboard/`). Call history lives in PostgreSQL (the `postgres` service, data in the `postgres-data` volume, localhost only; `scripts/init.sh` generates `POSTGRES_PASSWORD` in `.env`), and `/admin/` lists and searches all calls.
 
 `make deploy` adds a `DJANGO_SECRET_KEY` to the VM's `.env` if it doesn't have one. After the first deploy of the Django dashboard, run these once on the VM (from `~/ai-calling`):
 
@@ -133,7 +133,16 @@ docker compose exec dashboard python manage.py import_legacy_calls --path /data/
 
 The import copies the history recorded by the old dashboard. Running it again creates no duplicates. "Calls today" counts from midnight India time (it used to be UTC).
 
-Run the tests locally with `make test` (needs `dashboard/.venv` with `dashboard/requirements-dev.txt`).
+**Moving from SQLite to PostgreSQL.** Earlier Django versions of the dashboard kept history in `/data/dashboard.sqlite3`. After deploying, run once on the VM (from `~/ai-calling`):
+
+```bash
+scripts/init.sh                              # adds POSTGRES_PASSWORD to .env if missing
+scripts/migrate-dashboard-to-postgres.sh     # starts postgres, migrates, copies calls/reports/labels/users, prints counts
+```
+
+The copy keeps ids and refuses to run if PostgreSQL already has calls (`manage.py copy_from_sqlite --force` overrides). It only reads the SQLite file, which stays in the `dashboard-data` volume as a backup; nothing deletes it.
+
+Run the tests locally with `make test` (needs `dashboard/.venv` with `dashboard/requirements-dev.txt`). The dashboard tests run on PostgreSQL: `make test-db` starts a disposable container on `127.0.0.1:55432` (needs Docker; `make test` does it for you). To use another server set `TEST_POSTGRES_HOST`, `TEST_POSTGRES_PORT`, `TEST_POSTGRES_USER` and `TEST_POSTGRES_PASSWORD`.
 
 The agent POSTs its report to `/api/report` when a call ends, if `DASHBOARD_REPORT_URL` is set (on the VM: `http://127.0.0.1:8787/api/report`). The request carries a LiveKit-signed token with identity `agent-report` instead of a login. A report may arrive before LiveKit's `room_finished` webhook, and a later report for the same room replaces the earlier one. `/admin/` filters calls by final mood and outcome and shows each full report.
 

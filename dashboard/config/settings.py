@@ -7,6 +7,8 @@ The dashboard listens on the VM's localhost only and is reached with `make tunne
 import os
 from pathlib import Path
 
+from django.core.exceptions import ImproperlyConfigured
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.environ["DJANGO_SECRET_KEY"]
@@ -60,11 +62,21 @@ TEMPLATES = [
 
 ASGI_APPLICATION = "config.asgi.application"
 
+# Directory for files the dashboard keeps (recordings, later). The database is PostgreSQL.
 DB_DIR = Path(os.getenv("DASHBOARD_DB_DIR", "/data"))
+
+if not os.getenv("POSTGRES_PASSWORD"):
+    raise ImproperlyConfigured("POSTGRES_PASSWORD is not set (scripts/init.sh generates it in .env)")
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": DB_DIR / "dashboard.sqlite3",
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": os.getenv("POSTGRES_DB", "dashboard"),
+        "USER": os.getenv("POSTGRES_USER", "dashboard"),
+        "PASSWORD": os.environ["POSTGRES_PASSWORD"],
+        "HOST": os.getenv("POSTGRES_HOST", "127.0.0.1"),
+        "PORT": os.getenv("POSTGRES_PORT", "5432"),
+        "CONN_MAX_AGE": 60,
+        "CONN_HEALTH_CHECKS": True,
     }
 }
 

@@ -1,4 +1,4 @@
-.PHONY: init up down restart agent agent-dev sip logs ps lk deploy tunnel test dashboard-admin
+.PHONY: init up down restart agent agent-dev sip logs ps lk deploy tunnel test test-db dashboard-admin
 
 init:            ## create .env and generate LiveKit keys
 	scripts/init.sh
@@ -18,7 +18,13 @@ agent:           ## build and start the agent worker container
 agent-dev:       ## run the agent locally in dev mode (needs agent/.venv; reads ../.env)
 	cd agent && .venv/bin/python -m livekit.agents start agent.py --dev
 
-test:            ## run unit tests (needs agent/.venv and dashboard/.venv with requirements-dev.txt)
+test-db:         ## start the disposable Postgres the dashboard tests use (127.0.0.1:55432); no-op if running
+	@docker ps --filter name=^ai-calling-test-pg$$ --format '{{.Names}}' | grep -q . || \
+		docker run -d --rm --name ai-calling-test-pg -e POSTGRES_PASSWORD=postgres \
+		-p 127.0.0.1:55432:5432 postgres:16.4-alpine
+	@until docker exec ai-calling-test-pg pg_isready -U postgres -h 127.0.0.1 >/dev/null 2>&1; do sleep 1; done
+
+test: test-db    ## run unit tests (needs agent/.venv and dashboard/.venv with requirements-dev.txt)
 	cd agent && .venv/bin/pytest -q
 	cd dashboard && .venv/bin/pytest -q
 	scripts/tests/test-init.sh

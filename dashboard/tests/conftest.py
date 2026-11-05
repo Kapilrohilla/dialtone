@@ -8,6 +8,13 @@ os.environ.setdefault("DJANGO_SECRET_KEY", "test-secret-key-not-for-production")
 os.environ.setdefault("LIVEKIT_API_KEY", "APItestkey")
 os.environ.setdefault("LIVEKIT_API_SECRET", "test-livekit-secret-0123456789abcdef")
 os.environ["DASHBOARD_DB_DIR"] = tempfile.mkdtemp(prefix="dashboard-test-")
+# Tests run on PostgreSQL (`make test-db` starts one on 127.0.0.1:55432); pytest-django
+# creates and drops test_<POSTGRES_DB> on it.
+os.environ["POSTGRES_HOST"] = os.getenv("TEST_POSTGRES_HOST", "127.0.0.1")
+os.environ["POSTGRES_PORT"] = os.getenv("TEST_POSTGRES_PORT", "55432")
+os.environ["POSTGRES_USER"] = os.getenv("TEST_POSTGRES_USER", "postgres")
+os.environ["POSTGRES_PASSWORD"] = os.getenv("TEST_POSTGRES_PASSWORD", "postgres")
+os.environ["POSTGRES_DB"] = "dashboard"
 os.environ["DJANGO_SETTINGS_MODULE"] = "config.settings"
 
 import django  # noqa: E402
@@ -54,8 +61,3 @@ def member(workspace):
 
     return make
 
-
-def assert_isolated(client, url):
-    """`url` points at an object owned by another workspace: a member must get 404, not 403/200."""
-    response = client.get(url)
-    assert response.status_code == 404, f"expected 404 for cross-workspace object, got {response.status_code}"
