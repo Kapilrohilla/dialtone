@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui";
 import { ApiError, apiFetch } from "@/lib/api";
-import type { Dashboard, LiveCall, Me, Preferences } from "@/lib/types";
+import type { Agent, AgentListItem, Dashboard, Expression, LiveCall, Me, Preferences, VoicesResponse } from "@/lib/types";
 
 // Query keys and hooks live here, one commented section per area. Later tasks add their own sections below.
 
@@ -79,4 +79,103 @@ export function useMarkHandled() {
     onSettled: () => qc.invalidateQueries({ queryKey: dashboardKey }),
   });
   return mutation;
+}
+
+// ---- agents ----
+
+export const agentsKey = ["agents"] as const;
+export const agentKey = (id: number) => ["agent", id] as const;
+export const expressionsKey = ["expressions"] as const;
+export const voicesKey = ["voices"] as const;
+
+/** Every agent in the workspace, archived ones included. Screens filter on `status`. */
+export function useAgents() {
+  return useQuery({ queryKey: agentsKey, queryFn: () => apiFetch<AgentListItem[]>("/api/agents") });
+}
+
+export function useAgent(id: number) {
+  return useQuery({ queryKey: agentKey(id), queryFn: () => apiFetch<Agent>(`/api/agents/${id}`) });
+}
+
+function useInvalidateAgents() {
+  const qc = useQueryClient();
+  return (id?: number) =>
+    Promise.all([
+      qc.invalidateQueries({ queryKey: agentsKey }),
+      id === undefined ? undefined : qc.invalidateQueries({ queryKey: agentKey(id) }),
+      qc.invalidateQueries({ queryKey: dashboardKey }),
+    ]);
+}
+
+export function useCreateAgent() {
+  const invalidate = useInvalidateAgents();
+  return useMutation({
+    mutationFn: (body: { name: string }) => apiFetch<Agent>("/api/agents", { method: "POST", json: body }),
+    onSuccess: (agent) => invalidate(agent.id),
+  });
+}
+
+/** PATCH only the fields that changed. */
+export function useUpdateAgent(id: number) {
+  const qc = useQueryClient();
+  const invalidate = useInvalidateAgents();
+  return useMutation({
+    mutationFn: (body: Partial<Pick<Agent, "name" | "description" | "language" | "persona_name" | "voice_id" | "settings" | "script" | "custom_expressions" | "knowledge" | "workflow" | "phone_number">>) =>
+      apiFetch<Agent>(`/api/agents/${id}`, { method: "PATCH", json: body }),
+    onSuccess: (agent) => {
+      qc.setQueryData(agentKey(id), agent);
+      return invalidate(id);
+    },
+  });
+}
+
+/** Publish errors arrive as `{"errors": [...]}`; read them from `error.fields.errors`. */
+export function usePublish() {
+  const invalidate = useInvalidateAgents();
+  const toast = useToast();
+  return useMutation({
+    mutationFn: (id: number) => apiFetch<{ version: number }>(`/api/agents/${id}/publish`, { method: "POST" }),
+    onSuccess: (_d, id) => {
+      toast.show("Published. It will answer the next call.", "ok");
+      return invalidate(id);
+    },
+  });
+}
+
+function useAgentAction(action: "unpublish" | "archive" | "restore", done: string, failed: string) {
+  const invalidate = useInvalidateAgents();
+  const toast = useToast();
+  return useMutation({
+    mutationFn: (id: number) => apiFetch<Agent>(`/api/agents/${id}/${action}`, { method: "POST" }),
+    onSuccess: (_d, id) => {
+      toast.show(done, "ok");
+      return invalidate(id);
+    },
+    onError: (e) => toast.show(e instanceof ApiError ? e.detail : failed, "bad"),
+  });
+}
+
+export const useUnpublish = () => useAgentAction("unpublish", "Unpublished. Callers hear the built-in script.", "Could not unpublish.");
+export const useArchive = () => useAgentAction("archive", "Archived.", "Could not archive.");
+export const useRestore = () => useAgentAction("restore", "Restored as a draft.", "Could not restore.");
+
+export function useDuplicate() {
+  const invalidate = useInvalidateAgents();
+  const toast = useToast();
+  return useMutation({
+    mutationFn: (id: number) => apiFetch<Agent>(`/api/agents/${id}/duplicate`, { method: "POST" }),
+    onSuccess: (copy) => {
+      toast.show(`Duplicated as ${copy.name}.`, "ok");
+      return invalidate(copy.id);
+    },
+    onError: (e) => toast.show(e instanceof ApiError ? e.detail : "Could not duplicate.", "bad"),
+  });
+}
+
+export function useExpressions() {
+  return useQuery({ queryKey: expressionsKey, queryFn: () => apiFetch<Expression[]>("/api/expressions"), staleTime: 300_000 });
+}
+
+export function useVoices() {
+  return useQuery({ queryKey: voicesKey, queryFn: () => apiFetch<VoicesResponse>("/api/voices"), staleTime: 300_000 });
 }
