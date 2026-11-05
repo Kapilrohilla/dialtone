@@ -19,6 +19,7 @@ from runtime.auth import REPORT_IDENTITY, verify_agent
 
 from .livekit_state import fetch_livekit_state
 from .models import Call, CallReport
+from .numbers import strip_nul
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +107,7 @@ def report_ingest(request):
         return HttpResponse(status=401)
 
     try:
-        report = json.loads(request.body)
+        report = strip_nul(json.loads(request.body))
     except (ValueError, UnicodeDecodeError):
         return HttpResponse("invalid JSON", status=400)
     if not isinstance(report, dict) or not isinstance(report.get("room"), str) or not report["room"]:

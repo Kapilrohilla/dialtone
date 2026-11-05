@@ -229,3 +229,80 @@ def test_existing_calls_assigned_to_carrum(workspace):
     Call.objects.create(room="old-2")
     migration.assign_existing_calls(apps, None)
     assert set(Call.objects.values_list("workspace__slug", flat=True)) == {"carrum"}
+
+
+# --- fix round 1: every call gets a workspace (R18) ------------------------------------------------
+
+from livekit import api as lkapi  # noqa: E402
+
+from tests.test_webhook import T0, feed, sip_joined  # noqa: E402
+
+
+def room_finished(room):
+    return lkapi.WebhookEvent(event="room_finished", room=lkapi.Room(name=room), created_at=T0 + 60,
+                              room_end_reason=lkapi.RoomEndReason.ROOM_END_IDLE_TIMEOUT)
+
+
+def test_webhook_call_gets_workspace_from_called_number(monkeypatch, client, workspace, other_workspace):
+    # Any status counts: a draft agent's number still names its workspace.
+    Agent.objects.create(workspace=other_workspace, name="other", phone_number="08000000000")
+    feed(monkeypatch, client, sip_joined("r1", "+919111111111", T0))
+    assert Call.objects.get(room="r1").workspace == other_workspace
+
+
+def test_webhook_call_gets_single_workspace_fallback(monkeypatch, client, workspace):
+    feed(monkeypatch, client, room_finished("r-ended"))  # mark_ended path
+    assert Call.objects.get(room="r-ended").workspace == workspace
+
+
+def test_events_call_gets_workspace(client, workspace):
+    assert post_events(client, {"room": "ev-room", "events": [ev(1)]}).status_code == 200
+    assert Call.objects.get(room="ev-room").workspace == workspace
+
+
+def test_two_workspaces_unmatched_stays_null(monkeypatch, client, workspace, other_workspace):
+    Agent.objects.create(workspace=workspace, name="a", phone_number="+91 99999 11111")
+    post_events(client, {"room": "ev-room", "events": [ev(1)]})
+    assert Call.objects.get(room="ev-room").workspace is None
+    CallReport.store(make_report(room="rep-room"))
+    assert Call.objects.get(room="rep-room").workspace is None
+    feed(monkeypatch, client, sip_joined("sip-room", "+919111111111", T0))
+    assert Call.objects.get(room="sip-room").workspace is None
+
+
+def test_called_arriving_later_fills_workspace(monkeypatch, client, workspace, other_workspace):
+    Agent.objects.create(workspace=other_workspace, name="other", phone_number="+918000000000")
+    post_events(client, {"room": "r1", "events": [ev(1)]})  # no `called` yet: two workspaces, no match
+    assert Call.objects.get(room="r1").workspace is None
+    feed(monkeypatch, client, sip_joined("r1", "+919111111111", T0))
+    assert Call.objects.get(room="r1").workspace == other_workspace
+
+
+def test_existing_workspace_never_overwritten(monkeypatch, client, workspace, other_workspace):
+    Agent.objects.create(workspace=other_workspace, name="other", phone_number="+918000000000")
+    Call.objects.create(room="r1", workspace=workspace)
+    feed(monkeypatch, client, sip_joined("r1", "+919111111111", T0), room_finished("r1"))
+    post_events(client, {"room": "r1", "events": [ev(1)]})
+    CallReport.store(make_report(room="r1"))
+    assert Call.objects.get(room="r1").workspace == workspace
+
+
+# --- fix round 1: NUL bytes (R19) ------------------------------------------------------------------
+
+
+def test_events_nul_in_text_stored_without_nul(client):
+    payload = {"speaker": "caller", "text": "na\x00mas\x00te", "expressions": ["hap\x00py"], "k\x00": {"deep": ["\x00x"]}}
+    res = post_events(client, {"room": "r\x00oom", "events": [ev(1, payload=payload)]})
+    assert res.status_code == 200 and res.json()["stored"] == 1
+    e = CallEvent.objects.get()
+    assert e.call.room == "room"
+    assert e.payload == {"speaker": "caller", "text": "namaste", "expressions": ["happy"], "k": {"deep": ["x"]}}
+
+
+def test_report_nul_in_summary_ok(client):
+    body = make_report(room="call-nul", summary="Caller\x00 wants a callback", outcome={"summary": "x\x00y"})
+    res = client.post("/api/report", data=json.dumps(body), content_type="application/json",
+                      HTTP_AUTHORIZATION=f"Bearer {token()}")
+    assert res.status_code == 200
+    data = CallReport.objects.get(call__room="call-nul").data
+    assert data["summary"] == "Caller wants a callback" and data["outcome"]["summary"] == "xy"

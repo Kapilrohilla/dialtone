@@ -3,12 +3,28 @@ from datetime import datetime
 from django.db import models, transaction
 
 from .evaluation import EMOTIONS, UNCLEAR, align_predictions
+from .numbers import same_number, strip_nul
 
 DATETIME_FIELDS = ("started_at", "answered_at", "ended_at", "agent_joined_at")
 TEXT_FIELDS = ("caller", "called", "sip_call_id", "end_reason")
 REPORT_FIELDS = ("disposition", "final_mood", "worst_mood", "avg_sentiment", "dead_air_nudges", "llm_ttft_p50_ms")
 
 LABEL_CHOICES = [(e, e) for e in EMOTIONS] + [(UNCLEAR, UNCLEAR)]
+
+
+def resolve_workspace(called):
+    """The workspace a call belongs to: the one whose agent (any status) has the `called` number, if that
+    is unambiguous; otherwise the only workspace, if there is exactly one; otherwise None."""
+    from voiceagents.models import Agent
+    from workspaces.models import Workspace
+
+    if str(called or "").strip():
+        agents = Agent.objects.exclude(phone_number="").values_list("workspace_id", "phone_number")
+        matched = {ws for ws, number in agents if same_number(number, called)}
+        if len(matched) == 1:
+            return Workspace.objects.get(pk=matched.pop())
+    only = list(Workspace.objects.all()[:2])
+    return only[0] if len(only) == 1 else None
 
 
 class Call(models.Model):
@@ -47,16 +63,27 @@ class Call(models.Model):
         changed = [k for k, v in fields.items() if v not in (None, "") and getattr(call, k) in (None, "")]
         for k in changed:
             setattr(call, k, fields[k])
+        changed += call._fill_workspace()
         if changed:
             call.save(update_fields=changed)
         return call
+
+    def _fill_workspace(self) -> list[str]:
+        """Set the workspace while it is still empty (never overwrite); returns the changed field names."""
+        if self.workspace_id is not None:
+            return []
+        workspace = resolve_workspace(self.called)
+        if workspace is None:
+            return []
+        self.workspace = workspace
+        return ["workspace"]
 
     @classmethod
     def mark_ended(cls, room: str, ended_at: datetime, reason: str) -> "Call":
         call, _ = cls.objects.get_or_create(room=room)
         call.ended_at = ended_at
         call.end_reason = reason or ""
-        call.save(update_fields=["ended_at", "end_reason"])
+        call.save(update_fields=["ended_at", "end_reason", *call._fill_workspace()])
         return call
 
     def as_dict(self) -> dict:
@@ -123,6 +150,7 @@ class CallReport(models.Model):
     @transaction.atomic
     def store(cls, report: dict) -> "CallReport":
         """Save a report; it may arrive before the room's webhooks, and a later report replaces an earlier one."""
+        report = strip_nul(report)
         version = _agent_version(report.get("agent_version_id"))
         fields = {"agent_version": version, "workspace_id": version.agent.workspace_id} if version else {}
         call = Call.record_first(report["room"], **fields)

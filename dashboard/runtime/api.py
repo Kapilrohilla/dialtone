@@ -3,7 +3,6 @@
 import json
 import logging
 import math
-import re
 from datetime import datetime, timezone
 
 from django.db import transaction
@@ -13,6 +12,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
 from calls.models import Call, CallEvent
+from calls.numbers import digits, same_number, strip_nul
 from voiceagents.models import Agent
 
 from .auth import RUNTIME_IDENTITY, verify_agent
@@ -30,33 +30,20 @@ def _unauthorized():
     return JsonResponse({"detail": "Invalid token."}, status=401)
 
 
-def _digits(value) -> str:
-    # Leading zeros are trunk/international prefixes ("0", "00"), not part of the number.
-    return re.sub(r"\D", "", str(value or "")).lstrip("0")
-
-
-def _same_number(a: str, b: str) -> bool:
-    """Digits-only match; the Indian country code "91" is optional on either side."""
-    a, b = _digits(a), _digits(b)
-    if not a or not b:
-        return False
-    return a == b or a == "91" + b or b == "91" + a
-
-
 def find_published(number: str):
     """The published agent for `number`, or None when nothing (or more than one workspace) matches."""
     published = list(
         Agent.objects.filter(status=Agent.PUBLISHED, published_version__isnull=False)
         .select_related("published_version", "workspace")
     )
-    matches = [a for a in published if a.phone_number and _same_number(a.phone_number, number)]
+    matches = [a for a in published if a.phone_number and same_number(a.phone_number, number)]
     if len(matches) == 1:
         return matches[0]
     if matches:
         logger.warning("number %s matches published agents in several workspaces", number)
         return None
     # Fallback while numbers aren't configured: the one workspace with a published agent.
-    if len(published) == 1 and not any(_digits(a.phone_number) for a in published):
+    if len(published) == 1 and not any(digits(a.phone_number) for a in published):
         return published[0]
     return None
 
@@ -70,7 +57,7 @@ def config(request):
     if agent is None:
         return JsonResponse(NOT_FOUND, status=404)
     version = agent.published_version
-    room = request.GET.get("room", "").strip()
+    room = strip_nul(request.GET.get("room", "")).strip()
     if room:
         # First value wins: a call keeps the version it started with.
         Call.record_first(room[:255], workspace=agent.workspace, agent_version=version)
@@ -108,7 +95,7 @@ def events(request):
     if not verify_agent(request, RUNTIME_IDENTITY):
         return _unauthorized()
     try:
-        body = json.loads(request.body)
+        body = strip_nul(json.loads(request.body))
     except (ValueError, UnicodeDecodeError):
         return JsonResponse({"detail": "Invalid JSON."}, status=400)
     if not isinstance(body, dict) or not isinstance(body.get("room"), str) or not body["room"].strip():
