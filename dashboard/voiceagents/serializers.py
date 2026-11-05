@@ -31,6 +31,15 @@ class AgentListSerializer(serializers.ModelSerializer):
         return is_outdated(obj)
 
 
+class AgentListItemSerializer(AgentListSerializer):
+    """A row of GET /api/agents; the queryset must annotate `calls_this_week`."""
+
+    calls_this_week = serializers.IntegerField(read_only=True)
+
+    class Meta(AgentListSerializer.Meta):
+        fields = AgentListSerializer.Meta.fields + ["calls_this_week"]
+
+
 class AgentDetailSerializer(AgentListSerializer):
     knowledge = serializers.SerializerMethodField()
     workflow = serializers.PrimaryKeyRelatedField(read_only=True)

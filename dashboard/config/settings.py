@@ -19,6 +19,8 @@ ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
 LIVEKIT_URL = os.getenv("LIVEKIT_URL", "ws://127.0.0.1:7880").replace("ws://", "http://").replace("wss://", "https://")
 LIVEKIT_API_KEY = os.getenv("LIVEKIT_API_KEY", "")
 LIVEKIT_API_SECRET = os.getenv("LIVEKIT_API_SECRET", "")
+# Where "Transfer to a person" sends a live caller (sip:... or tel:...); empty = transfer not set up.
+HANDOFF_SIP_URI = os.getenv("HANDOFF_SIP_URI", "")
 
 INSTALLED_APPS = [
     "django.contrib.admin",

@@ -38,7 +38,7 @@ def test_create_and_list_shape(member):
     lst = c.get("/api/agents").json()
     assert len(lst) == 1
     assert set(lst[0]) == {"id", "name", "description", "status", "phone_number", "updated_at",
-                           "updated_by_name", "is_outdated"}
+                           "updated_by_name", "is_outdated", "calls_this_week"}
     assert lst[0]["updated_by_name"] == "Kapil" and lst[0]["phone_number"] == "+911234567890"
     assert create(c, name="  ").status_code == 400
 

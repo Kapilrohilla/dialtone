@@ -1,7 +1,10 @@
 import copy
+from datetime import timedelta
 
 from django.db import transaction
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import serializers, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -14,7 +17,7 @@ from . import publish as pub
 from .models import Agent
 from .serializers import (
     AgentDetailSerializer,
-    AgentListSerializer,
+    AgentListItemSerializer,
     AgentVersionSerializer,
     AgentWriteSerializer,
     merge_settings,
@@ -84,10 +87,17 @@ def _save(agent, data, links, user):
 
 class AgentListView(_Base):
     def get(self, request):
-        qs = Agent.objects.filter(workspace=workspace_for(request)).select_related(
-            "updated_by", "published_version", "workflow"
+        # calls_this_week: calls on any version of the agent with started_at in the last 7 days
+        # (calls with no started_at are not counted).
+        week_ago = timezone.now() - timedelta(days=7)
+        qs = (
+            Agent.objects.filter(workspace=workspace_for(request))
+            .select_related("updated_by", "published_version", "workflow")
+            .annotate(calls_this_week=Count(
+                "versions__calls", filter=Q(versions__calls__started_at__gte=week_ago), distinct=True
+            ))
         )
-        return Response(AgentListSerializer(qs, many=True).data)
+        return Response(AgentListItemSerializer(qs, many=True).data)
 
     def post(self, request):
         workspace = workspace_for(request)

@@ -1,0 +1,132 @@
+"""Turn Call rows (+ report and events) into the console's JSON shapes.
+
+Report data and event payloads are written by the agent and never validated, so every read here is
+defensive: anything of the wrong type is treated as missing rather than raising.
+"""
+
+from .models import CallEvent, CallReport
+from .outcomes import display_outcome
+
+# Report outcome keys that are not answers to qualification questions.
+NOT_ANSWERS = {"reason", "summary", "disposition"}
+EMPTY = (None, "", [], {})
+
+
+def _dict(value) -> dict:
+    return value if isinstance(value, dict) else {}
+
+
+def _text(value) -> str:
+    return value if isinstance(value, str) else ""
+
+
+def report_of(call):
+    try:
+        return call.report
+    except CallReport.DoesNotExist:
+        return None
+
+
+def outcome_data(call) -> dict:
+    report = report_of(call)
+    return _dict(_dict(report.data if report else None).get("outcome"))
+
+
+def duration_s(call):
+    """ended − answered when both exist, else ended − started, else None (whole seconds, never negative)."""
+    start = call.answered_at if call.answered_at and call.ended_at else call.started_at
+    if not (start and call.ended_at):
+        return None
+    return max(0, int((call.ended_at - start).total_seconds()))
+
+
+def agent_name(call):
+    version = call.agent_version
+    if version is None:
+        return None
+    name = _dict(version.snapshot).get("name")
+    return name if isinstance(name, str) and name else None
+
+
+def call_row(call) -> dict:
+    """One row of the calls list. Needs `report` and `agent_version` loaded (select_related)."""
+    report = report_of(call)
+    code = report.disposition if report else ""
+    return {
+        "room": call.room,
+        "started_at": call.started_at,
+        "caller": call.caller,
+        "agent_name": agent_name(call),
+        "outcome": display_outcome(code),
+        "outcome_code": code,
+        "mood": report.final_mood if report else "",
+        "duration_s": duration_s(call),
+        "summary": _text(outcome_data(call).get("summary")),
+    }
+
+
+def turn_row(event):
+    """A transcript line from a `turn` event, or None when the payload has no text."""
+    p = _dict(event.payload)
+    text = p.get("text")
+    if not isinstance(text, str) or not text:
+        return None
+    expressions = p.get("expressions")
+    return {
+        "speaker": _text(p.get("speaker")),
+        "text": text,
+        "expressions": [e for e in expressions if isinstance(e, str)] if isinstance(expressions, list) else [],
+        "at": event.at,
+    }
+
+
+def transcript(events) -> list[dict]:
+    rows = (turn_row(e) for e in events if e.type == CallEvent.TURN)
+    return [r for r in rows if r is not None]
+
+
+def captured_fields(events) -> dict:
+    """{field: value} from field_captured events in seq order (a later capture wins)."""
+    out = {}
+    for e in events:
+        if e.type != CallEvent.FIELD_CAPTURED:
+            continue
+        p = _dict(e.payload)
+        field = p.get("field")
+        if isinstance(field, str) and field and p.get("value") not in EMPTY:
+            out[field] = p["value"]
+    return out
+
+
+def latest(events, type_, key) -> str:
+    """The `key` string of the newest `type_` event that has one, else ""."""
+    for e in reversed(events):
+        if e.type == type_:
+            value = _dict(e.payload).get(key)
+            if isinstance(value, str) and value:
+                return value
+    return ""
+
+
+def call_detail(call, events) -> dict:
+    """`events`: the call's CallEvents in seq order."""
+    outcome = outcome_data(call)
+    answers = {k: v for k, v in outcome.items() if k not in NOT_ANSWERS and v not in EMPTY}
+    answers.update(captured_fields(events))
+    report = report_of(call)
+    step_path = _dict(report.data if report else None).get("step_path")
+    if isinstance(step_path, list):
+        step_path = [s for s in step_path if isinstance(s, str)]
+    else:
+        step_path = [
+            name for e in events if e.type == CallEvent.STEP_ENTERED
+            for name in [_dict(e.payload).get("step_name")] if isinstance(name, str) and name
+        ]
+    return {
+        **call_row(call),
+        "reason": _text(outcome.get("reason")),
+        "answers": answers,
+        "step_path": step_path,
+        "transcript": transcript(events),
+        "recording_url": None,  # recordings arrive in plan 4
+    }
