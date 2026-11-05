@@ -49,6 +49,7 @@ from livekit.plugins import silero
 from adapt import apply_mood, sends_mood_notes
 from behavior import BehaviorTracker, reply_latency_reliable
 from dead_air import DeadAirConfig, DeadAirWatcher
+from greeting import GreetingGate, greeting_instructions
 from metrics import LatencyStats
 from mood import MoodReading, MoodTracker
 from report import build_report, send_report
@@ -63,9 +64,10 @@ AGENT_NAME = os.getenv("AGENT_NAME", "phone-agent")
 PIPELINE = os.getenv("AGENT_PIPELINE", "gemini-live")
 DEFAULT_LANGUAGE = os.getenv("DEFAULT_LANGUAGE", "hi-IN")
 PERSONA_NAME = os.getenv("AGENT_PERSONA_NAME", "Priya")
-# Background sound under the call: office | callcenter | city | none | path to an audio file
-# (relative to this folder, e.g. sounds/my-office.ogg). A real line is never silent.
-AMBIENCE = os.getenv("BACKGROUND_AMBIENCE", "office")
+# Background sound under the call: none | office | callcenter | city | path to an audio file
+# (relative to this folder, e.g. sounds/my-office.ogg). Default none: the built-in office clip has
+# people talking in it, which callers hear as someone else on the line.
+AMBIENCE = os.getenv("BACKGROUND_AMBIENCE") or "none"
 # Built-in clips are recorded at very different levels (office is ~30x quieter than the
 # crowded room), so each gets its own default gain. These land the noise ~25 dB under
 # the voice: noticeable, never in the way. Override with BACKGROUND_VOLUME.
@@ -295,9 +297,14 @@ def opening_line(lead: dict) -> str:
 
 class PhoneAgent(Agent):
     def __init__(self, lead: dict, language_rules: str = GEMINI_LANGUAGE_RULES) -> None:
+        opening = (
+            f"Your opening line: {opening_line(lead)}\n"
+            "If the driver speaks first (e.g. \"hello\", \"haan ji\", \"kaun?\"), let them finish, acknowledge "
+            "it briefly (\"Ji, hello sir!\"), then say your opening line. Say the opening line only once."
+        )
         # Kept so a caller-mood note can be swapped in and out without losing the base prompt.
         self.base_instructions = "\n\n".join(
-            [BASE_INSTRUCTIONS, language_rules, APPROVED_INFO, lead_instructions(lead)]
+            [BASE_INSTRUCTIONS, language_rules, APPROVED_INFO, lead_instructions(lead), opening]
         )
         super().__init__(instructions=self.base_instructions)
         self.outcome: dict | None = None
@@ -547,6 +554,7 @@ async def entrypoint(ctx: JobContext) -> None:
 
     phone = None
     watcher = DeadAirWatcher(DEAD_AIR_CONFIG)
+    gate = GreetingGate()
     background_tasks: set[asyncio.Task] = set()
     agent_state = "initializing"
     latency = LatencyStats()
@@ -606,6 +614,16 @@ async def entrypoint(ctx: JobContext) -> None:
                 lambda handle: behavior.agent_turn_ended(time.monotonic(), handle.interrupted)
             )
 
+    @session.on("user_input_transcribed")
+    def _on_user_transcribed(ev) -> None:
+        # Partial transcripts arrive while the caller is still talking. Gemini Live reports no
+        # "caller started speaking" event while the agent is idle, so this is how we know.
+        now = time.monotonic()
+        gate.caller_spoke(now, ev.transcript)
+        watcher.user_activity(now, ev.transcript)
+        if agent_state == "listening":
+            watcher.agent_listening(now)
+
     @session.on("user_state_changed")
     def _on_user_state(ev) -> None:
         nonlocal listening_at, reply_latency
@@ -614,6 +632,7 @@ async def entrypoint(ctx: JobContext) -> None:
             if listening_at is not None and reply_latency is None:
                 reply_latency = now - listening_at
             listening_at = None
+            gate.caller_spoke(now, None)
             watcher.user_activity(now)
         elif ev.new_state == "listening" and agent_state == "listening":
             # The caller stopped and the agent isn't replying: silence starts counting again.
@@ -713,9 +732,16 @@ async def entrypoint(ctx: JobContext) -> None:
     agent.caller_identity = caller.identity
     logger.info("call started", extra={"caller": phone, "lead_id": lead.get("lead_id")})
 
-    session.generate_reply(
-        instructions=f"Open the call by saying this, close to word for word: {opening_line(lead)}"
-    )
+    # Listen first: callers often say "hello" as they pick up. Greet once they pause.
+    gate.start(time.monotonic())
+    while not gate.ready(time.monotonic()):
+        await asyncio.sleep(0.1)
+    agent_spoke = any(getattr(item, "role", None) == "assistant" for item in session.history.items)
+    if agent_state in ("thinking", "speaking") or agent_spoke:
+        # The model already answered the caller's hello with the opening line (it's in its instructions).
+        logger.info("greeting started by the model", extra={"caller_said": gate.caller_said})
+    else:
+        session.generate_reply(instructions=greeting_instructions(opening_line(lead), gate.caller_said))
 
     if DEAD_AIR_ENABLED:
         start_background(watch_dead_air(session, agent, watcher))
