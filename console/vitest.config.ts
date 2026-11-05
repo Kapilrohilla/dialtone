@@ -7,6 +7,7 @@ export default defineConfig({
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
   test: {
     environment: "jsdom",
+    clearMocks: true,
     environmentOptions: { jsdom: { url: "http://localhost:3000/" } },
     setupFiles: ["./vitest.setup.ts"],
     include: ["src/**/*.test.{ts,tsx}"],

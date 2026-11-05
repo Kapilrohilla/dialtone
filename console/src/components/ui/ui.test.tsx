@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -32,6 +32,18 @@ describe("ui", () => {
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(opener).toHaveFocus();
+  });
+
+  it("Dialog ignores clicks on its own padding but closes on a backdrop click", async () => {
+    const user = userEvent.setup();
+    render(<DialogHarness />);
+    await user.click(screen.getByRole("button", { name: "Open it" }));
+    const dialog = screen.getByRole("dialog", { name: "Remove step" });
+    dialog.getBoundingClientRect = () => ({ left: 100, top: 100, right: 580, bottom: 400, width: 480, height: 300, x: 100, y: 100, toJSON: () => ({}) });
+    fireEvent.click(dialog, { clientX: 110, clientY: 110 });
+    expect(screen.getByRole("dialog", { name: "Remove step" })).toBeInTheDocument();
+    fireEvent.click(dialog, { clientX: 10, clientY: 10 });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("Switch toggles aria-checked with Space", async () => {

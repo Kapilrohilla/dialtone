@@ -61,7 +61,12 @@ function OpenDialog({ onClose, title, children, footer }: Omit<DialogProps, "ope
         onClose();
       }}
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        // Only a click on the backdrop closes: its point lies outside the dialog box. Clicks on the
+        // dialog's own padding have the dialog as target but a point inside its rect.
+        if (e.target !== e.currentTarget) return;
+        const r = e.currentTarget.getBoundingClientRect();
+        const inside = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+        if (!inside) onClose();
       }}
     >
       <h2 id={titleId} className={styles.title}>{title}</h2>

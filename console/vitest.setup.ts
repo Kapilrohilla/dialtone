@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, vi } from "vitest";
+import { setRoute } from "@/test/navigation";
 import { server } from "@/test/server";
 
 vi.mock("next/navigation", async () => await import("@/test/navigation"));
@@ -25,6 +26,8 @@ beforeAll(() => server.listen({ onUnhandledFrame: "error" }));
 afterEach(() => {
   cleanup();
   server.resetHandlers();
+  vi.clearAllMocks();
+  setRoute("/");
   document.cookie.split(";").forEach((c) => {
     document.cookie = `${c.split("=")[0].trim()}=; max-age=0; path=/`;
   });
