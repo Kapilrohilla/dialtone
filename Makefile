@@ -3,7 +3,7 @@
 init:            ## create .env and generate LiveKit keys
 	scripts/init.sh
 
-up:              ## start redis + livekit + sip + dashboard
+up:              ## start redis + livekit + sip + dashboard + console
 	docker compose up -d --build
 
 down:            ## stop everything (including the agent)
@@ -60,6 +60,8 @@ GCP_ZONE ?= asia-south1-c
 deploy:          ## from your laptop: ship committed code to the VM and restart (ROLLBACK=1 to undo)
 	scripts/deploy.sh
 
-tunnel:          ## from your laptop: open the VM dashboard at http://localhost:8787
+tunnel:          ## from your laptop: open the VM console at http://localhost:3000 (and the dashboard on :8787)
+	@echo "Console: http://localhost:3000"
 	@echo "Dashboard: http://localhost:8787  (Ctrl-C to close)"
-	gcloud compute ssh $(VM) --project $(GCP_PROJECT) --zone $(GCP_ZONE) -- -N -o ExitOnForwardFailure=yes -L 8787:127.0.0.1:8787
+	gcloud compute ssh $(VM) --project $(GCP_PROJECT) --zone $(GCP_ZONE) -- -N -o ExitOnForwardFailure=yes \
+		-L 3000:127.0.0.1:3000 -L 8787:127.0.0.1:8787

@@ -19,13 +19,14 @@ if [[ "${ROLLBACK:-}" == 1 ]]; then
   echo "Rolling back to the previous deploy..."
   ssh_vm 'set -e; [ -d ~/ai-calling.prev ] || { echo "no previous deploy to roll back to"; exit 1; }
     mv ~/ai-calling ~/ai-calling.rollback-tmp && mv ~/ai-calling.prev ~/ai-calling && mv ~/ai-calling.rollback-tmp ~/ai-calling.prev
-    cd ~/ai-calling && docker compose up -d --build
-    # Older trees have no agent-sim service: then remove its orphaned container instead of starting it.
-    if docker compose --profile agent config --services | grep -qx agent-sim; then
-      docker compose --profile agent up -d --build agent agent-sim
-    else
-      docker compose --profile agent up -d --build --remove-orphans agent
-    fi
+    cd ~/ai-calling && docker compose up -d --build   # also starts console when this tree defines it
+    # Older trees have no agent-sim and/or console service: start only what this tree has, and remove
+    # the orphaned containers of the rest.
+    services=$(docker compose --profile agent config --services)
+    sim=; echo "$services" | grep -qx agent-sim && sim=agent-sim
+    orphans=--remove-orphans
+    [ -n "$sim" ] && echo "$services" | grep -qx console && orphans=
+    docker compose --profile agent up -d --build $orphans agent $sim
     echo "now running: $(cat DEPLOYED_COMMIT 2>/dev/null || echo unknown)"'
   exit 0
 fi
@@ -77,6 +78,8 @@ docker compose --profile agent up -d agent agent-sim
 
 # Fails the deploy (non-zero) if the dashboard crash-loops, e.g. the SQLite history copy failing at startup.
 scripts/wait-dashboard.sh \"\$start\"
+# Same for the console: its /sign-in must answer within 60 s.
+scripts/wait-console.sh \"\$start\"
 
 echo 'Waiting for the agent to register...'
 for i in \$(seq 1 30); do
