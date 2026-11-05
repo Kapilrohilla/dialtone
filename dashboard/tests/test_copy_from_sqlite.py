@@ -168,3 +168,10 @@ def test_dry_run_from_old_schema_reports_the_assignment(old_schema_file, workspa
     call_command("copy_from_sqlite", path=str(old_schema_file), dry_run=True)
     assert "assigned to a workspace: 2" in capsys.readouterr().out
     assert Call.objects.count() == 0
+
+
+def test_if_needed_says_already_copied_when_marker_present(legacy_file, capsys):
+    (legacy_file.parent / ".copied-to-postgres").write_text("x")
+    call_command("copy_from_sqlite", path=str(legacy_file), if_needed=True)
+    assert Call.objects.count() == 0
+    assert "already copied" in capsys.readouterr().out

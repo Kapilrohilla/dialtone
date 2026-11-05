@@ -62,7 +62,10 @@ class Command(BaseCommand):
     def handle(self, *args, path, force, dry_run, if_needed, **options):
         marker = Path(path).parent / MARKER
         if if_needed:
-            if not Path(path).is_file() or marker.exists():
+            if not Path(path).is_file():
+                return
+            if marker.exists():
+                self.stdout.write(f"SQLite history already copied ({marker} present)")
                 return
             if Call.objects.exists():
                 logger.warning(
