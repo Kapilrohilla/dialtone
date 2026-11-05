@@ -5,14 +5,22 @@ from .models import KnowledgeDocument, KnowledgeRevision
 
 class KnowledgeListSerializer(serializers.ModelSerializer):
     current_revision = serializers.SerializerMethodField()
+    used_by = serializers.SerializerMethodField()
 
     class Meta:
         model = KnowledgeDocument
-        fields = ["id", "title", "updated_at", "current_revision"]
+        fields = ["id", "title", "updated_at", "current_revision", "used_by"]
 
     def get_current_revision(self, obj):
         cur = obj.current
         return cur.number if cur else 0
+
+    def get_used_by(self, obj):
+        """Non-archived agents linking this document (annotated by the list view)."""
+        count = getattr(obj, "used_by_count", None)
+        if count is None:
+            count = obj.agents.exclude(status="archived").count()
+        return count
 
 
 class KnowledgeDetailSerializer(KnowledgeListSerializer):

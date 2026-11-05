@@ -18,7 +18,7 @@ def test_create_makes_revision_1(member):
     rev = KnowledgeRevision.objects.get(document_id=r.json()["id"])
     assert rev.number == 1 and rev.body_md == "hello" and rev.edited_by == c.user
     lst = c.get("/api/knowledge").json()
-    assert set(lst[0]) == {"id", "title", "updated_at", "current_revision"}
+    assert set(lst[0]) == {"id", "title", "updated_at", "current_revision", "used_by"}
 
 
 @pytest.mark.django_db

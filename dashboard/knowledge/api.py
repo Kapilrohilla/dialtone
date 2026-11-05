@@ -1,4 +1,5 @@
 from django.db import transaction
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
@@ -40,7 +41,9 @@ def _add_revision(doc, body, user):
 
 class KnowledgeListView(_Base):
     def get(self, request):
-        qs = KnowledgeDocument.objects.filter(workspace=workspace_for(request), archived=False)
+        qs = KnowledgeDocument.objects.filter(workspace=workspace_for(request), archived=False).annotate(
+            used_by_count=Count("agents", filter=Q(agents__status__in=["draft", "published"]), distinct=True)
+        )
         return Response(KnowledgeListSerializer(qs, many=True).data)
 
     def post(self, request):
