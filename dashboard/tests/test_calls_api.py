@@ -332,3 +332,25 @@ def test_agents_list_calls_this_week(member, workspace):
     make_call(workspace, "o1", started=now - timedelta(hours=2), version=other_version)
     rows = {a["id"]: a for a in member("viewer").get("/api/agents").json()}
     assert rows[agent.id]["calls_this_week"] == 2 and rows[other.id]["calls_this_week"] == 1
+
+
+def test_answers_use_real_outcome_shape(member, workspace):
+    # Exactly the keys agent/agent.py record_outcome writes.
+    outcome = {
+        "disposition": "INTERESTED", "reason": "Wants work", "summary": "Keen on weekly rental",
+        "interest_strength": "none", "telecaller_followup_agreed": False,
+        "callback_time": "", "city": "Pune", "licence": "valid 4-wheeler, own name",
+        "experience": "Ola 2 years", "uber_id": "active", "preferred_plan": "Uber Go rental",
+        "main_question": "Deposit kitna hai?", "do_not_call": False,
+    }
+    call = make_call(workspace, "real", started=at(hh=10), disposition="INTERESTED", outcome=outcome)
+    event(call, 1, "field_captured", {"field": "callback_time", "value": "kal shaam"})
+    event(call, 2, "field_captured", {"field": "city", "value": "Pune, Hinjewadi"})
+    answers = member("viewer").get("/api/calls/real").json()["answers"]
+    assert answers == {
+        "callback_time": "kal shaam", "city": "Pune, Hinjewadi", "licence": "valid 4-wheeler, own name",
+        "experience": "Ola 2 years", "uber_id": "active", "preferred_plan": "Uber Go rental",
+        "main_question": "Deposit kitna hai?",
+    }
+    for meta in ("interest_strength", "telecaller_followup_agreed", "do_not_call"):
+        assert meta not in answers

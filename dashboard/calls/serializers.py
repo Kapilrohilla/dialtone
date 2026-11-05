@@ -7,8 +7,9 @@ defensive: anything of the wrong type is treated as missing rather than raising.
 from .models import CallEvent, CallReport
 from .outcomes import display_outcome
 
-# Report outcome keys that are not answers to qualification questions.
-NOT_ANSWERS = {"reason", "summary", "disposition"}
+# The report outcome keys that answer qualification questions (agent.py record_outcome); the rest
+# (disposition, reason, summary, interest_strength, telecaller_followup_agreed, do_not_call) are not answers.
+ANSWER_FIELDS = ("callback_time", "city", "licence", "experience", "uber_id", "preferred_plan", "main_question")
 EMPTY = (None, "", [], {})
 
 
@@ -111,8 +112,8 @@ def latest(events, type_, key) -> str:
 def call_detail(call, events) -> dict:
     """`events`: the call's CallEvents in seq order."""
     outcome = outcome_data(call)
-    answers = {k: v for k, v in outcome.items() if k not in NOT_ANSWERS and v not in EMPTY}
-    answers.update(captured_fields(events))
+    answers = {k: outcome[k] for k in ANSWER_FIELDS if outcome.get(k) not in EMPTY}
+    answers.update(captured_fields(events))  # live captures win; they may add workflow-defined fields
     report = report_of(call)
     step_path = _dict(report.data if report else None).get("step_path")
     if isinstance(step_path, list):
