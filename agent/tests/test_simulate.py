@@ -79,6 +79,24 @@ async def post(client, body, identity="console-sim", secret=SECRET):
     return await client.post("/simulate", json=body, headers=headers)
 
 
+TRANSFER_GRAPH = {
+    "steps": [
+        {"id": "s1", "name": "Greet", "type": "start", "prompt": "Greet."},
+        {"id": "t1", "name": "Hand over", "type": "transfer", "prompt": "Hand over to a person."},
+    ],
+    "paths": [{"from": "s1", "to": "t1", "label": "Driver wants a person"}],
+}
+AT_TRANSFER = {"current_step_id": "t1", "visits": {"s1": 1, "t1": 1}, "transitions": 1, "captured": {},
+               "path": ["Greet", "Hand over"], "outcome": None}
+OUTCOME = {"disposition": "INTERESTED", "reason": "Wants to join", "summary": "Agreed to talk to the team."}
+
+
+def transfer_body(outcome=None):
+    b = body([{"role": "caller", "text": "Haan, kisi se baat karao"}], {**AT_TRANSFER, "outcome": outcome})
+    b["snapshot"]["workflow"]["graph"] = TRANSFER_GRAPH
+    return b
+
+
 def body(messages=(), state=None, workflow=True):
     return {"snapshot": snapshot(workflow), "lead": LEAD, "messages": list(messages), "state": state}
 
@@ -195,7 +213,8 @@ async def test_sim_end_step_records_outcome_and_ends(make_client):
     assert len(model.calls) == 3
 
 
-async def test_sim_tool_round_limit(make_client):
+async def test_sim_tool_round_limit(make_client, monkeypatch):
+    monkeypatch.delenv("HANDOFF_SIP_URI", raising=False)
     model = FakeModel(
         ModelTurn(text="Ek minute sir.", tool_calls=[call("transfer_to_telecaller")]),
         repeat=ModelTurn(tool_calls=[call("transfer_to_telecaller")]),
@@ -209,7 +228,7 @@ async def test_sim_tool_round_limit(make_client):
     assert data["reply"] == "Ek minute sir."
     assert data["ended"] is False
     results = [m["output"] for m in model.calls[1]["messages"] if m["role"] == "tool_result"]
-    assert results == ["Transfer simulated."]
+    assert results == ["Live transfer isn't available. Offer a callback from the telecalling team instead."]
 
 
 async def test_sim_round_limit_without_text_replies_ellipsis(make_client):
@@ -371,3 +390,40 @@ async def test_gemini_model_drives_livekit_chat_context():
     roles = [item.role for item in seen["ctx"].items if item.type == "message"]
     assert roles == ["system", "user", "assistant", "user"]
     assert {t.info.name for t in seen["tools"]} == {t["name"] for t in sim.tools()}
+
+
+async def run_transfer(make_client, outcome=None):
+    model = FakeModel(ModelTurn(tool_calls=[call("transfer_to_telecaller")]), ModelTurn(text="Ji sir."))
+    client = await make_client(model)
+    try:
+        data = await (await post(client, transfer_body(outcome))).json()
+    finally:
+        await client.close()
+    results = [m["output"] for m in model.calls[1]["messages"] if m["role"] == "tool_result"]
+    return model, data, results
+
+
+async def test_sim_transfer_unavailable_without_handoff(make_client, monkeypatch):
+    import prompt
+
+    monkeypatch.setenv("HANDOFF_SIP_URI", "  ")
+    model, data, results = await run_transfer(make_client, OUTCOME)
+    assert prompt.NO_TRANSFER_DIRECTION in model.calls[0]["instructions"]
+    assert prompt.TRANSFER_DIRECTION not in model.calls[0]["instructions"]
+    assert results == ["Live transfer isn't available. Offer a callback from the telecalling team instead."]
+
+
+async def test_sim_transfer_requires_outcome(make_client, monkeypatch):
+    import prompt
+
+    monkeypatch.setenv("HANDOFF_SIP_URI", "sip:team@example.com")
+    model, data, results = await run_transfer(make_client, None)
+    assert prompt.TRANSFER_DIRECTION in model.calls[0]["instructions"]
+    assert results == ["Call record_outcome first."]
+
+
+async def test_sim_transfer_simulated_with_handoff_and_outcome(make_client, monkeypatch):
+    monkeypatch.setenv("HANDOFF_SIP_URI", "sip:team@example.com")
+    model, data, results = await run_transfer(make_client, OUTCOME)
+    assert results == ["Transfer simulated."]
+    assert data["outcome"]["disposition"] == "INTERESTED" and data["ended"] is False

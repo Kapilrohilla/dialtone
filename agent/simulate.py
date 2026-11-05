@@ -178,6 +178,11 @@ class GeminiChatModel:
         return ModelTurn(text="".join(text), tool_calls=calls)
 
 
+def handoff_available() -> bool:
+    """HANDOFF_SIP_URI is set, read per request (like agent.py's HANDOFF_SIP_URI, but monkeypatchable)."""
+    return bool(os.getenv("HANDOFF_SIP_URI", "").strip())
+
+
 class BadRequest(Exception):
     pass
 
@@ -252,9 +257,10 @@ class Simulation:
     def instructions(self) -> str:
         step = self.run.current
         paths = [{"name": p.name, "label": p.description} for p in self.run.paths_from_current()] if step else []
-        # Transfers are simulated, so the transfer step's prompt is the one a call with a handoff gets.
+        # Same as a live call on this host: the transfer direction depends on the handoff number.
         text = build_instructions(
-            self.snapshot, self.lead, GEMINI_LANGUAGE_RULES, self.current_step(), paths, handoff_available=True
+            self.snapshot, self.lead, GEMINI_LANGUAGE_RULES, self.current_step(), paths,
+            handoff_available=handoff_available(),
         )
         return f"{text}\n\n{opening_instructions(self.lead, self.persona)}"
 
@@ -275,6 +281,11 @@ class Simulation:
             self.ended = True
             return "Call ended."
         if name == "transfer_to_telecaller":
+            # The live tool's guards, in its order; only the SIP transfer itself is simulated.
+            if not handoff_available():
+                return "Live transfer isn't available. Offer a callback from the telecalling team instead."
+            if self.outcome is None:
+                return "Call record_outcome first."
             return "Transfer simulated."
         if isinstance(name, str) and name in self.path_names:
             value = args.get("value")
