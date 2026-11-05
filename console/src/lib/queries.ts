@@ -58,10 +58,32 @@ export function useLogout() {
 
 export const liveKey = ["live"] as const;
 
-/** Calls in progress. Pass the poll interval in ms; the sidebar uses 10000. */
+/** Calls in progress. Pass the poll interval in ms (0 reads the cache without polling). The sidebar polls at 10000
+ *  and goes quiet on the Live calls screen, which polls at 2000 on the same key. */
 export function useLiveCalls(refetchMs: number) {
-  return useQuery({ queryKey: liveKey, queryFn: () => apiFetch<LiveCall[]>("/api/live"), refetchInterval: refetchMs });
+  return useQuery({ queryKey: liveKey, queryFn: () => apiFetch<LiveCall[]>("/api/live"), refetchInterval: refetchMs || false });
 }
+
+type LiveAnswer = { detail: string };
+
+function useLiveAction(action: "transfer" | "end") {
+  const qc = useQueryClient();
+  const toast = useToast();
+  return useMutation({
+    mutationFn: (room: string) => apiFetch<LiveAnswer>(`/api/live/${encodeURIComponent(room)}/${action}`, { method: "POST" }),
+    onSuccess: (answer) => {
+      toast.show(answer.detail, "ok");
+      return qc.invalidateQueries({ queryKey: liveKey });
+    },
+    onError: (e) => toast.show(e instanceof ApiError ? e.detail : "Couldn't reach the call server.", "bad"),
+  });
+}
+
+/** Hands the caller to the telecalling team. The toast carries the API's words (e.g. "Live transfer isn't set up."). */
+export const useTransfer = () => useLiveAction("transfer");
+
+/** Disconnects the caller. */
+export const useEndCall = () => useLiveAction("end");
 
 // ---- dashboard ----
 

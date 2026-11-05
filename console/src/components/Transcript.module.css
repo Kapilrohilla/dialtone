@@ -1,0 +1,9 @@
+.log { display: flex; flex-direction: column; gap: 12px; overflow-y: auto; max-height: 100%; }
+.line { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 12px; align-items: baseline; }
+.who { font-size: 13px; font-weight: 600; }
+.caller { color: var(--amber); }
+.agent { color: var(--blue); }
+.text { margin: 0; font-size: 15px; line-height: 1.5; color: var(--ink); overflow-wrap: anywhere; }
+.chips { display: inline; margin-right: 6px; }
+.chips > span { margin-right: 4px; }
+.empty { margin: 0; color: var(--muted); font-size: 15px; }

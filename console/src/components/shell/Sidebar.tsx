@@ -25,7 +25,7 @@ const isActive = (pathname: string, href: string) => (href === "/" ? pathname ==
 export function Sidebar() {
   const pathname = usePathname();
   const { data: me } = useMe();
-  const live = useLiveCalls(10_000);
+  const live = useLiveCalls(pathname === "/live" ? 0 : 10_000); // the Live calls screen polls faster itself
   const logout = useLogout();
   const liveCount = live.isError ? 0 : (live.data?.length ?? 0);
 
