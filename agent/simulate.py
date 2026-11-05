@@ -96,8 +96,8 @@ TRANSFER_SCHEMA = {
     "name": "transfer_to_telecaller",
     "description": (
         "Connect the driver to a person on Carrum's telecalling team right now. Use only when the driver "
-        "agreed to talk to a person now. Call record_outcome first, and tell the driver in one short "
-        "sentence that you're connecting them before calling this."
+        "agreed to talk to a person now. Call record_outcome first. If this returns that transfer isn't "
+        "available, offer a callback instead."
     ),
     "parameters": {"type": "object", "properties": {}, "required": []},
 }

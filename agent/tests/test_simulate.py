@@ -479,3 +479,12 @@ async def test_sim_end_step_outcome_override_across_requests(make_client):
     assert d2["outcome"]["disposition"] == "CBR" and d2["outcome"]["end_step_outcome_overridden"] is True
     assert d2["state"]["outcome"]["end_step_outcome_overridden"] is True
     assert d2["ended"] is True
+
+
+def test_transfer_tool_description_matches_live_agent():
+    import agent
+
+    live = " ".join(agent.PhoneAgent.transfer_to_telecaller.info.description.split())
+    assert live == simulate.TRANSFER_SCHEMA["description"]
+    assert "connecting" not in live
+    assert "Call record_outcome first." in live and "offer a callback instead" in live

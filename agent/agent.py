@@ -436,8 +436,8 @@ class PhoneAgent(Agent):
     @function_tool
     async def transfer_to_telecaller(self, ctx: RunContext) -> str:
         """Connect the driver to a person on Carrum's telecalling team right now. Use only when the
-        driver agreed to talk to a person now. Call record_outcome first, and tell the driver in one
-        short sentence that you're connecting them before calling this."""
+        driver agreed to talk to a person now. Call record_outcome first. If this returns that transfer
+        isn't available, offer a callback instead."""
         if not HANDOFF_SIP_URI:
             return "Live transfer isn't available. Offer a callback from the telecalling team instead."
         if self.outcome is None:
