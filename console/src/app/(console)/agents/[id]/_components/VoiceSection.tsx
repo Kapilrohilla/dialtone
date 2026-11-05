@@ -11,7 +11,12 @@ const PIPELINES: Record<string, string> = { "gemini-live": "Gemini Live", sarvam
 
 export const pipelineLabel = (pipeline: string) => PIPELINES[pipeline] ?? pipeline;
 
-export type PanelSectionProps = { agent: Agent; readOnly: boolean; save: (body: AgentUpdate) => Promise<boolean> };
+export type PanelSectionProps = {
+  agent: Agent;
+  readOnly: boolean;
+  /** PATCHes `body`; `group` names what a failure belongs to (defaults to the fields sent). */
+  save: (body: AgentUpdate, group?: string) => Promise<boolean>;
+};
 
 export function VoiceSection({ agent, readOnly, save }: PanelSectionProps) {
   const { data } = useVoices();

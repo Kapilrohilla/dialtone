@@ -10,17 +10,20 @@ import { KnowledgeSection } from "./KnowledgeSection";
 import { VoiceSection, type PanelSectionProps } from "./VoiceSection";
 import styles from "./editor.module.css";
 
-export type SidePanelProps = PanelSectionProps & { timingsError?: string | null };
+export type SidePanelProps = PanelSectionProps & {
+  timingsError?: string | null;
+  markInvalid: (group: string, message: string | null) => void;
+};
 
 /** The 320px settings column: voice, knowledge, workflow, behaviour, advanced. */
-export function SidePanel({ timingsError, ...props }: SidePanelProps) {
+export function SidePanel({ timingsError, markInvalid, ...props }: SidePanelProps) {
   return (
     <aside aria-label="Agent settings" className={styles.side}>
       <VoiceSection {...props} />
       <KnowledgeSection {...props} />
       <WorkflowSection {...props} />
       <BehaviourSection {...props} />
-      <AdvancedSection {...props} timingsError={timingsError} />
+      <AdvancedSection {...props} timingsError={timingsError} markInvalid={markInvalid} />
     </aside>
   );
 }

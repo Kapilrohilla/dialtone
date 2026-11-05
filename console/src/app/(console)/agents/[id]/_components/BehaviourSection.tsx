@@ -17,7 +17,7 @@ export function BehaviourSection({ agent, readOnly, save }: PanelSectionProps) {
         disabled={readOnly}
         onChange={(next) => {
           setMood(next);
-          void save({ settings: { mood_adaptation: next } });
+          void save({ settings: { mood_adaptation: next } }, "mood");
         }}
       />
       <Switch
@@ -26,7 +26,7 @@ export function BehaviourSection({ agent, readOnly, save }: PanelSectionProps) {
         disabled={readOnly}
         onChange={(next) => {
           setCheckIn(next);
-          void save({ settings: { dead_air: { enabled: next } } });
+          void save({ settings: { dead_air: { enabled: next } } }, "check-in");
         }}
       />
     </div>

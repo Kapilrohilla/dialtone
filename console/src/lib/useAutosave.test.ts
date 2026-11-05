@@ -107,4 +107,31 @@ describe("useAutosave", () => {
     await act(() => vi.advanceTimersByTimeAsync(2000));
     expect(save).not.toHaveBeenCalled();
   });
+
+  it("saves a pending change on unmount", async () => {
+    const save = vi.fn(() => Promise.resolve());
+    const { rerender, unmount } = setup(save);
+    rerender({ value: "b" });
+    unmount();
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(save).toHaveBeenCalledWith("b");
+  });
+
+  it("asks before the tab closes while a change is unsaved or failed", async () => {
+    const save = vi.fn(() => Promise.reject(new ApiError(400, "Too long.")));
+    const { result, rerender } = setup(save);
+    const leave = () => {
+      const e = new Event("beforeunload", { cancelable: true });
+      window.dispatchEvent(e);
+      return e.defaultPrevented;
+    };
+    expect(leave()).toBe(false);
+    rerender({ value: "b" });
+    expect(leave()).toBe(true);
+    await act(async () => {
+      await result.current.flush().catch(() => undefined);
+    });
+    expect(result.current.status).toBe("error");
+    expect(leave()).toBe(true);
+  });
 });

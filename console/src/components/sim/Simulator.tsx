@@ -37,12 +37,13 @@ export function Simulator({ kind, id, title, customExpressions, onClose }: Simul
   const [step, setStep] = useState<SimResponse["step"]>(null);
   const [ended, setEnded] = useState<{ outcome: ReturnType<typeof outcomeOf> } | null>(null);
   const [text, setText] = useState("");
-  const [failed, setFailed] = useState<{ message: string; request: SimRequest } | null>(null);
+  const [failed, setFailed] = useState<{ message: string; request: SimRequest; typed?: string } | null>(null);
   /** Bumped by "Start again" so a reply to the previous conversation is dropped. */
   const run = useRef(0);
   const started = useRef(false);
 
-  function send(request: SimRequest) {
+  /** `typed`: the input text this request sends, cleared from the input once the reply arrives. */
+  function send(request: SimRequest, typed?: string) {
     const at = run.current;
     setFailed(null);
     sim.mutate(request, {
@@ -51,12 +52,13 @@ export function Simulator({ kind, id, title, customExpressions, onClose }: Simul
         setTurns(r.reply ? [...request.messages, { role: "agent", text: r.reply }] : request.messages);
         setState(r.state);
         setStep(r.step);
-        if (request.messages.at(-1)?.role === "caller") setText("");
+        // Only what was sent: anything typed while waiting stays.
+        if (typed !== undefined) setText((now) => (now.startsWith(typed) ? now.slice(typed.length).replace(/^\s+/, "") : now));
         if (r.ended) setEnded({ outcome: outcomeOf(r.outcome) });
       },
       onError: (e) => {
         if (at !== run.current) return;
-        setFailed({ message: e instanceof ApiError ? e.detail : "The test simulator failed.", request });
+        setFailed({ message: e instanceof ApiError ? e.detail : "The test simulator failed.", request, typed });
       },
     });
   }
@@ -83,7 +85,7 @@ export function Simulator({ kind, id, title, customExpressions, onClose }: Simul
     e?.preventDefault();
     const said = text.trim();
     if (!said || sim.isPending) return;
-    send({ messages: [...turns, { role: "caller", text: said }], state });
+    send({ messages: [...turns, { role: "caller", text: said }], state }, text);
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
@@ -106,7 +108,7 @@ export function Simulator({ kind, id, title, customExpressions, onClose }: Simul
       {failed && (
         <div role="alert" className={styles.error}>
           <span>{failed.message}</span>
-          <Button size="sm" variant="text" onClick={() => send(failed.request)}>Try again</Button>
+          <Button size="sm" variant="text" onClick={() => send(failed.request, failed.typed)}>Try again</Button>
         </div>
       )}
       <label htmlFor={inputId} className={styles.srOnly}>Your reply</label>

@@ -7,6 +7,7 @@ import { cx } from "@/components/ui/util";
 import type { Expression } from "@/lib/types";
 import { MAX_PAUSE_S, MIN_PAUSE_S, formatSeconds } from "@/lib/tokens";
 import { exprChipRefresh } from "./ExprChipNode";
+import type { CreateExpression } from "./ExpressionMenu";
 import { editorExtensions, type TokenEditorMode } from "./extensions";
 import { fromEditor, toEditorContent } from "./markdown";
 import { Toolbar } from "./Toolbar";
@@ -24,8 +25,9 @@ export type TokenEditorProps = {
   mode: TokenEditorMode;
   /** The agent's custom expressions, name to hint. */
   customExpressions?: Record<string, string>;
-  /** Adds "New expression…" to the Expression menu. The chip is inserted right after. */
-  onCreateExpression?: (name: string, hint: string) => void;
+  /** Adds "New expression…" to the Expression menu. The chip is inserted once it returns (or resolves to)
+   *  anything but false, e.g. after the caller has saved the expression. */
+  onCreateExpression?: CreateExpression;
   /** Built-ins from GET /api/expressions; the constant list is used until then. */
   builtins?: Expression[];
   readOnly?: boolean;

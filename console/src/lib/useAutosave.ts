@@ -16,7 +16,8 @@ export type Autosave = {
 /**
  * Saves `value` `delayMs` after it last changed (compared with Object.is; the first value counts as saved).
  * One save is in flight at a time: a change made while saving is saved right after. `enabled: false` stops
- * scheduling saves (flush still saves).
+ * scheduling saves (flush still saves). While anything is unsaved, closing the tab asks first; unmounting saves
+ * what is pending.
  */
 export function useAutosave<T>(value: T, save: (v: T) => Promise<unknown>, delayMs = 800, enabled = true): Autosave {
   const [status, setStatus] = useState<AutosaveStatus>("idle");
@@ -77,6 +78,30 @@ export function useAutosave<T>(value: T, save: (v: T) => Promise<unknown>, delay
       timer.current = null;
     };
   }, [value, enabled, delayMs, run]);
+
+  const enabledRef = useRef(enabled);
+  useEffect(() => {
+    enabledRef.current = enabled;
+  }, [enabled]);
+
+  // Unsaved (pending, in flight or failed): ask before the tab closes, and save on the way out of the page.
+  useEffect(() => {
+    const dirty = () => running.current !== null || !Object.is(latest.current, saved.current);
+    function onBeforeUnload(e: BeforeUnloadEvent) {
+      if (!dirty()) return;
+      e.preventDefault();
+      e.returnValue = "";
+    }
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      if (enabledRef.current && !Object.is(latest.current, saved.current)) {
+        run().catch(() => {
+          // Leaving the page: nobody is left to show it.
+        });
+      }
+    };
+  }, [run]);
 
   return { status, error, flush: run };
 }

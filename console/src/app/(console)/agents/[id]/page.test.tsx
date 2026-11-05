@@ -353,4 +353,70 @@ describe("agent script editor", () => {
     expect(await screen.findByText("Not found.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
   });
+
+  it("keeps a timings error after a later save elsewhere succeeds, and blocks Publish", async () => {
+    const message = "Dead-air timings must increase: first check-in, then second check-in, then hang up.";
+    const patches = serve({ ...baseAgent, status: "draft", published_version: null }, (body) =>
+      body.settings?.dead_air?.nudge_s !== undefined
+        ? HttpResponse.json({ settings: { dead_air: { non_field_errors: [message] } } }, { status: 400 })
+        : undefined,
+    );
+    const { user } = open();
+    await user.click(await screen.findByRole("button", { name: "Advanced" }));
+    const first = screen.getByRole("spinbutton", { name: "First check-in after (s)" });
+    await user.clear(first);
+    await user.type(first, "10");
+    await user.tab();
+    const group = screen.getByRole("group", { name: "Check-in timings" });
+    expect(await within(group).findByText(message)).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByRole("combobox", { name: "Voice" }), "priya");
+    await waitFor(() => expect(patches.at(-1)).toEqual({ voice_id: "priya" }));
+    await waitFor(() => expect(screen.queryByText("Saving…")).not.toBeInTheDocument());
+    expect(within(group).getByText(message)).toBeInTheDocument();
+    expect(screen.getByText("Not saved")).toBeInTheDocument();
+    expect(screen.queryByText("Saved")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Publish" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await user.clear(first);
+    await user.type(first, "4");
+    await user.tab();
+    await waitFor(() => expect(within(group).queryByText(message)).not.toBeInTheDocument());
+    expect(await screen.findByText("Saved")).toBeInTheDocument();
+  });
+
+  it("does not send timings that are not whole seconds, and blocks Publish", async () => {
+    const patches = serve({ ...baseAgent, status: "draft", published_version: null });
+    const { user } = open();
+    await user.click(await screen.findByRole("button", { name: "Advanced" }));
+    const hangUp = screen.getByRole("spinbutton", { name: "Hang up after (s)" });
+    await user.clear(hangUp);
+    await user.type(hangUp, "1.5");
+    await user.tab();
+    expect(within(screen.getByRole("group", { name: "Check-in timings" })).getByText("Use whole seconds.")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Publish" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(patches).toEqual([]);
+  });
+
+  it("inserts no chip when the new expression can't be saved", async () => {
+    const patches = serve(baseAgent, (body) =>
+      body.custom_expressions ? HttpResponse.json({ custom_expressions: ["At most 20 custom expressions."] }, { status: 400 }) : undefined,
+    );
+    const { user } = open();
+    const greeting = await screen.findByRole("textbox", { name: "Greeting" });
+    await user.click(within(section("Greeting")).getByRole("button", { name: "Expression" }));
+    await user.click(screen.getByRole("menuitem", { name: "New expression…" }));
+    await user.type(screen.getByRole("textbox", { name: "Name" }), "calm");
+    await user.type(screen.getByRole("textbox", { name: "How to say it" }), "say this slowly and calmly");
+    await user.click(screen.getByRole("button", { name: "Add expression" }));
+    expect(await screen.findByText("At most 20 custom expressions.")).toBeInTheDocument();
+    expect(greeting).not.toHaveTextContent("[calm]");
+    await new Promise((r) => setTimeout(r, 1000));
+    expect(patches).toEqual([{ custom_expressions: { calm: "say this slowly and calmly" } }]);
+    await user.click(within(section("Greeting")).getByRole("button", { name: "Expression" }));
+    expect(screen.queryByRole("menuitem", { name: /^calm/ })).not.toBeInTheDocument();
+  });
 });

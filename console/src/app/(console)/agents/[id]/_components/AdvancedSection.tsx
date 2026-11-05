@@ -4,6 +4,7 @@ import { useId, useState } from "react";
 import { Disclosure, Field } from "@/components/ui";
 import { useVoices } from "@/lib/queries";
 import type { AgentSettings } from "@/lib/types";
+import { TIMINGS_GROUP } from "./useAgentSaves";
 import { pipelineLabel, type PanelSectionProps } from "./VoiceSection";
 import styles from "./editor.module.css";
 
@@ -17,31 +18,31 @@ const TIMINGS: { key: Timing; label: string }[] = [
 const asText = (d: AgentSettings["dead_air"]) => ({ nudge_s: String(d.nudge_s), second_nudge_s: String(d.second_nudge_s), hang_up_s: String(d.hang_up_s) });
 
 export type AdvancedSectionProps = PanelSectionProps & {
-  /** The server's dead-air error, shown under the timings. */
+  /** The timings' error (the server's, or "Use whole seconds."), shown under them. */
   timingsError?: string | null;
+  markInvalid: (group: string, message: string | null) => void;
 };
 
-export function AdvancedSection({ agent, readOnly, save, timingsError }: AdvancedSectionProps) {
+export function AdvancedSection({ agent, readOnly, save, timingsError, markInvalid }: AdvancedSectionProps) {
   const { data: voices } = useVoices();
   const [phone, setPhone] = useState(agent.phone_number);
   const [description, setDescription] = useState(agent.description);
   const [timings, setTimings] = useState(() => asText(agent.settings.dead_air));
-  const [wholeError, setWholeError] = useState<string | null>(null);
   const errorId = useId();
 
   function commitTimings() {
     if (TIMINGS.some(({ key }) => !/^\d+$/.test(timings[key].trim()))) {
-      setWholeError("Use whole seconds.");
+      markInvalid(TIMINGS_GROUP, "Use whole seconds.");
       return;
     }
-    setWholeError(null);
     const saved = agent.settings.dead_air;
     const changed: Partial<Record<Timing, number>> = {};
     for (const { key } of TIMINGS) if (Number(timings[key]) !== saved[key]) changed[key] = Number(timings[key]);
-    if (Object.keys(changed).length) void save({ settings: { dead_air: changed } });
+    if (Object.keys(changed).length) void save({ settings: { dead_air: changed } }, TIMINGS_GROUP);
+    else markInvalid(TIMINGS_GROUP, null);
   }
 
-  const groupError = wholeError ?? timingsError;
+  const groupError = timingsError;
 
   return (
     <div className={styles.panelSection}>

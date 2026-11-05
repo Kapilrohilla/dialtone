@@ -6,13 +6,16 @@ import { NewExpressionDialog } from "./NewExpressionDialog";
 import { usePopover } from "./usePopover";
 import styles from "./editor.module.css";
 
+/** Return false (or a promise of false) when the expression wasn't created; the chip is inserted only otherwise. */
+export type CreateExpression = (name: string, hint: string) => void | boolean | Promise<void | boolean>;
+
 export type ExpressionMenuProps = {
   /** Built-ins from GET /api/expressions; falls back to the server's constant list. */
   builtins?: Expression[];
   customExpressions: Record<string, string>;
   onInsert: (name: string) => void;
   /** Without it there is no "New expression…" item. */
-  onCreateExpression?: (name: string, hint: string) => void;
+  onCreateExpression?: CreateExpression;
 };
 
 const FALLBACK: Expression[] = BUILTIN_EXPRESSIONS.map((name) => ({ name, hint: BUILTIN_HINTS[name], builtin: true }));
@@ -90,8 +93,12 @@ export function ExpressionMenu({ builtins = FALLBACK, customExpressions, onInser
           onClose={() => setCreating(false)}
           onCreate={(name, hint) => {
             setCreating(false);
-            onCreateExpression(name, hint);
-            onInsert(name);
+            const created = onCreateExpression(name, hint);
+            if (created instanceof Promise) {
+              void created.then((ok) => {
+                if (ok !== false) onInsert(name);
+              });
+            } else if (created !== false) onInsert(name);
           }}
         />
       )}

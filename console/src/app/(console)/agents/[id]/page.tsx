@@ -15,7 +15,7 @@ import { NameCrumb } from "./_components/NameCrumb";
 import { SaveStatus } from "./_components/SaveStatus";
 import { ScriptDocument } from "./_components/ScriptDocument";
 import { SidePanel } from "./_components/SidePanel";
-import { useAgentSaves } from "./_components/useAgentSaves";
+import { TIMINGS_GROUP, useAgentSaves } from "./_components/useAgentSaves";
 import styles from "./_components/editor.module.css";
 
 export default function AgentEditorPage() {
@@ -124,7 +124,8 @@ function AgentEditor({ agent, editable }: { agent: Agent; editable: boolean }) {
           agent={agent}
           readOnly={!editable}
           save={saves.saveFields}
-          timingsError={saves.field.inline ? saves.field.error?.detail : null}
+          timingsError={saves.field.errors[TIMINGS_GROUP]?.detail}
+          markInvalid={saves.markInvalid}
         />
       </div>
       {editable && (

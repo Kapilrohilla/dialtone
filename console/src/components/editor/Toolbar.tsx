@@ -1,3 +1,4 @@
+import type { CreateExpression } from "./ExpressionMenu";
 import type { Editor } from "@tiptap/core";
 import { useEditorState } from "@tiptap/react";
 import { Bold, Heading2, Italic, List, Table, type LucideIcon } from "lucide-react";
@@ -13,7 +14,7 @@ export type ToolbarProps = {
   mode: TokenEditorMode;
   builtins?: Expression[];
   customExpressions: Record<string, string>;
-  onCreateExpression?: (name: string, hint: string) => void;
+  onCreateExpression?: CreateExpression;
 };
 
 /** Heading cycles paragraph → H2 → H3 → paragraph. */
@@ -78,6 +79,7 @@ export function Toolbar({ editor, mode, builtins, customExpressions, onCreateExp
         customExpressions={customExpressions}
         onCreateExpression={onCreateExpression}
         onInsert={(name) =>
+          !editor.isDestroyed &&
           editor
             .chain()
             .focus()

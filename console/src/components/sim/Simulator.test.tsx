@@ -1,6 +1,6 @@
 import userEvent from "@testing-library/user-event";
 import { screen, waitFor, within } from "@testing-library/react";
-import { http, HttpResponse } from "msw";
+import { delay, http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 import type { SimRequest } from "@/lib/queries";
 import type { SimResponse } from "@/lib/types";
@@ -112,5 +112,27 @@ describe("Simulator", () => {
     await within(transcript()).findByText("Hello?");
     await user.click(screen.getByRole("button", { name: "Close" }));
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("keeps text typed while the agent is replying", async () => {
+    let answered = false;
+    server.use(
+      http.post("*/api/agents/3/simulate", async ({ request }) => {
+        const body = (await request.json()) as SimRequest;
+        if (body.messages.length === 0) return HttpResponse.json(reply({ reply: "Hello?" }));
+        await delay(150);
+        answered = true;
+        return HttpResponse.json(reply({ reply: "Which city?" }));
+      }),
+    );
+    const user = userEvent.setup();
+    renderWithProviders(<Simulator kind="agent" id={3} onClose={() => {}} />);
+    await within(transcript()).findByText("Hello?");
+    const box = screen.getByRole("textbox", { name: "Your reply" });
+    await user.type(box, "Yes{Enter}");
+    await user.type(box, " and Pune");
+    expect(answered).toBe(false);
+    expect(await within(transcript()).findByText("Which city?")).toBeInTheDocument();
+    expect(box).toHaveValue("and Pune");
   });
 });
