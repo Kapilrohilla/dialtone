@@ -1,10 +1,12 @@
 import re
 
+from django.conf import settings
 from rest_framework import serializers
 
 from calls.numbers import strip_nul
 
 from .models import Agent, AgentVersion, default_settings
+from . import voices
 from .publish import is_outdated
 from .tokens import BUILTIN_EXPRESSIONS
 
@@ -37,9 +39,10 @@ class AgentListItemSerializer(AgentListSerializer):
     """A row of GET /api/agents; the queryset must annotate `calls_this_week`."""
 
     calls_this_week = serializers.IntegerField(read_only=True)
+    workflow = serializers.PrimaryKeyRelatedField(read_only=True)  # the workflows list shows which agents use each one
 
     class Meta(AgentListSerializer.Meta):
-        fields = AgentListSerializer.Meta.fields + ["calls_this_week"]
+        fields = AgentListSerializer.Meta.fields + ["workflow", "calls_this_week"]
 
 
 class AgentDetailSerializer(AgentListSerializer):
@@ -141,6 +144,11 @@ class AgentWriteSerializer(serializers.Serializer):
         value = value.strip()
         if not value:
             raise serializers.ValidationError("A name is required.")
+        return value
+
+    def validate_voice_id(self, value):
+        if value and value not in {v["id"] for v in voices.for_pipeline(settings.AGENT_PIPELINE)}:
+            raise serializers.ValidationError("Choose a voice from the list.")
         return value
 
     def validate_script(self, value):

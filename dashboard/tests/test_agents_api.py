@@ -38,7 +38,8 @@ def test_create_and_list_shape(member):
     lst = c.get("/api/agents").json()
     assert len(lst) == 1
     assert set(lst[0]) == {"id", "name", "description", "status", "phone_number", "updated_at",
-                           "updated_by_name", "is_outdated", "calls_this_week"}
+                           "updated_by_name", "is_outdated", "workflow", "calls_this_week"}
+    assert lst[0]["workflow"] is None
     assert lst[0]["updated_by_name"] == "Kapil" and lst[0]["phone_number"] == "+911234567890"
     assert create(c, name="  ").status_code == 400
 
@@ -51,14 +52,15 @@ def test_patch_fields_and_links(member, workspace):
     wf = make_workflow(workspace)
     r = c.patch(f"/api/agents/{pk}", {
         "name": "Renamed", "knowledge": [doc.id], "workflow": wf.id,
-        "settings": {"dead_air": {"nudge_s": 5}}, "voice_id": "v-1",
+        "settings": {"dead_air": {"nudge_s": 5}}, "voice_id": "Puck",
     }, format="json")
     assert r.status_code == 200, r.content
     body = r.json()
     assert body["name"] == "Renamed" and body["knowledge"] == [doc.id] and body["workflow"] == wf.id
     assert body["settings"]["dead_air"] == {"enabled": True, "nudge_s": 5, "second_nudge_s": 9, "hang_up_s": 15}
-    assert body["settings"]["mood_adaptation"] is True and body["voice_id"] == "v-1"
+    assert body["settings"]["mood_adaptation"] is True and body["voice_id"] == "Puck"
     assert c.get(f"/api/agents/{pk}").json() == body
+    assert c.get("/api/agents").json()[0]["workflow"] == wf.id
     r = c.patch(f"/api/agents/{pk}", {"workflow": None, "knowledge": []}, format="json")
     assert r.json()["workflow"] is None and r.json()["knowledge"] == []
 

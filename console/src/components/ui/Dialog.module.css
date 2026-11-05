@@ -1,0 +1,12 @@
+.dialog {
+  width: min(480px, calc(100vw - 32px));
+  padding: var(--gutter);
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.dialog::backdrop { background: rgb(20 18 15 / 0.45); }
+.title { margin-bottom: 12px; }
+.body { display: flex; flex-direction: column; gap: var(--row-gap); }
+.footer { display: flex; justify-content: flex-end; gap: 12px; margin-top: var(--gutter); }

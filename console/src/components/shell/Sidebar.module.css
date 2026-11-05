@@ -1,0 +1,30 @@
+.sidebar {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  padding: 20px 12px 12px;
+  background: var(--sidebar);
+  border-right: 1px solid var(--border);
+}
+.workspace { padding: 0 12px 16px; font-size: 16px; font-weight: 600; }
+.nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+.item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: var(--control-h);
+  padding: 0 12px;
+  border-radius: var(--radius);
+  color: var(--ink-2);
+  text-decoration: none;
+  font-weight: 500;
+}
+.item:hover { background: var(--panel); }
+.item[aria-current="page"] { background: var(--panel); color: var(--ink); }
+.label { flex: 1; }
+.count { margin-left: auto; }
+.user { display: flex; align-items: center; gap: 4px; padding: 12px 0 0; border-top: 1px solid var(--border); }
+.name { flex: 1; min-width: 0; padding: 0 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }

@@ -21,7 +21,11 @@ LIVEKIT_API_KEY = os.getenv("LIVEKIT_API_KEY", "")
 LIVEKIT_API_SECRET = os.getenv("LIVEKIT_API_SECRET", "")
 # Where "Transfer to a person" sends a live caller (sip:... or tel:...); empty = transfer not set up.
 HANDOFF_SIP_URI = os.getenv("HANDOFF_SIP_URI", "")
+# Where Django's old "/" page sends people: the Next.js console.
+CONSOLE_URL = os.getenv("CONSOLE_URL", "http://localhost:3000/")
 # The agent container's text simulator (agent/simulate.py) behind "Try it" and "Test call".
+# Which voice pipeline the worker runs; decides which voices an agent may pick.
+AGENT_PIPELINE = os.getenv("AGENT_PIPELINE", "gemini-live")
 AGENT_SIM_URL = os.getenv("AGENT_SIM_URL", "http://127.0.0.1:8790")
 
 INSTALLED_APPS = [
@@ -99,6 +103,8 @@ LOGIN_URL = "/admin/login/"
 
 # The console frontend runs on a different local origin in development.
 CSRF_TRUSTED_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000"]
+# Extra origins, comma-separated (the e2e smoke run serves the console on :3100).
+CSRF_TRUSTED_ORIGINS += [o.strip() for o in os.getenv("CSRF_EXTRA_TRUSTED_ORIGINS", "").split(",") if o.strip()]
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework.authentication.SessionAuthentication"],

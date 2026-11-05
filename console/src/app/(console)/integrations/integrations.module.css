@@ -1,0 +1,7 @@
+.page { padding: var(--gutter) 40px 48px; max-width: 960px; }
+.lead { margin: 0 0 var(--gutter); color: var(--muted); font-size: 15px; }
+.name { display: inline-flex; align-items: center; gap: 12px; color: var(--ink); font-weight: 500; }
+.form { display: flex; flex-direction: column; gap: var(--row-gap); }
+.footer { display: flex; justify-content: flex-end; gap: 12px; }
+.note { margin: 0; color: var(--muted); font-size: 15px; }
+@media (max-width: 900px) { .page { padding: var(--gutter); } }

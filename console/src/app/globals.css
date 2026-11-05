@@ -1,0 +1,205 @@
+/* Tokens come from final-screens.md. Light is :root; dark is [data-theme="dark"] or, with no
+   explicit choice, the system setting. Hue never moves between modes. */
+:root {
+  color-scheme: light;
+  --page: #FBF9F5;
+  --panel: #FFFFFF;
+  --border: #E4DFD6;
+  --well: #F3F0EA;
+  --sidebar: #F3F0EA;
+  --rule-strong: #CFC8BC;
+  --ink: #1E1A16;
+  --ink-2: #4A443D;
+  --muted: #6E675F;
+  --amber: #9A6200;
+  --amber-tint: #FBEFD6;
+  --blue: #2F6DB5;
+  --blue-tint: #E6EEF8;
+  --ok: #2E7D4F;
+  --ok-tint: #E5F3EA;
+  --bad: #B4412F;
+  --bad-tint: #F9E4E0;
+  --primary-fill: #F2B544;
+  --primary-ink: #2A1F0B;
+  --expr-happy-bg: #FCEBDC;
+  --expr-happy-border: #F1C9A5;
+  --expr-happy-ink: #8A4A12;
+  --expr-laugh-bg: #FCEBDC;
+  --expr-laugh-border: #F1C9A5;
+  --expr-laugh-ink: #8A4A12;
+  --expr-sad-bg: #E8E8F8;
+  --expr-sad-border: #C5C6EC;
+  --expr-sad-ink: #3F429A;
+  --expr-fear-bg: #F3E6F0;
+  --expr-fear-border: #DDBFD5;
+  --expr-fear-ink: #6E2F5F;
+  --expr-angry-bg: #F9E4E0;
+  --expr-angry-border: #EDBDB3;
+  --expr-angry-ink: #9A3324;
+  --expr-whisper-bg: #EEECE8;
+  --expr-whisper-border: #D6D2CB;
+  --expr-whisper-ink: #4F4A44;
+  --expr-pause-bg: #E6EBF0;
+  --expr-pause-border: #C3CDD8;
+  --expr-pause-ink: #3A4B5E;
+  --expr-excited-bg: #FBE5EE;
+  --expr-excited-border: #F0BED3;
+  --expr-excited-ink: #9A2B5B;
+  --font-sans: var(--font-hanken), var(--font-devanagari), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+  --radius: 8px;
+  --gutter: 24px;
+  --row-gap: 16px;
+  --control-h: 40px;
+  --sidebar-w: 232px;
+  --focus: var(--blue);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #1E2228;
+  --panel: #262B32;
+  --border: #3A4049;
+  --well: #14171B;
+  --sidebar: #191C21;
+  --rule-strong: #545C67;
+  --ink: #EEF0F3;
+  --ink-2: #C9CED6;
+  --muted: #A3AAB5;
+  --amber: #F2B544;
+  --amber-tint: #4A3A1C;
+  --blue: #7FB2F0;
+  --blue-tint: #1F3248;
+  --ok: #6FCF8E;
+  --ok-tint: #1F3326;
+  --bad: #F07A6A;
+  --bad-tint: #3A2220;
+  --primary-fill: #F2B544;
+  --primary-ink: #2A1F0B;
+  --expr-happy-bg: #3D2A1A;
+  --expr-happy-border: #6B4524;
+  --expr-happy-ink: #F5B98A;
+  --expr-laugh-bg: #3D2A1A;
+  --expr-laugh-border: #6B4524;
+  --expr-laugh-ink: #F5B98A;
+  --expr-sad-bg: #262845;
+  --expr-sad-border: #44477A;
+  --expr-sad-ink: #B9BBF2;
+  --expr-fear-bg: #352434;
+  --expr-fear-border: #5E3F5A;
+  --expr-fear-ink: #E3B4D6;
+  --expr-angry-bg: #3A2220;
+  --expr-angry-border: #6A3A33;
+  --expr-angry-ink: #F4A89C;
+  --expr-whisper-bg: #2C3036;
+  --expr-whisper-border: #4A5059;
+  --expr-whisper-ink: #D0D4DA;
+  --expr-pause-bg: #23303D;
+  --expr-pause-border: #3E5266;
+  --expr-pause-ink: #A9C1DA;
+  --expr-excited-bg: #3A2130;
+  --expr-excited-border: #6A3A55;
+  --expr-excited-ink: #F3A9CA;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #1E2228;
+    --panel: #262B32;
+    --border: #3A4049;
+    --well: #14171B;
+    --sidebar: #191C21;
+    --rule-strong: #545C67;
+    --ink: #EEF0F3;
+    --ink-2: #C9CED6;
+    --muted: #A3AAB5;
+    --amber: #F2B544;
+    --amber-tint: #4A3A1C;
+    --blue: #7FB2F0;
+    --blue-tint: #1F3248;
+    --ok: #6FCF8E;
+    --ok-tint: #1F3326;
+    --bad: #F07A6A;
+    --bad-tint: #3A2220;
+    --primary-fill: #F2B544;
+    --primary-ink: #2A1F0B;
+    --expr-happy-bg: #3D2A1A;
+    --expr-happy-border: #6B4524;
+    --expr-happy-ink: #F5B98A;
+    --expr-laugh-bg: #3D2A1A;
+    --expr-laugh-border: #6B4524;
+    --expr-laugh-ink: #F5B98A;
+    --expr-sad-bg: #262845;
+    --expr-sad-border: #44477A;
+    --expr-sad-ink: #B9BBF2;
+    --expr-fear-bg: #352434;
+    --expr-fear-border: #5E3F5A;
+    --expr-fear-ink: #E3B4D6;
+    --expr-angry-bg: #3A2220;
+    --expr-angry-border: #6A3A33;
+    --expr-angry-ink: #F4A89C;
+    --expr-whisper-bg: #2C3036;
+    --expr-whisper-border: #4A5059;
+    --expr-whisper-ink: #D0D4DA;
+    --expr-pause-bg: #23303D;
+    --expr-pause-border: #3E5266;
+    --expr-pause-ink: #A9C1DA;
+    --expr-excited-bg: #3A2130;
+    --expr-excited-border: #6A3A55;
+    --expr-excited-ink: #F3A9CA;
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.5;
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, p { margin: 0; }
+h1 { font-size: 24px; font-weight: 500; line-height: 1.25; }
+h2 { font-size: 18px; font-weight: 500; line-height: 1.3; }
+h3 { font-size: 15px; font-weight: 600; }
+
+a { color: var(--blue); text-underline-offset: 2px; }
+
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.mono { font-family: var(--font-mono); font-size: 14px; }
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition: none !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}

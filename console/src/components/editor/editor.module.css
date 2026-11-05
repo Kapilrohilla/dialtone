@@ -1,0 +1,151 @@
+.editor { position: relative; }
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.group {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--ink-2);
+}
+.iconButton:hover { background: var(--well); }
+.pressed { background: var(--well); color: var(--ink); }
+
+.dropdown { position: relative; display: inline-block; }
+.toolButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--control-h);
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 14px;
+}
+.toolButton:hover, .toolButton[aria-expanded="true"] { background: var(--well); }
+
+.menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 20;
+  width: 300px;
+  max-height: 360px;
+  overflow-y: auto;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.menuList { display: flex; flex-direction: column; }
+.menuItem {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  text-align: left;
+  font-size: 15px;
+}
+.menuItem:hover, .menuItem:focus-visible { background: var(--well); }
+.menuHint { color: var(--muted); font-size: 13px; }
+.menuNote { padding: 8px 12px 6px; margin-top: 4px; border-top: 1px solid var(--border); color: var(--muted); font-size: 13px; }
+
+.otherForm { display: flex; flex-direction: column; gap: 6px; padding: 8px; }
+.otherLabel { font-size: 14px; font-weight: 500; }
+.otherRow { display: flex; align-items: center; gap: 6px; }
+.prefix { color: var(--muted); font-size: 15px; }
+.otherInput {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--well);
+}
+.otherInput[aria-invalid="true"] { border-color: var(--bad); }
+.error { color: var(--bad); font-size: 13px; }
+
+.pausePopover {
+  position: absolute;
+  z-index: 20;
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.form { display: flex; flex-direction: column; gap: var(--row-gap); }
+
+/* The editable surface. */
+.content { min-height: 96px; outline: none; font-size: 16px; line-height: 1.9; white-space: pre-wrap; }
+.content:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+.line { min-height: 0; }
+.content p + p, .content ul, .content ol, .content table, .content h1, .content h2, .content h3 { margin-top: 8px; }
+.content ul, .content ol { padding-left: 24px; margin-bottom: 0; }
+.content table { border-collapse: collapse; width: 100%; }
+.content th, .content td { padding: 6px 10px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+.content th { font-weight: 600; border-bottom-color: var(--rule-strong); }
+.content th p, .content td p { margin: 0; }
+/* Script and line text: one paragraph per stored line, so lines sit at plain text spacing. */
+.plain { line-height: 1.6; }
+.plain p + p { margin-top: 0; }
+
+/* Chips: whole tokens the caret steps over. */
+.chip {
+  display: inline-block;
+  padding: 0 6px;
+  margin: 0 2px;
+  border: 1px solid;
+  border-radius: 4px;
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: nowrap;
+  cursor: default;
+  user-select: none;
+}
+.chip:global(.ProseMirror-selectednode) { outline: 2px solid var(--focus); outline-offset: 1px; }
+.expr[data-expr="pause"] { cursor: pointer; }
+.expr[data-expr="happy"] { background: var(--expr-happy-bg); border-color: var(--expr-happy-border); color: var(--expr-happy-ink); }
+.expr[data-expr="laugh"] { background: var(--expr-laugh-bg); border-color: var(--expr-laugh-border); color: var(--expr-laugh-ink); }
+.expr[data-expr="sad"] { background: var(--expr-sad-bg); border-color: var(--expr-sad-border); color: var(--expr-sad-ink); }
+.expr[data-expr="fear"] { background: var(--expr-fear-bg); border-color: var(--expr-fear-border); color: var(--expr-fear-ink); }
+.expr[data-expr="angry"] { background: var(--expr-angry-bg); border-color: var(--expr-angry-border); color: var(--expr-angry-ink); }
+.expr[data-expr="whisper"] { background: var(--expr-whisper-bg); border-color: var(--expr-whisper-border); color: var(--expr-whisper-ink); }
+.expr[data-expr="pause"] { background: var(--expr-pause-bg); border-color: var(--expr-pause-border); color: var(--expr-pause-ink); }
+.expr[data-expr="excited"] { background: var(--expr-excited-bg); border-color: var(--expr-excited-border); color: var(--expr-excited-ink); }
+.custom { background: var(--expr-whisper-bg); border-color: var(--expr-whisper-border); border-style: dashed; color: var(--expr-whisper-ink); }
+.unknown { background: var(--bad-tint); border-color: var(--bad); color: var(--bad); }
+.variable { background: var(--blue-tint); border-color: var(--blue-tint); color: var(--blue); }

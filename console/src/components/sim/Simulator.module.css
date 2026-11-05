@@ -1,0 +1,28 @@
+.note { margin: 0; color: var(--muted); font-size: 14px; }
+.step { margin: 0; color: var(--amber); font-size: 14px; font-weight: 500; }
+.log { display: flex; flex-direction: column; gap: var(--row-gap); }
+.turn { display: flex; flex-direction: column; gap: 4px; }
+.caller { color: var(--amber); font-size: 13px; font-weight: 600; }
+.agent { color: var(--blue); font-size: 13px; font-weight: 600; }
+.text { margin: 0; font-size: 15px; line-height: 1.6; white-space: pre-wrap; color: var(--ink); }
+.waiting { margin: 0; color: var(--muted); font-size: 14px; }
+.composer { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.composerRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.hint { color: var(--muted); font-size: 13px; }
+.input {
+  width: 100%;
+  min-height: 64px;
+  padding: 10px 12px;
+  background: var(--well);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.5;
+  resize: vertical;
+}
+.error { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--bad); font-size: 14px; }
+.ended { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; }
+.endedText { margin: 0; display: flex; align-items: center; gap: 8px; font-size: 15px; color: var(--ink-2); }
+.srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

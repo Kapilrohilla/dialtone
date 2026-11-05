@@ -64,3 +64,31 @@ def test_seed_keeps_existing_agents(tmp_path):
     agent.save()
     _seed("--knowledge", str(tmp_path / "missing.md"))
     assert Agent.objects.get().script[2]["body"] == "edited by an operator"
+
+
+@pytest.mark.django_db
+def test_seed_creates_valid_driver_onboarding_workflow(tmp_path):
+    from workflows.graph import validate
+    from workflows.models import Workflow
+
+    _seed("--knowledge", str(tmp_path / "missing.md"))
+    _seed("--knowledge", str(tmp_path / "missing.md"))
+    wf = Workflow.objects.get(name="Driver onboarding")  # exactly one after two runs
+    assert wf.revisions.count() == 1 and wf.current.number == 1
+    graph = wf.current.graph
+    assert validate(graph, set()) == []
+    assert all(isinstance(s.get("position"), dict) for s in graph["steps"])
+    assert len(graph["steps"]) == 9 and len(graph["paths"]) == 8
+    assert not Agent.objects.filter(workflow=wf).exists()
+
+
+@pytest.mark.django_db
+def test_seed_tolerates_two_workflows_with_the_seed_name(tmp_path):
+    from workspaces.models import Workspace
+    from workflows.models import Workflow
+
+    _seed("--knowledge", str(tmp_path / "missing.md"))
+    ws = Workspace.objects.get(slug="carrum")
+    Workflow.objects.create(workspace=ws, name="Driver onboarding")  # names aren't unique; an operator made a copy
+    _seed("--knowledge", str(tmp_path / "missing.md"))
+    assert Workflow.objects.filter(name="Driver onboarding").count() == 2

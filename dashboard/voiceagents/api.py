@@ -1,6 +1,7 @@
 import copy
 from datetime import timedelta
 
+from django.conf import settings
 from django.db import transaction
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
@@ -14,6 +15,7 @@ from workflows.models import Workflow
 from workspaces.permissions import CanEdit, IsMember, workspace_for
 
 from . import publish as pub
+from . import voices
 from .models import Agent
 from .serializers import (
     AgentDetailSerializer,
@@ -191,3 +193,8 @@ class AgentVersionsView(_Base):
 class ExpressionsView(_Base):
     def get(self, request):
         return Response([{"name": n, "hint": h, "builtin": True} for n, h in BUILTIN_EXPRESSIONS.items()])
+
+
+class VoicesView(_Base):
+    def get(self, request):
+        return Response({"pipeline": settings.AGENT_PIPELINE, "voices": voices.for_pipeline(settings.AGENT_PIPELINE)})

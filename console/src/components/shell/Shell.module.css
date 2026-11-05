@@ -1,0 +1,8 @@
+.shell { display: grid; grid-template-columns: var(--sidebar-w) minmax(0, 1fr); min-height: 100vh; }
+.main { min-width: 0; }
+.center { display: grid; place-items: center; min-height: 100vh; padding: var(--gutter); }
+.skeleton { display: grid; grid-template-columns: var(--sidebar-w) minmax(0, 1fr); min-height: 100vh; }
+.skSide { background: var(--sidebar); border-right: 1px solid var(--border); }
+.skMain { padding: var(--gutter); display: flex; flex-direction: column; gap: var(--row-gap); }
+.skBar { height: 32px; width: 200px; border-radius: var(--radius); background: var(--well); }
+.skRow { height: 56px; border-radius: var(--radius); background: var(--well); }

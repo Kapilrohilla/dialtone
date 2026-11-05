@@ -29,10 +29,11 @@ It's Carrum Mobility's AI calling assistant for driver-partner leads. It speaks 
 
 | Path | What |
 |---|---|
-| `docker-compose.yml` | Redis, LiveKit server, LiveKit SIP, and the agent (`agent` profile) |
+| `docker-compose.yml` | Redis, PostgreSQL, LiveKit server, LiveKit SIP, dashboard, console, and the agent + simulator (`agent` profile) |
 | `.env.example` | All config: pinned versions, keys, SIP trunk, agent settings |
 | `agent/` | Python agent (`agent.py`), pinned deps, Dockerfile |
-| `dashboard/` | Calls dashboard: live calls, call history, trunks/dispatch rules |
+| `dashboard/` | Calls dashboard: live calls, call history, trunks/dispatch rules; the console's API |
+| `console/` | Carrum Voice console (Next.js): agents, scripts, knowledge, workflows, live calls, history |
 | `scripts/init.sh` | Creates `.env` and generates the LiveKit API key/secret |
 | `scripts/bootstrap-server.sh` | Fresh Debian/Ubuntu VM: installs Docker (plus ufw if given provider IPs) |
 | `scripts/setup-sip.sh` | Creates the inbound trunk and dispatch rule (safe to re-run) |
@@ -86,7 +87,7 @@ make lk a="room list"
 From your laptop, after committing:
 
 ```bash
-make deploy              # ships HEAD to the VM, rebuilds, waits for the agent to register
+make deploy              # ships HEAD to the VM, rebuilds, waits for the dashboard, console and agent
 ROLLBACK=1 make deploy   # back to the previous version
 ```
 
@@ -165,6 +166,38 @@ docker compose run --rm --no-deps -v /path/to/copy-dir:/old:ro dashboard python 
 Run the tests locally with `make test` (needs `dashboard/.venv` with `dashboard/requirements-dev.txt`). The dashboard tests run on PostgreSQL: `make test-db` starts a disposable container on `127.0.0.1:55432` (needs Docker; `make test` does it for you). To use another server set `TEST_POSTGRES_HOST`, `TEST_POSTGRES_PORT`, `TEST_POSTGRES_USER` and `TEST_POSTGRES_PASSWORD`.
 
 The agent POSTs its report to `/api/report` when a call ends, if `DASHBOARD_REPORT_URL` is set (on the VM: `http://127.0.0.1:8787/api/report`). The request carries a LiveKit-signed token with identity `agent-report` instead of a login. A report may arrive before LiveKit's `room_finished` webhook, and a later report for the same room replaces the earlier one. `/admin/` filters calls by final mood and outcome and shows each full report.
+
+## Console
+
+The Carrum Voice console (`console/`, Next.js) is where the team edits agents, scripts, knowledge and workflows, and watches live calls and call history. Its server is the only thing the browser talks to: it proxies `/api/*` to the dashboard (`DJANGO_URL`, read at build time; default `http://127.0.0.1:8787`), so there is no CORS and no token in the page. Django's `/` redirects to it (`CONSOLE_URL`).
+
+**On the server.** `make up` and `make deploy` build and start the `console` service (image `ai-calling-console:local`, about 230 MB). Like the dashboard it listens on the VM's localhost only (127.0.0.1:3000). From your laptop:
+
+```bash
+make tunnel      # Console: http://localhost:3000 (the dashboard stays on :8787)
+```
+
+**First sign-in.** The console signs in workspace members, not Django superusers. Create the first owner once on the VM (from `~/ai-calling`; it prompts for the password), then sign in at http://localhost:3000 with that email:
+
+```bash
+docker compose exec dashboard python manage.py create_member you@carrum.co.in --name "Your Name" --role owner
+```
+
+Owners and admins invite everyone else from Settings, Team.
+
+**Deploy.** `make deploy` builds the console image on the VM next to the others (the build needs network access: `npm ci`, and `next/font/google` downloads the fonts), then waits up to 60 s for `http://127.0.0.1:3000/sign-in` after the dashboard answers. If it doesn't answer, the deploy fails with the console's last log lines; undo with `ROLLBACK=1 make deploy`. Rolling back to a version without the console removes its container.
+
+**Local development.** With the dashboard running on :8787:
+
+```bash
+cd console && npm ci
+make console-dev                 # http://localhost:3000
+cd console && npm test && npm run typecheck && npm run lint
+```
+
+Sign in with a workspace member (`python manage.py create_member you@example.com --role owner`). To try the production image locally: `docker build -t ai-calling-console:local console`. On Linux, `docker run --rm --network host ai-calling-console:local` serves http://127.0.0.1:3000; on macOS, Docker Desktop's host network is its VM's, so use `docker run --rm -p 3000:3000 -e HOSTNAME=0.0.0.0 ai-calling-console:local` instead.
+
+**End-to-end smoke run.** `make test-db && make console-e2e` re-creates the database `console_e2e` on the test Postgres (127.0.0.1:55432), seeds it, creates the owner `e2e@carrum.test` with a random password (or `E2E_PASSWORD`), starts Django on 127.0.0.1:8788 and a production build of the console on 127.0.0.1:3100, and runs Playwright (`console/e2e/smoke.spec.ts`) through every screen. LiveKit and the simulator are not started, so the run also checks that the console says so. The build goes to `console/.next/e2e`, leaving `console/.next` alone. Screenshots land in `console/test-results/light/` and `console/test-results/dark/`, server logs in `console/test-results/servers/`, the HTML report in `console/playwright-report/`. First time: `cd console && npx playwright install chromium`. Extra arguments go to Playwright, e.g. `scripts/console-e2e.sh --grep Knowledge`.
 
 ## How a call picks its agent
 
