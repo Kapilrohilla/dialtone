@@ -3,6 +3,9 @@ import { screen, waitFor, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { agentListItem, callDetail, callPage, callRow, me } from "@/test/fixtures";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { Toast } from "@/components/ui";
+import { setRoute } from "@/test/navigation";
 import { renderWithProviders, router } from "@/test/render";
 import { server } from "@/test/server";
 import CallsPage from "./page";
@@ -84,6 +87,48 @@ describe("call history", () => {
     expect(router.replace.mock.calls.filter(([url]) => String(url).includes("q="))).toHaveLength(1);
   });
 
+  it("keeps keystrokes typed while the URL echoes an earlier commit", async () => {
+    const user = userEvent.setup();
+    const view = renderWithProviders(<CallsPage />, { route: `/calls?${RANGE}` });
+    const again = () =>
+      view.rerender(
+        <QueryClientProvider client={view.queryClient}>
+          <Toast>
+            <CallsPage />
+          </Toast>
+        </QueryClientProvider>,
+      );
+    const box = screen.getByRole("searchbox", { name: "Search by phone number" });
+    await user.type(box, "98");
+    await waitFor(() => expect(lastUrl(router.replace)).toContain("q=98"));
+    await user.type(box, "7 "); // typed before the URL catches up
+    setRoute(`/calls?${RANGE}&q=98`); // the echo of the first commit
+    again();
+    expect(box).toHaveValue("987 ");
+    await waitFor(() => expect(lastUrl(router.replace)).toContain("q=987"));
+    setRoute(`/calls?${RANGE}&q=987`);
+    again();
+    expect(box).toHaveValue("987 ");
+  });
+
+  it("follows an external URL change, such as Clear filters", async () => {
+    const user = userEvent.setup();
+    const view = renderWithProviders(<CallsPage />, { route: `/calls?q=98&${RANGE}` });
+    const box = screen.getByRole("searchbox", { name: "Search by phone number" });
+    expect(box).toHaveValue("98");
+    await user.type(box, "7");
+    await user.click(screen.getByRole("button", { name: "Clear filters" }));
+    setRoute(`/calls?${RANGE}`);
+    view.rerender(
+      <QueryClientProvider client={view.queryClient}>
+        <Toast>
+          <CallsPage />
+        </Toast>
+      </QueryClientProvider>,
+    );
+    expect(box).toHaveValue("");
+  });
+
   it("outcome and agent filters update the URL and request", async () => {
     const user = userEvent.setup();
     renderWithProviders(<CallsPage />, { route: `/calls?${RANGE}&page=3` });
@@ -126,6 +171,23 @@ describe("call history", () => {
     renderWithProviders(<CallsPage />, { route: `/calls?outcome=Dropped&${RANGE}` });
     await user.click(screen.getByRole("button", { name: "Clear filters" }));
     expect(lastUrl(router.push)).toBe(`/calls?${RANGE}`);
+  });
+
+  it("shows the preset again when the URL range matches one", async () => {
+    const user = userEvent.setup();
+    const view = renderWithProviders(<CallsPage />, { route: `/calls?${RANGE}` });
+    await user.click(screen.getByRole("radio", { name: "Custom" }));
+    expect(screen.getByLabelText("From date")).toBeInTheDocument();
+    setRoute("/calls?from=2026-11-05&to=2026-11-05"); // back navigation
+    view.rerender(
+      <QueryClientProvider client={view.queryClient}>
+        <Toast>
+          <CallsPage />
+        </Toast>
+      </QueryClientProvider>,
+    );
+    expect(screen.getByRole("radio", { name: "Today" })).toBeChecked();
+    expect(screen.queryByLabelText("From date")).not.toBeInTheDocument();
   });
 
   it("changes the date range", async () => {
@@ -209,6 +271,7 @@ describe("call history", () => {
     await within(panel).findByText("What happened");
     await waitFor(() => expect(view.queryClient.getQueryState(["me"])?.status).toBe("success"));
     expect(view.queryClient.getQueryData<{ role: string }>(["me"])?.role).toBe("viewer");
+    await new Promise((r) => setTimeout(r, 50)); // let the loaded role render
     expect(screen.queryByRole("button", { name: "Mark for call back" })).not.toBeInTheDocument();
   });
 
@@ -238,6 +301,8 @@ describe("call history", () => {
     const b = renderWithProviders(<CallsPage />, { route: `/calls?${RANGE}` });
     expect(await screen.findByText("No calls match these filters.")).toBeInTheDocument();
     expect(screen.queryByText("No calls yet.")).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Show last 30 days" }));
+    expect(lastUrl(router.push)).toBe("/calls?from=2026-10-07&to=2026-11-05");
     b.unmount();
 
     server.use(http.get("*/api/calls", () => HttpResponse.json(empty)));

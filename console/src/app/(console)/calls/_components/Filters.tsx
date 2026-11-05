@@ -7,15 +7,19 @@ import styles from "../calls.module.css";
 
 const DEBOUNCE_MS = 300;
 
-/** A text value that commits to the URL 300ms after typing stops; follows the URL when it changes elsewhere
- *  (Clear filters, back button). `cancel` drops a pending commit. */
+/** A text value that commits to the URL 300ms after typing stops. It adopts the URL's value only when that was
+ *  changed elsewhere (Clear filters, back button), never for the echo of its own commit, so keystrokes typed while
+ *  the URL catches up are kept. */
 function useDebouncedText(urlValue: string, commit: (value: string) => void) {
   const [text, setText] = useState(urlValue);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const committed = useRef(urlValue);
   const latest = useRef(commit);
   latest.current = commit;
   useEffect(() => {
+    if (urlValue === committed.current) return;
     clearTimeout(timer.current);
+    committed.current = urlValue;
     setText(urlValue);
   }, [urlValue]);
   useEffect(() => () => clearTimeout(timer.current), []);
@@ -24,7 +28,10 @@ function useDebouncedText(urlValue: string, commit: (value: string) => void) {
     type(value: string) {
       setText(value);
       clearTimeout(timer.current);
-      timer.current = setTimeout(() => latest.current(value.trim()), DEBOUNCE_MS);
+      timer.current = setTimeout(() => {
+        committed.current = value.trim();
+        latest.current(committed.current);
+      }, DEBOUNCE_MS);
     },
   };
 }

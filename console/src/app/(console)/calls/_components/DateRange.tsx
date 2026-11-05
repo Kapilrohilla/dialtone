@@ -18,13 +18,15 @@ export type DateRangeProps = { from: string; to: string; today: string; onChange
 
 /** The range as quick choices plus two date inputs for a custom one. `today` is the user's today (their time zone). */
 export function DateRange({ from, to, today, onChange }: DateRangeProps) {
-  const [custom, setCustom] = useState(false);
+  // "Custom" stays picked only for the range it was picked on, so a URL change to a preset range (back button) shows the preset.
+  const [customFor, setCustomFor] = useState<string | null>(null);
+  const custom = customFor === `${from}|${to}`;
   const matched = (Object.keys(DAYS) as (keyof typeof DAYS)[]).find((p) => to === today && from === shiftDay(today, -DAYS[p]));
   const value: Preset = custom || !matched ? "custom" : matched;
 
   function pick(next: Preset) {
-    if (next === "custom") return setCustom(true);
-    setCustom(false);
+    if (next === "custom") return setCustomFor(`${from}|${to}`);
+    setCustomFor(null);
     onChange(shiftDay(today, -DAYS[next]), today);
   }
 

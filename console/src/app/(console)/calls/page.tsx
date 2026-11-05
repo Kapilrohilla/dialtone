@@ -72,7 +72,7 @@ function Calls() {
 
   const calls = useCalls(filters, { enabled: zoneKnown });
   // An empty list with only the default dates could still be a workspace with older calls: ask for all of them.
-  const noneInRange = calls.data?.count === 0 && !anyFilter;
+  const noneInRange = calls.data?.count === 0 && !calls.isPlaceholderData && !anyFilter;
   const ever = useCalls({}, { enabled: noneInRange });
   const exportHref = `/api/calls/export.csv?${callsQuery({ ...filters, page: undefined })}`;
 
@@ -95,7 +95,13 @@ function Calls() {
       <StateBlock
         state="empty"
         title="No calls match these filters."
-        action={anyFilter ? <Button variant="text" onClick={clearFilters}>Clear filters</Button> : undefined}
+        action={
+          anyFilter ? (
+            <Button variant="text" onClick={clearFilters}>Clear filters</Button>
+          ) : filters.from !== shiftDay(today, -29) || filters.to !== today ? (
+            <Button variant="text" onClick={() => change({ from: shiftDay(today, -29), to: today })}>Show last 30 days</Button>
+          ) : undefined
+        }
       />
     );
   } else {
