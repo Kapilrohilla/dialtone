@@ -70,3 +70,31 @@ def test_workflows_isolated(member, other_workspace):
     assert_isolated(c, f"/api/workflows/{wf.id}/validate")
     assert c.patch(f"/api/workflows/{wf.id}", {"name": "x"}, format="json").status_code == 404
     assert c.get("/api/workflows").json() == []
+
+
+@pytest.mark.django_db
+def test_save_same_graph_no_new_revision(member):
+    c = member("editor")
+    pk = c.post("/api/workflows", {"name": "W"}, format="json").json()["id"]
+    g = driver_graph()
+    c.patch(f"/api/workflows/{pk}", {"graph": g}, format="json")
+    r = c.patch(f"/api/workflows/{pk}", {"graph": g}, format="json")
+    assert r.status_code == 200 and r.json()["current_revision"] == 1 and r.json()["errors"] == []
+    g["steps"][0]["name"] = "Hello"
+    assert c.patch(f"/api/workflows/{pk}", {"graph": g}, format="json").json()["current_revision"] == 2
+    assert WorkflowRevision.objects.filter(workflow_id=pk).count() == 2
+
+
+@pytest.mark.django_db
+def test_weird_values_patch_returns_200_with_errors(member):
+    c = member("editor")
+    pk = c.post("/api/workflows", {"name": "W"}, format="json").json()["id"]
+    for k, v in [("type", []), ("type", {}), ("outcome", []), ("outcome", {}), ("knowledge_id", []),
+                 ("knowledge_id", {}), ("name", []), ("field", {})]:
+        g = {"steps": [step("a", "A", "start"), step("b", "B", "end", outcome="NI"),
+                       step("k", "K", "knowledge"), step("c", "C", "collect")],
+             "paths": [path("p", "a", "b", "x")]}
+        for s in g["steps"]:
+            s[k] = v
+        r = c.patch(f"/api/workflows/{pk}", {"graph": g}, format="json")
+        assert r.status_code == 200 and r.json()["errors"], (k, v)

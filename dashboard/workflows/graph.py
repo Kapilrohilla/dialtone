@@ -43,7 +43,7 @@ def validate(graph, knowledge_ids: set[int], custom_expressions: dict[str, str] 
         if sid in by_id:
             errors.append(f'Two steps share the id "{sid}". Step ids must be unique.')
             continue
-        if s.get("type") not in STEP_TYPES:
+        if not isinstance(s.get("type"), str) or s["type"] not in STEP_TYPES:
             errors.append(f'Step "{_label(s)}" has an unknown type "{s.get("type")}".')
             continue
         by_id[sid] = s
@@ -74,12 +74,12 @@ def validate(graph, knowledge_ids: set[int], custom_expressions: dict[str, str] 
         if kind == "end":
             if not outcome:
                 errors.append(f'End step "{name}" needs an outcome.')
-            elif outcome not in DISPOSITIONS:
+            elif not isinstance(outcome, str) or outcome not in DISPOSITIONS:
                 errors.append(f'End step "{name}" has an unknown outcome "{outcome}".')
             if out[sid]:
                 errors.append(f'End step "{name}" cannot have paths leaving it.')
         else:
-            if kind == "transfer" and outcome and outcome not in DISPOSITIONS:
+            if kind == "transfer" and outcome and (not isinstance(outcome, str) or outcome not in DISPOSITIONS):
                 errors.append(f'Step "{name}" has an unknown outcome "{outcome}".')
             if kind != "transfer" and not out[sid]:
                 errors.append(f'Step "{name}" has no way out. Add a path or make it an end step.')
@@ -94,7 +94,7 @@ def validate(graph, knowledge_ids: set[int], custom_expressions: dict[str, str] 
             kid = s.get("knowledge_id")
             if kid is None:
                 errors.append(f'Step "{name}" needs a knowledge document.')
-            elif isinstance(kid, bool) or kid not in knowledge_ids:
+            elif not isinstance(kid, int) or isinstance(kid, bool) or kid not in knowledge_ids:
                 errors.append(f'Step "{name}" refers to a knowledge document that does not exist.')
         prompt = s.get("prompt")
         if isinstance(prompt, str) and prompt:

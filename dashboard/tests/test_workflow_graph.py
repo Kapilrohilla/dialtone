@@ -163,6 +163,21 @@ def test_malformed_input_never_raises():
         assert errs and all(isinstance(e, str) for e in errs)
 
 
+def test_unhashable_and_nonstring_values_never_raise():
+    def g(**kw):
+        return {"steps": [step("a", "A", "start"), step("b", "B", "end", outcome="NI"), step("c", "C", "collect"),
+                          step("k", "K", "knowledge"), step("t", "T", "transfer")], "paths": []}, kw
+    for field, vals in [("type", [[], {}, 5]), ("outcome", [[], {}, 5]), ("knowledge_id", [[], {}, "1", True]),
+                        ("name", [[], {}, None, 5]), ("field", [[], {}, 5]), ("prompt", [[], {}, 5])]:
+        for v in vals:
+            for i in range(5):
+                graph, _ = g()
+                graph["steps"][i][field] = v
+                graph["paths"] = [{"id": "p", "from": "a", "to": "b", "label": v}, {"from": v, "to": v, "label": v}]
+                errs = validate(graph, {1})
+                assert errs and all(isinstance(e, str) for e in errs)
+
+
 def test_unknown_type_and_missing_id_messages():
     errs = validate({"steps": [{"id": "a", "name": "Odd", "type": "wat"}, {"name": "No id", "type": "end"}],
                      "paths": []}, set())

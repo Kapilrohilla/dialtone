@@ -76,9 +76,11 @@ class WorkflowDetailView(_Base):
                 wf.name = name
             if "graph" in data:
                 last = wf.revisions.order_by("-number").first()
-                WorkflowRevision.objects.create(
-                    workflow=wf, number=(last.number + 1) if last else 1, graph=data["graph"], saved_by=request.user
-                )
+                if last is None or last.graph != data["graph"]:
+                    WorkflowRevision.objects.create(
+                        workflow=wf, number=(last.number + 1) if last else 1,
+                        graph=data["graph"], saved_by=request.user,
+                    )
             wf.save()  # bumps updated_at
         return Response(detail(wf))
 
