@@ -277,6 +277,32 @@ def test_needs_person_handled(member, workspace):
     assert c.post("/api/calls/missing/needs-person", {"handled": True}, format="json").status_code == 404
 
 
+def test_mark_needs_person_sets_flag_and_clears_handled(member, workspace):
+    call = make_call(workspace, "r1", started=at(hh=10), needs_person=False,
+                     needs_person_handled_at=timezone.now())
+    r = member("editor").post("/api/calls/r1/needs-person", {"needs_person": True}, format="json")
+    assert r.status_code == 200, r.content
+    assert r.json() == {"room": "r1", "needs_person": True, "handled_at": None}
+    call.refresh_from_db()
+    assert call.needs_person is True and call.needs_person_handled_at is None
+
+
+def test_mark_needs_person_rejects_bad_bodies(member, workspace):
+    make_call(workspace, "r1", started=at(hh=10))
+    c = member("editor")
+    for body in ({"needs_person": "yes"}, {"needs_person": False}, {"needs_person": None}):
+        r = c.post("/api/calls/r1/needs-person", body, format="json")
+        assert r.status_code == 400 and r.json() == {"needs_person": ["Must be true or false."]}
+    r = c.post("/api/calls/r1/needs-person", {}, format="json")
+    assert r.status_code == 400 and r.json() == {"handled": ["Must be true or false."]}
+
+
+def test_viewer_cannot_mark_needs_person(member, workspace):
+    make_call(workspace, "r1", started=at(hh=10))
+    r = member("viewer").post("/api/calls/r1/needs-person", {"needs_person": True}, format="json")
+    assert r.status_code == 403
+
+
 # --- dashboard --------------------------------------------------------------------------------------
 
 def test_dashboard_numbers(member, workspace):

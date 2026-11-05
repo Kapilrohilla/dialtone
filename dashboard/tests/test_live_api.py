@@ -78,6 +78,20 @@ def test_live_lists_rooms_with_tail(member, workspace, other_workspace, livekit)
     assert call_count() == 3  # nothing created for the unknown room
 
 
+def test_live_rows_carry_step_path_and_captured(member, workspace, livekit):
+    call = make_call(workspace, "live-1", started=at(hh=10))
+    livekit.state = state("live-1")
+    event(call, 1, "step_entered", {"step_id": "s1", "step_name": "Greeting"})
+    event(call, 2, "step_entered", {"step_id": "s1", "step_name": "Greeting"})
+    event(call, 3, "step_entered", {"step_id": "s2", "step_name": "Ask city"})
+    event(call, 4, "step_entered", 42)
+    event(call, 5, "field_captured", {"field": "city", "value": "Pune"})
+    event(call, 6, "field_captured", {"field": "licence", "value": ""})
+    row = member("viewer").get("/api/live").json()[0]
+    assert row["step_path"] == ["Greeting", "Ask city"]
+    assert row["captured"] == {"city": "Pune"}
+
+
 def call_count():
     from calls.models import Call
 
@@ -89,6 +103,7 @@ def test_live_empty_defaults(member, workspace, livekit):
     livekit.state = state("live-1")
     row = member("viewer").get("/api/live").json()[0]
     assert row["current_step"] == "" and row["mood"] == "" and row["city"] == ""
+    assert row["step_path"] == [] and row["captured"] == {}
     assert row["transcript_tail"] == [] and row["caller"] == "+919876543210"
 
 

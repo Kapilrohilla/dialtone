@@ -75,7 +75,7 @@ def test_state_shape_when_livekit_down(monkeypatch, staff_client):
     assert data["today"]["avg_duration"] == 60
 
 
-def test_index_renders(staff_client):
-    res = staff_client.get("/")
-    assert res.status_code == 200
-    assert "api/state" in res.content.decode()
+def test_index_redirects_to_console(client, settings):
+    settings.CONSOLE_URL = "http://localhost:3000/"
+    res = client.get("/")
+    assert res.status_code == 302 and res["Location"] == "http://localhost:3000/"

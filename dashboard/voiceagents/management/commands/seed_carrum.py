@@ -6,6 +6,7 @@ from django.db import transaction
 from knowledge.api import _add_revision
 from knowledge.models import KnowledgeDocument
 from voiceagents.models import Agent
+from workflows.models import Workflow, WorkflowRevision
 from workspaces.models import Workspace
 
 AGENT_NAME = "Driver lead qualifier"
@@ -106,6 +107,51 @@ The goal is genuinely interested, well-informed leads, not the most leads tagged
 ]
 
 
+WORKFLOW_NAME = "Driver onboarding"
+
+
+def _step(id, type, name, x, y, **extra):
+    return {"id": id, "type": type, "name": name, "position": {"x": x, "y": y}, **extra}
+
+
+def _path(src, dst, label):
+    return {"from": src, "to": dst, "label": label}
+
+
+# Screen 5 of the console designs. Every prompt is one plain line the agent says (no prices).
+ONBOARDING_GRAPH = {
+    "steps": [
+        _step("greeting", "start", "Greeting", 0, 160,
+              prompt="नमस्ते, मैं Carrum से बोल रही हूँ। क्या अभी दो मिनट बात कर सकते हैं?"),
+        _step("ask_city", "prompt", "Ask city", 280, 160, prompt="आप अभी किस शहर में रहते हैं?"),
+        _step("ask_licence", "collect", "Ask licence and experience", 560, 80, field="licence",
+              prompt="क्या आपके पास अपने नाम का चार-पहिया ड्राइविंग लाइसेंस है, और आपने पहले गाड़ी चलाई है?"),
+        _step("explain_plan", "prompt", "Explain the plan", 840, 80,
+              prompt="[[expr:excited]]{{lead.city}} में हमारे plan के बारे में बताऊँ?[[expr:pause:1]]"),
+        _step("end_interested", "end", "End: interested", 1120, 0, outcome="INTERESTED",
+              prompt="बहुत अच्छा, मैं आपकी details हमारी team को भेज रही हूँ।"),
+        _step("schedule_callback", "end", "Schedule a call back", 1120, 160, outcome="CBR",
+              prompt="ठीक है, आप बताइए कब फ़ोन करूँ?"),
+        _step("transfer", "transfer", "Transfer to a telecaller", 1120, 320,
+              prompt="मैं आपकी बात हमारी team के एक साथी से करवाती हूँ।"),
+        _step("end_city", "end", "End: not in your city", 560, 280, outcome="NE",
+              prompt="अभी हम सिर्फ़ कुछ शहरों में हैं, समय देने के लिए धन्यवाद।"),
+        _step("end_no_licence", "end", "End: not eligible", 840, 280, outcome="NE",
+              prompt="बिना लाइसेंस के हम आगे नहीं बढ़ पाएँगे, धन्यवाद।"),
+    ],
+    "paths": [
+        _path("greeting", "ask_city", "Next"),
+        _path("ask_city", "ask_licence", "Pune or Delhi"),
+        _path("ask_city", "end_city", "Other city"),
+        _path("ask_licence", "explain_plan", "Has licence"),
+        _path("ask_licence", "end_no_licence", "No licence"),
+        _path("explain_plan", "end_interested", "Interested"),
+        _path("explain_plan", "schedule_callback", "Busy"),
+        _path("explain_plan", "transfer", "Upset"),
+    ],
+}
+
+
 class Command(BaseCommand):
     help = "Seed the Carrum workspace with a draft agent and, if the file exists, its knowledge document. Idempotent."
 
@@ -124,6 +170,9 @@ class Command(BaseCommand):
                 "script": SCRIPT,
             },
         )
+        workflow, created = Workflow.objects.get_or_create(workspace=ws, name=WORKFLOW_NAME)
+        if created:  # same shape the workflows API saves: revision 1 holds the graph
+            WorkflowRevision.objects.create(workflow=workflow, number=1, graph=ONBOARDING_GRAPH)
         docs = 0
         path = Path(knowledge)
         if path.is_file():

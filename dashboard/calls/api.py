@@ -36,6 +36,7 @@ from .serializers import (
     _text,
     call_detail,
     call_row,
+    captured_fields,
     duration_s,
     latest,
     outcome_data,
@@ -174,11 +175,17 @@ class CallExportView(_Base):
 class NeedsPersonView(_Base):
     def post(self, request, room):
         call = get_object_or_404(calls_of(request), room=room)
-        handled = request.data.get("handled") if isinstance(request.data, dict) else None
-        if not isinstance(handled, bool):
-            raise ValidationError({"handled": ["Must be true or false."]})
-        call.needs_person_handled_at = timezone.now() if handled else None
-        call.save(update_fields=["needs_person_handled_at"])
+        data = request.data if isinstance(request.data, dict) else {}
+        if "handled" not in data and "needs_person" in data:
+            if data["needs_person"] is not True:
+                raise ValidationError({"needs_person": ["Must be true or false."]})
+            call.needs_person, call.needs_person_handled_at = True, None  # mark for a call back
+        else:
+            handled = data.get("handled")
+            if not isinstance(handled, bool):
+                raise ValidationError({"handled": ["Must be true or false."]})
+            call.needs_person_handled_at = timezone.now() if handled else None
+        call.save(update_fields=["needs_person", "needs_person_handled_at"])
         return Response({"room": call.room, "needs_person": call.needs_person,
                          "handled_at": call.needs_person_handled_at})
 
@@ -251,6 +258,18 @@ def _latest_city(events) -> str:
     return ""
 
 
+def _step_path(events) -> list[str]:
+    """Step names in the order the call entered them, consecutive repeats collapsed."""
+    path: list[str] = []
+    for e in events:
+        if e.type != CallEvent.STEP_ENTERED:
+            continue
+        name = _dict(e.payload).get("step_name")
+        if isinstance(name, str) and name and (not path or path[-1] != name):
+            path.append(name)
+    return path
+
+
 class LiveListView(_Base):
     def get(self, request):
         rooms = [r for r in livekit().get("live") or [] if isinstance(r, dict) and r.get("room")]
@@ -273,6 +292,8 @@ class LiveListView(_Base):
                 "caller": call.caller or _text(sip.get("phone")),
                 "city": _latest_city(evs),
                 "started_at": started,
+                "step_path": _step_path(evs),
+                "captured": captured_fields(evs),
                 "current_step": latest(evs, CallEvent.STEP_ENTERED, "step_name"),
                 "mood": latest(evs, CallEvent.MOOD, "label"),
                 "transcript_tail": transcript(evs)[-LIVE_TAIL:],

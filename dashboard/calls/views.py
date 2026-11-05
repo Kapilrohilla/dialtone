@@ -8,7 +8,7 @@ from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ImproperlyConfigured
 from django.http import HttpResponse, JsonResponse
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect
 from django.utils import timezone as djtz
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
@@ -34,10 +34,9 @@ def _dt(epoch: int) -> datetime:
     return datetime.fromtimestamp(epoch, timezone.utc)
 
 
-@login_required
 @require_GET
 def index(request):
-    return render(request, "calls/index.html")
+    return redirect(settings.CONSOLE_URL)
 
 
 @csrf_exempt
