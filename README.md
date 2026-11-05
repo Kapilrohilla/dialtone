@@ -159,7 +159,7 @@ docker compose run --rm --no-deps -v /path/to/copy-dir:/old:ro dashboard python 
 
 - `create_member EMAIL [--name N] [--role editor] [--workspace carrum]` creates a console user (prompts for a password).
 - `seed_carrum [--knowledge PATH]` creates the Carrum workspace and a draft "Driver lead qualifier" agent; if `PATH` (default `../agent/knowledge.md`) exists it also adds that file as the "Approved pricing and rules" knowledge document. Safe to repeat; it never publishes.
-- `purge_old_call_data [--days 90] [--dry-run]` deletes transcripts older than 90 days (turn events, labelled turns, report `turns`); outcomes, summaries, answers and metrics stay. Nothing schedules it yet; plan 4 adds a daily run.
+- `purge_old_call_data [--days 90] [--dry-run]` deletes transcripts older than 90 days (turn events and report `turns`) and blanks the caller's words on labelled turns, keeping the telecaller labels; outcomes, summaries, answers and metrics stay. Nothing schedules it yet; plan 4 adds a daily run.
 - `copy_from_sqlite` is the SQLite to PostgreSQL copy described above.
 
 Run the tests locally with `make test` (needs `dashboard/.venv` with `dashboard/requirements-dev.txt`). The dashboard tests run on PostgreSQL: `make test-db` starts a disposable container on `127.0.0.1:55432` (needs Docker; `make test` does it for you). To use another server set `TEST_POSTGRES_HOST`, `TEST_POSTGRES_PORT`, `TEST_POSTGRES_USER` and `TEST_POSTGRES_PASSWORD`.
