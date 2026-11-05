@@ -17,6 +17,14 @@ Built on branch feature/console-api-foundation (main..HEAD), every task reviewed
 
 ### Carry forward to later plans
 
-- Plan 2: render `[[expr:…]]` tokens inside `snapshot.knowledge[].body_md` with `snapshot.custom_expressions` (only script and step prompts are pre-rendered); replace the seeded draft script with today's real BASE_INSTRUCTIONS content; cap pause seconds; tell 404 "no published agent" apart from "API down" for the fallback; agents-list / is_outdated N+1 queries.
+- Plan 2 (done: knowledge token rendering, real script seed, pause cap, 404 vs down): ~~render `[[expr:…]]` tokens inside `snapshot.knowledge[].body_md`~~; ~~replace the seeded draft script with today's real BASE_INSTRUCTIONS content~~; ~~cap pause seconds~~; ~~tell 404 "no published agent" apart from "API down" for the fallback~~. Still open: agents-list / is_outdated N+1 queries.
 - Plan 4: run `copy_from_sqlite --dry-run` against a copy of the production SQLite file before the first Postgres deploy; schedule `purge_old_call_data` daily; test live transfer against the real SIP trunk (REFER); trust X-Forwarded-For only behind the proxy (login throttle is keyed by IP and everything arrives from 127.0.0.1); consider connection pooling under ASGI; POSTGRES_PORT is not applied to the postgres service; ROLLBACK=1 doesn't wait for the dashboard; deploy scripts only stub-tested.
 - Later: `connected_pct` counts calls with no report as connected; /api/state and the old index page are not workspace-scoped (fine with one workspace).
+
+## Plan 2 outcome (2026-11-06)
+
+Built on branch feature/agent-runtime: config fetch with cache and built-in fallback, prompt layers, workflow engine, events, version id in reports, recording consent line, and the `agent-sim` text simulator. Not yet verified:
+
+- Live calls on both pipelines. Needs a staging test call through several workflow steps, especially on Gemini Live.
+- The simulator against real Gemini (needs `GOOGLE_API_KEY`).
+- Greeting delay after the config fetch (1.5 s budget).

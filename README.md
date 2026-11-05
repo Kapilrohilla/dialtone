@@ -166,6 +166,22 @@ Run the tests locally with `make test` (needs `dashboard/.venv` with `dashboard/
 
 The agent POSTs its report to `/api/report` when a call ends, if `DASHBOARD_REPORT_URL` is set (on the VM: `http://127.0.0.1:8787/api/report`). The request carries a LiveKit-signed token with identity `agent-report` instead of a login. A report may arrive before LiveKit's `room_finished` webhook, and a later report for the same room replaces the earlier one. `/admin/` filters calls by final mood and outcome and shows each full report.
 
+## How a call picks its agent
+
+When a call starts, the agent asks the console for the published agent of the number that was called (`DASHBOARD_URL`, 1.5 s budget):
+
+1. Published agent for that number: its fresh config is used, and the call keeps that version until it ends.
+2. Console down or slow: the last saved copy for that number (`/cache`, the `agent-cache` volume).
+3. No published agent, or it was unpublished: today's built-in script and `knowledge.md`.
+
+A publish reaches the agent within about 15 seconds; calls already running are not changed. During a call the agent streams turns, step changes, mood and captured fields to `/api/runtime/events` for the live calls screen.
+
+Dead-air and mood settings come from the published agent. Mood also needs `MOOD_ENABLED=true` on the worker.
+
+`RECORDING_ENABLED=true` makes the agent speak the recording consent line after its opening. It does not record anything; recording arrives with the recording plan.
+
+**Simulator.** The `agent-sim` service (127.0.0.1:8790, same image as the agent, started with `--profile agent`) runs the same prompt and workflow engine as text. The console's Try it and Test call use it through `AGENT_SIM_URL`. It needs `GOOGLE_API_KEY`; `SIM_PORT` and `SIM_LLM_MODEL` change the port and model.
+
 ## Evaluating caller mood
 
 Keep `MOOD_ENABLED=false` until telecaller labels show the mood readings are good enough.

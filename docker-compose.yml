@@ -111,6 +111,8 @@ services:
     restart: unless-stopped
     env_file: .env
     stop_grace_period: 5m  # let in-progress calls finish on deploy
+    volumes:
+      - agent-cache:/cache
 
   # Text simulator for the console's "Try it" and "Test call" (agent/simulate.py). Same image as the
   # agent; listens on 127.0.0.1:${SIM_PORT:-8790} and only accepts the dashboard's console-sim token.
@@ -124,6 +126,7 @@ services:
     env_file: .env
 
 volumes:
+  agent-cache:
   dashboard-data:
   postgres-data:
   redis-data:
