@@ -1,0 +1,44 @@
+from voiceagents.tokens import (
+    ExprToken, TextToken, VarToken, parse, render_hints, unknown_expressions, variables,
+)
+
+
+def test_parse_mixed():
+    assert parse("[[expr:happy]] नमस्ते {{lead.name}} [[expr:pause:1.2]] ji") == [
+        ExprToken("happy", None),
+        TextToken(" नमस्ते "),
+        VarToken("lead.name"),
+        TextToken(" "),
+        ExprToken("pause", 1.2),
+        TextToken(" ji"),
+    ]
+
+
+def test_render_hints_exact():
+    assert render_hints("[[expr:laugh]] अरे वाह", {}) == "(say this with a light, warm laugh) अरे वाह"
+
+
+def test_pause_seconds_in_hint():
+    assert render_hints("[[expr:pause:1.2]] ji", {}) == "(pause for about 1.2 seconds before this) ji"
+    assert render_hints("[[expr:pause]] ji", {}) == "(pause for about 1 seconds before this) ji"
+
+
+def test_custom_expression_used():
+    assert render_hints("[[expr:cheery]] hi", {"cheery": "sound upbeat"}) == "(sound upbeat) hi"
+
+
+def test_custom_does_not_override_builtin():
+    assert render_hints("[[expr:sad]] x", {"sad": "shout"}) == "(say this gently, with sympathy) x"
+
+
+def test_unknown_expression_reported():
+    assert unknown_expressions("[[expr:zzz]] a [[expr:happy]] [[expr:cheery]]", {"cheery": "x"}) == ["zzz"]
+
+
+def test_variables_listed():
+    assert variables("{{lead.name}} {{ lead.city }} {{lead.name}}") == ["lead.name", "lead.city"]
+
+
+def test_devanagari_untouched():
+    body = "नमस्ते {{lead.name}} जी, कैसे हैं?"
+    assert render_hints(body, {}) == body
