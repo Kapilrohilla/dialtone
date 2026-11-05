@@ -57,11 +57,19 @@ from metrics import LatencyStats
 from mood import MoodReading, MoodTracker
 from prompt import BASE_INSTRUCTIONS, SCRIPT_FALLBACK, SYSTEM_LAYER  # noqa: F401  (layers live in prompt.py)
 from prompt import PERSONA_NAME, build_instructions, builtin_instructions, end_step_refusal, opening_instructions
-from prompt import opening_line, step_block
+from prompt import (  # noqa: F401  (re-exported: tests and callers use agent.X)
+    DEFAULT_LANGUAGE,
+    DISPOSITIONS,
+    GEMINI_LANGUAGE_RULES,
+    LANGUAGES,
+    capped_outcome,
+    opening_line,
+    step_block,
+)
 from report import build_report, send_report
 from sentiment import make_classifier
 from tone import mood_message, tone_guide
-from workflow import PathTool, Step, WorkflowRun
+from workflow import PathTool, Step, WorkflowRun, path_tool_schema  # noqa: F401
 
 load_dotenv()
 
@@ -69,7 +77,6 @@ logger = logging.getLogger("phone-agent")
 
 AGENT_NAME = os.getenv("AGENT_NAME", "phone-agent")
 PIPELINE = os.getenv("AGENT_PIPELINE", "gemini-live")
-DEFAULT_LANGUAGE = os.getenv("DEFAULT_LANGUAGE", "hi-IN")
 # Background sound under the call: none | office | callcenter | city | path to an audio file
 # (relative to this folder, e.g. sounds/my-office.ogg). Default none: the built-in office clip has
 # people talking in it, which callers hear as someone else on the line.
@@ -109,32 +116,8 @@ DEAD_AIR_PROMPTS = {
 
 BUILTIN_CONFIG = Config("builtin", None, None)
 
-# Languages the agent can switch to on the cascaded pipelines (Gemini Live covers these and more).
-LANGUAGES = {
-    "hi-IN": "Hindi",
-    "en-IN": "English",
-    "bn-IN": "Bengali",
-    "gu-IN": "Gujarati",
-    "kn-IN": "Kannada",
-    "ml-IN": "Malayalam",
-    "mr-IN": "Marathi",
-    "od-IN": "Odia",
-    "pa-IN": "Punjabi",
-    "ta-IN": "Tamil",
-    "te-IN": "Telugu",
-}
+Disposition = Literal[DISPOSITIONS]
 
-Disposition = Literal[
-    "INTERESTED", "NI", "NE", "CBR", "CDRP", "ISUDO", "ISUID", "HND", "WRGN", "OWNVA", "ABULR",
-    "LANGUAGE_BARRIER", "NOT_CONNECTED", "UNRESOLVED",
-]
-
-GEMINI_LANGUAGE_RULES = f"""
-Language:
-- Start in {LANGUAGES[DEFAULT_LANGUAGE]}.
-- If the driver switches language, follow only if it is one of {", ".join(LANGUAGES.values())}, in the same
-  casual spoken style. If you can't continue in a language you both speak, record LANGUAGE_BARRIER and close politely.
-""".strip()
 
 SARVAM_LANGUAGE_RULES = f"""
 Language:
@@ -195,21 +178,6 @@ def events_url() -> str:
     return f"{base}/api/runtime/events" if base else ""
 
 
-def path_tool_schema(tool: PathTool) -> dict:
-    """OpenAI-style function schema for a workflow path tool (livekit raw_schema)."""
-    return {
-        "name": tool.name,
-        "description": tool.description,
-        "parameters": {
-            "type": "object",
-            "properties": {"value": {"type": "string", "description": "What the driver answered"}}
-            if tool.takes_value
-            else {},
-            "required": ["value"] if tool.takes_value else [],
-        },
-    }
-
-
 def step_updates_instructions(pipeline: str) -> bool:
     """Whether a workflow step change rewrites the instructions. Not on Gemini Live: each instruction
     update there adds the whole prompt to the conversation as a model turn, so the new step goes back
@@ -222,25 +190,6 @@ def call_config(cfg: Config, agent) -> Config:
     if cfg.snapshot is not None and getattr(agent, "snapshot", None) is None:
         return BUILTIN_CONFIG
     return cfg
-
-
-def capped_outcome() -> dict:
-    """Outcome recorded when the workflow loop limit stops the workflow (same fields as record_outcome)."""
-    return {
-        "disposition": "UNRESOLVED",
-        "reason": "workflow loop limit reached",
-        "summary": "",
-        "interest_strength": "none",
-        "telecaller_followup_agreed": False,
-        "callback_time": "",
-        "city": "",
-        "licence": "",
-        "experience": "",
-        "uber_id": "",
-        "preferred_plan": "",
-        "main_question": "",
-        "do_not_call": False,
-    }
 
 
 def lead_record(metadata: str) -> dict:

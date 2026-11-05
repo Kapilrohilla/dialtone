@@ -201,3 +201,18 @@ class WorkflowRun:
         self.transitions += 1
         self._enter(target)
         return Transition(True, f"Now at: {target.name}", target, False, captured)
+
+
+def path_tool_schema(tool: PathTool) -> dict:
+    """OpenAI-style function schema for a workflow path tool (livekit raw_schema)."""
+    return {
+        "name": tool.name,
+        "description": tool.description,
+        "parameters": {
+            "type": "object",
+            "properties": {"value": {"type": "string", "description": "What the driver answered"}}
+            if tool.takes_value
+            else {},
+            "required": ["value"] if tool.takes_value else [],
+        },
+    }

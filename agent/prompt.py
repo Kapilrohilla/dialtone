@@ -27,6 +27,37 @@ KNOWLEDGE_FILE = Path(__file__).parent / "knowledge.md"
 # Recording consent (plan 4 turns recording on): appended to the opening line only when recording.
 RECORDING_CONSENT = "यह call quality के लिए record हो रही है।"
 
+DEFAULT_LANGUAGE = os.getenv("DEFAULT_LANGUAGE", "hi-IN")
+
+# Languages the agent can switch to on the cascaded pipelines (Gemini Live covers these and more).
+LANGUAGES = {
+    "hi-IN": "Hindi",
+    "en-IN": "English",
+    "bn-IN": "Bengali",
+    "gu-IN": "Gujarati",
+    "kn-IN": "Kannada",
+    "ml-IN": "Malayalam",
+    "mr-IN": "Marathi",
+    "od-IN": "Odia",
+    "pa-IN": "Punjabi",
+    "ta-IN": "Tamil",
+    "te-IN": "Telugu",
+}
+
+GEMINI_LANGUAGE_RULES = f"""
+Language:
+- Start in {LANGUAGES[DEFAULT_LANGUAGE]}.
+- If the driver switches language, follow only if it is one of {", ".join(LANGUAGES.values())}, in the same
+  casual spoken style. If you can't continue in a language you both speak, record LANGUAGE_BARRIER and close politely.
+""".strip()
+
+# The fixed 14 disposition codes (record_outcome's `disposition`).
+DISPOSITIONS = (
+    "INTERESTED", "NI", "NE", "CBR", "CDRP", "ISUDO", "ISUID", "HND", "WRGN", "OWNVA", "ABULR",
+    "LANGUAGE_BARRIER", "NOT_CONNECTED", "UNRESOLVED",
+)
+
+
 # Persona line plus who Carrum is: script (ops own it once the console has a config).
 _PERSONA = f"""
 You are {PERSONA_NAME}, a female AI calling assistant for Carrum Mobility Solutions. Carrum is a fleet partner
@@ -349,3 +380,22 @@ def end_step_refusal(step: dict | None, disposition: str) -> str | None:
     if not outcome or outcome == disposition:
         return None
     return f"This step ends with {outcome}. Call record_outcome with disposition {outcome}."
+
+
+def capped_outcome() -> dict:
+    """Outcome recorded when the workflow loop limit stops the workflow (same fields as record_outcome)."""
+    return {
+        "disposition": "UNRESOLVED",
+        "reason": "workflow loop limit reached",
+        "summary": "",
+        "interest_strength": "none",
+        "telecaller_followup_agreed": False,
+        "callback_time": "",
+        "city": "",
+        "licence": "",
+        "experience": "",
+        "uber_id": "",
+        "preferred_plan": "",
+        "main_question": "",
+        "do_not_call": False,
+    }
