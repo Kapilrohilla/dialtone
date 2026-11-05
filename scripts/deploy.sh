@@ -19,7 +19,13 @@ if [[ "${ROLLBACK:-}" == 1 ]]; then
   echo "Rolling back to the previous deploy..."
   ssh_vm 'set -e; [ -d ~/ai-calling.prev ] || { echo "no previous deploy to roll back to"; exit 1; }
     mv ~/ai-calling ~/ai-calling.rollback-tmp && mv ~/ai-calling.prev ~/ai-calling && mv ~/ai-calling.rollback-tmp ~/ai-calling.prev
-    cd ~/ai-calling && docker compose up -d --build && docker compose --profile agent up -d --build agent agent-sim
+    cd ~/ai-calling && docker compose up -d --build
+    # Older trees have no agent-sim service: then remove its orphaned container instead of starting it.
+    if docker compose --profile agent config --services | grep -qx agent-sim; then
+      docker compose --profile agent up -d --build agent agent-sim
+    else
+      docker compose --profile agent up -d --build --remove-orphans agent
+    fi
     echo "now running: $(cat DEPLOYED_COMMIT 2>/dev/null || echo unknown)"'
   exit 0
 fi

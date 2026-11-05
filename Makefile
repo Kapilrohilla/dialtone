@@ -29,6 +29,7 @@ test: test-db    ## run unit tests (needs agent/.venv and dashboard/.venv with r
 	cd dashboard && .venv/bin/pytest -q
 	scripts/tests/test-init.sh
 	scripts/tests/test-wait-dashboard.sh
+	scripts/tests/test-deploy-rollback.sh
 
 dashboard-admin: ## create a dashboard login (Django superuser) in the running container
 	docker compose exec dashboard python manage.py createsuperuser
