@@ -70,3 +70,25 @@ async def fetch_livekit_state() -> dict:
             except Exception:
                 logger.warning("closing the LiveKit API client failed", exc_info=True)
     return result
+
+
+async def transfer(room: str, participant_identity: str, to_uri: str) -> None:
+    """Transfer the SIP participant `participant_identity` in `room` to `to_uri`; raises on failure."""
+    lk = api.LiveKitAPI(settings.LIVEKIT_URL, settings.LIVEKIT_API_KEY, settings.LIVEKIT_API_SECRET)
+    try:
+        await lk.sip.transfer_sip_participant(
+            api.TransferSIPParticipantRequest(
+                room_name=room, participant_identity=participant_identity, transfer_to=to_uri
+            )
+        )
+    finally:
+        await lk.aclose()
+
+
+async def end_call(room: str) -> None:
+    """Delete `room`, which hangs up everyone in it; raises on failure."""
+    lk = api.LiveKitAPI(settings.LIVEKIT_URL, settings.LIVEKIT_API_KEY, settings.LIVEKIT_API_SECRET)
+    try:
+        await lk.room.delete_room(api.DeleteRoomRequest(room=room))
+    finally:
+        await lk.aclose()

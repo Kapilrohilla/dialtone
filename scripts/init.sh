@@ -29,6 +29,15 @@ if ! grep -qE "^DJANGO_SECRET_KEY=" .env; then
 fi
 set_if_empty DJANGO_SECRET_KEY "$(openssl rand -base64 64 | tr -dc 'A-Za-z0-9' | head -c 50)"
 
+# Older .env files predate PostgreSQL; add the lines so the password gets generated.
+for kv in POSTGRES_DB=dashboard POSTGRES_USER=dashboard POSTGRES_PASSWORD=; do
+  if ! grep -qE "^${kv%%=*}=" .env; then
+    [[ -s .env && $(tail -c1 .env) != "" ]] && echo >> .env
+    echo "$kv" >> .env
+  fi
+done
+set_if_empty POSTGRES_PASSWORD "$(openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 32)"
+
 pipeline=$(grep -E "^AGENT_PIPELINE=" .env | cut -d= -f2- || true)
 case "${pipeline:-gemini-live}" in
   sarvam) ai_keys="SARVAM_API_KEY OPENAI_API_KEY" ;;

@@ -15,8 +15,12 @@ grep -qx 'TTS_SPEAKER=priya' "$tmp/.env" || fail "last line corrupted"
 grep -qx 'LIVEKIT_API_KEY=APIkeep' "$tmp/.env" || fail "existing key overwritten"
 key=$(grep -E '^DJANGO_SECRET_KEY=' "$tmp/.env" | cut -d= -f2-)
 [[ ${#key} -ge 40 ]] || fail "DJANGO_SECRET_KEY not generated"
+pgpw=$(grep -E '^POSTGRES_PASSWORD=' "$tmp/.env" | cut -d= -f2-)
+[[ ${#pgpw} -ge 24 ]] || fail "POSTGRES_PASSWORD not generated"
+grep -qx 'POSTGRES_DB=dashboard' "$tmp/.env" || fail "POSTGRES_DB not added"
 
 "$tmp/scripts/init.sh" >/dev/null
+[[ $(grep -E '^POSTGRES_PASSWORD=' "$tmp/.env" | cut -d= -f2-) == "$pgpw" ]] || fail "re-run changed the postgres password"
 [[ $(grep -c '^DJANGO_SECRET_KEY=' "$tmp/.env") == 1 ]] || fail "re-run duplicated the key"
 [[ $(grep -E '^DJANGO_SECRET_KEY=' "$tmp/.env" | cut -d= -f2-) == "$key" ]] || fail "re-run changed the key"
 echo "init.sh: ok"

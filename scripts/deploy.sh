@@ -69,6 +69,9 @@ start=\$(date -u +%Y-%m-%dT%H:%M:%SZ)
 docker compose up -d
 docker compose --profile agent up -d agent
 
+# Fails the deploy (non-zero) if the dashboard crash-loops, e.g. the SQLite history copy failing at startup.
+scripts/wait-dashboard.sh \"\$start\"
+
 echo 'Waiting for the agent to register...'
 for i in \$(seq 1 30); do
   docker compose logs --since \"\$start\" agent 2>&1 | grep -q 'registered worker' && { echo 'agent registered'; break; }

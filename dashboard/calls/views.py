@@ -15,8 +15,11 @@ from django.views.decorators.http import require_GET, require_POST
 from livekit import api
 from livekit.protocol.models import ParticipantInfo
 
+from runtime.auth import REPORT_IDENTITY, verify_agent
+
 from .livekit_state import fetch_livekit_state
 from .models import Call, CallReport
+from .numbers import strip_nul
 
 logger = logging.getLogger(__name__)
 
@@ -25,8 +28,6 @@ if not (settings.LIVEKIT_API_KEY and settings.LIVEKIT_API_SECRET):
     raise ImproperlyConfigured("LIVEKIT_API_KEY and LIVEKIT_API_SECRET must be set")
 
 receiver = api.WebhookReceiver(api.TokenVerifier(settings.LIVEKIT_API_KEY, settings.LIVEKIT_API_SECRET))
-report_verifier = api.TokenVerifier(settings.LIVEKIT_API_KEY, settings.LIVEKIT_API_SECRET)
-REPORT_IDENTITY = "agent-report"
 
 
 def _dt(epoch: int) -> datetime:
@@ -101,17 +102,12 @@ async def state(request):
 @csrf_exempt
 @require_POST
 def report_ingest(request):
-    bearer = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
-    try:
-        claims = report_verifier.verify(bearer)
-    except Exception:
-        claims = None
-    if claims is None or claims.identity != REPORT_IDENTITY:
+    if not verify_agent(request, REPORT_IDENTITY):
         logger.warning("rejected call report with invalid token")
         return HttpResponse(status=401)
 
     try:
-        report = json.loads(request.body)
+        report = strip_nul(json.loads(request.body))
     except (ValueError, UnicodeDecodeError):
         return HttpResponse("invalid JSON", status=400)
     if not isinstance(report, dict) or not isinstance(report.get("room"), str) or not report["room"]:

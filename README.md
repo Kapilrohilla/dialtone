@@ -111,7 +111,7 @@ On a Twilio **trial** account:
 
 `make up` also starts the dashboard. It shows:
 - live calls: caller number, timer, whether the agent joined
-- call history, recorded from LiveKit webhooks into SQLite
+- call history, recorded from LiveKit webhooks into PostgreSQL
 - today's stats
 - the configured trunks and dispatch rules
 - per-call mood reports from the agent: outcome, final mood (worst mood on hover) and dead-air nudges; click a row for the mood readings over the call, latency p50s and dead-air events
@@ -122,18 +122,47 @@ It listens on the VM's localhost only, because it shows caller phone numbers, an
 make tunnel      # then open http://localhost:8787 and log in
 ```
 
-The dashboard is a Django app (`dashboard/`). Call history lives in `/data/dashboard.sqlite3` in the `dashboard-data` volume, and `/admin/` lists and searches all calls.
+The dashboard is a Django app (`dashboard/`). Call history lives in PostgreSQL (the `postgres` service, data in the `postgres-data` volume, localhost only; `scripts/init.sh` generates `POSTGRES_PASSWORD` in `.env`), and `/admin/` lists and searches all calls.
 
 `make deploy` adds a `DJANGO_SECRET_KEY` to the VM's `.env` if it doesn't have one. After the first deploy of the Django dashboard, run these once on the VM (from `~/ai-calling`):
 
 ```bash
-make dashboard-admin            # create your login
-docker compose exec dashboard python manage.py import_legacy_calls --path /data/calls.db   # old call history; run once
+make dashboard-admin            # create your /admin/ login (a Django superuser; it has no console access)
+docker compose exec dashboard python manage.py create_member you@example.com --name "Your Name" --role owner   # first console user
+docker compose cp agent/knowledge.md dashboard:/tmp/knowledge.md   # knowledge.md is not inside the dashboard image
+docker compose exec dashboard python manage.py seed_carrum --knowledge /tmp/knowledge.md
 ```
 
-The import copies the history recorded by the old dashboard. Running it again creates no duplicates. "Calls today" counts from midnight India time (it used to be UTC).
+`make dashboard-admin` only creates a superuser for `/admin/`; the console API needs a workspace member, which `create_member` makes (it prompts for a password). `seed_carrum` creates the draft Carrum agent and adds the approved pricing file as a knowledge document.
 
-Run the tests locally with `make test` (needs `dashboard/.venv` with `dashboard/requirements-dev.txt`).
+Only if you are coming from the old aiohttp dashboard (`/data/calls.db`), also run once:
+
+```bash
+docker compose exec dashboard python manage.py import_legacy_calls --path /data/calls.db
+```
+
+The import copies the history recorded by the old dashboard and assigns every imported call to a workspace (the one whose agent has the called number, else the only workspace). Running it again creates no duplicates. "Calls today" counts from midnight India time (it used to be UTC).
+
+**Moving from SQLite to PostgreSQL.** Earlier Django versions of the dashboard kept history in `/data/dashboard.sqlite3`. The cutover is automatic: when the dashboard container starts it runs `migrate`, then `copy_from_sqlite --if-needed`, before the server accepts anything. That copies only if the SQLite file exists, `/data/.copied-to-postgres` does not, and PostgreSQL has no calls; it then writes the marker. Copied calls are assigned to a workspace the same way as imported ones (the copy prints `calls assigned to a workspace: N`). `make deploy` waits up to 60 s for the dashboard to answer and prints the copy summary, or fails with its last log lines if it does not come up. If PostgreSQL already has calls and there is no marker it logs a WARNING and skips (it never overwrites). The copy keeps ids and only reads the SQLite file, which stays in the `dashboard-data` volume as a backup.
+
+Before the first deploy, make sure the VM's `.env` has `POSTGRES_PASSWORD` (`scripts/init.sh`), and rehearse the copy against a copy of the production file (never the live one):
+
+```bash
+docker compose run --rm --no-deps -v /path/to/copy-dir:/old:ro dashboard python manage.py copy_from_sqlite --path /old/dashboard.sqlite3 --dry-run
+```
+
+`--dry-run` does the whole copy inside a transaction, prints the counts and rolls back. `scripts/migrate-dashboard-to-postgres.sh` is an optional manual check (`COPY_ARGS=--dry-run` supported) that prints counts from both sides; once `/data/.copied-to-postgres` exists it only prints the counts, and a real copy it makes writes that marker.
+
+**Rollback caveat.** `ROLLBACK=1 make deploy` returns to code that reads SQLite, so calls recorded in PostgreSQL after the deploy are not shown by the old version (the SQLite file only holds history up to the cutover). They are not lost: they stay in the `postgres-data` volume. To recover, deploy the PostgreSQL version again. To bring them into SQLite instead there is no tool; export them from PostgreSQL first (`docker compose exec postgres pg_dump -U dashboard dashboard > backup.sql`).
+
+**Console API.** The dashboard also serves the console's JSON API under `/api/`: auth and team, agents, knowledge, workflows, calls and live calls, the dashboard summary, settings and integration requests, plus runtime endpoints the agent calls. Management commands (run with `docker compose exec dashboard python manage.py ...`):
+
+- `create_member EMAIL [--name N] [--role editor] [--workspace carrum]` creates a console user (prompts for a password).
+- `seed_carrum [--knowledge PATH]` creates the Carrum workspace and a draft "Driver lead qualifier" agent; if `PATH` (default `../agent/knowledge.md`) exists it also adds that file as the "Approved pricing and rules" knowledge document. Safe to repeat; it never publishes.
+- `purge_old_call_data [--days 90] [--dry-run]` deletes transcripts older than 90 days (turn events and report `turns`) and blanks the caller's words on labelled turns, keeping the telecaller labels; outcomes, summaries, answers and metrics stay. Nothing schedules it yet; plan 4 adds a daily run.
+- `copy_from_sqlite` is the SQLite to PostgreSQL copy described above.
+
+Run the tests locally with `make test` (needs `dashboard/.venv` with `dashboard/requirements-dev.txt`). The dashboard tests run on PostgreSQL: `make test-db` starts a disposable container on `127.0.0.1:55432` (needs Docker; `make test` does it for you). To use another server set `TEST_POSTGRES_HOST`, `TEST_POSTGRES_PORT`, `TEST_POSTGRES_USER` and `TEST_POSTGRES_PASSWORD`.
 
 The agent POSTs its report to `/api/report` when a call ends, if `DASHBOARD_REPORT_URL` is set (on the VM: `http://127.0.0.1:8787/api/report`). The request carries a LiveKit-signed token with identity `agent-report` instead of a login. A report may arrive before LiveKit's `room_finished` webhook, and a later report for the same room replaces the earlier one. `/admin/` filters calls by final mood and outcome and shows each full report.
 

@@ -7,6 +7,8 @@ The dashboard listens on the VM's localhost only and is reached with `make tunne
 import os
 from pathlib import Path
 
+from django.core.exceptions import ImproperlyConfigured
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.environ["DJANGO_SECRET_KEY"]
@@ -17,6 +19,8 @@ ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
 LIVEKIT_URL = os.getenv("LIVEKIT_URL", "ws://127.0.0.1:7880").replace("ws://", "http://").replace("wss://", "https://")
 LIVEKIT_API_KEY = os.getenv("LIVEKIT_API_KEY", "")
 LIVEKIT_API_SECRET = os.getenv("LIVEKIT_API_SECRET", "")
+# Where "Transfer to a person" sends a live caller (sip:... or tel:...); empty = transfer not set up.
+HANDOFF_SIP_URI = os.getenv("HANDOFF_SIP_URI", "")
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -25,7 +29,13 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "rest_framework",
     "calls",
+    "workspaces",
+    "voiceagents",
+    "knowledge",
+    "workflows",
+    "runtime",
 ]
 
 MIDDLEWARE = [
@@ -58,11 +68,21 @@ TEMPLATES = [
 
 ASGI_APPLICATION = "config.asgi.application"
 
+# Directory for files the dashboard keeps (recordings, later). The database is PostgreSQL.
 DB_DIR = Path(os.getenv("DASHBOARD_DB_DIR", "/data"))
+
+if not os.getenv("POSTGRES_PASSWORD"):
+    raise ImproperlyConfigured("POSTGRES_PASSWORD is not set (scripts/init.sh generates it in .env)")
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": DB_DIR / "dashboard.sqlite3",
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": os.getenv("POSTGRES_DB", "dashboard"),
+        "USER": os.getenv("POSTGRES_USER", "dashboard"),
+        "PASSWORD": os.environ["POSTGRES_PASSWORD"],
+        "HOST": os.getenv("POSTGRES_HOST", "127.0.0.1"),
+        "PORT": os.getenv("POSTGRES_PORT", "5432"),
+        "CONN_MAX_AGE": 60,
+        "CONN_HEALTH_CHECKS": True,
     }
 }
 
@@ -74,6 +94,18 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 LOGIN_URL = "/admin/login/"
+
+# The console frontend runs on a different local origin in development.
+CSRF_TRUSTED_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000"]
+
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework.authentication.SessionAuthentication"],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+        "workspaces.permissions.IsMember",
+    ],
+    "DEFAULT_THROTTLE_RATES": {"login": "10/min", "set_password": "10/min"},
+}
 
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "Asia/Kolkata"
