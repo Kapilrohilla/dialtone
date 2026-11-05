@@ -203,3 +203,19 @@ def test_end_step_refusal():
     assert end_step_refusal(end_ni, "INTERESTED") == (
         "This step ends with NI. Call record_outcome with disposition NI."
     )
+
+
+def test_transfer_step_rendering_depends_on_handoff(rules):
+    step = {"name": "Hand over", "type": "transfer", "prompt": "Hand over."}
+    with_handoff = prompt.step_block(step, {}, handoff_available=True)
+    assert with_handoff.endswith(
+        "Record the outcome, tell the driver you are connecting them, then call transfer_to_telecaller."
+    )
+    without = prompt.step_block(step, {}, handoff_available=False)
+    assert without.endswith(
+        "Record the outcome, then offer a callback from the telecalling team; don't say you are connecting them."
+    )
+    assert "transfer_to_telecaller" not in without
+    # build_instructions passes it through; the default keeps today's transfer text.
+    assert without in build_instructions(snapshot(), {}, rules, step, handoff_available=False)
+    assert with_handoff in build_instructions(snapshot(), {}, rules, step)

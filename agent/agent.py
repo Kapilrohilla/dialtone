@@ -57,7 +57,7 @@ from metrics import LatencyStats
 from mood import MoodReading, MoodTracker
 from prompt import BASE_INSTRUCTIONS, SCRIPT_FALLBACK, SYSTEM_LAYER  # noqa: F401  (layers live in prompt.py)
 from prompt import PERSONA_NAME, build_instructions, builtin_instructions, end_step_refusal, opening_instructions
-from prompt import opening_line
+from prompt import opening_line, step_block
 from report import build_report, send_report
 from sentiment import make_classifier
 from tone import mood_message, tone_guide
@@ -210,6 +210,39 @@ def path_tool_schema(tool: PathTool) -> dict:
     }
 
 
+def step_updates_instructions(pipeline: str) -> bool:
+    """Whether a workflow step change rewrites the instructions. Not on Gemini Live: each instruction
+    update there adds the whole prompt to the conversation as a model turn, so the new step goes back
+    as the path tool's result instead."""
+    return pipeline != "gemini-live"
+
+
+def call_config(cfg: Config, agent) -> Config:
+    """The config the call actually runs: built-in when the agent couldn't use the console snapshot."""
+    if cfg.snapshot is not None and getattr(agent, "snapshot", None) is None:
+        return BUILTIN_CONFIG
+    return cfg
+
+
+def capped_outcome() -> dict:
+    """Outcome recorded when the workflow loop limit stops the workflow (same fields as record_outcome)."""
+    return {
+        "disposition": "UNRESOLVED",
+        "reason": "workflow loop limit reached",
+        "summary": "",
+        "interest_strength": "none",
+        "telecaller_followup_agreed": False,
+        "callback_time": "",
+        "city": "",
+        "licence": "",
+        "experience": "",
+        "uber_id": "",
+        "preferred_plan": "",
+        "main_question": "",
+        "do_not_call": False,
+    }
+
+
 def lead_record(metadata: str) -> dict:
     """The lead record passed as JSON dispatch metadata; empty when there is none."""
     try:
@@ -221,9 +254,16 @@ def lead_record(metadata: str) -> dict:
 
 
 class PhoneAgent(Agent):
-    def __init__(self, lead: dict, language_rules: str = GEMINI_LANGUAGE_RULES, cfg: Config | None = None) -> None:
+    def __init__(
+        self,
+        lead: dict,
+        language_rules: str = GEMINI_LANGUAGE_RULES,
+        cfg: Config | None = None,
+        pipeline: str | None = None,
+    ) -> None:
         self.lead = lead
         self.language_rules = language_rules
+        self.pipeline = pipeline or PIPELINE
         self.snapshot: dict | None = None
         self.workflow: WorkflowRun | None = None
         self.persona_name: str | None = None
@@ -235,7 +275,8 @@ class PhoneAgent(Agent):
         self.instructions_lock = asyncio.Lock()
         path_tools: list = []
         # Kept so a caller-mood note can be swapped in and out without losing the base prompt. With a
-        # workflow it is the current step's prompt, updated on every step change.
+        # workflow it is the current step's prompt, updated on every step change (except on Gemini
+        # Live, where it stays the starting prompt and later steps arrive as tool results).
         self.base_instructions = builtin_instructions(lead, language_rules)
         self.opening = opening_line(lead)
         snapshot = cfg.snapshot if cfg is not None else None
@@ -276,13 +317,18 @@ class PhoneAgent(Agent):
             return None
         return run
 
+    @staticmethod
+    def _path_labels(paths: list[PathTool]) -> list[dict]:
+        return [{"name": p.name, "label": p.description} for p in paths]
+
     def _snapshot_instructions(self, step: Step | None, paths: list[PathTool]) -> str:
         text = build_instructions(
             self.snapshot,
             self.lead,
             self.language_rules,
             asdict(step) if step is not None else None,
-            [{"name": p.name, "label": p.description} for p in paths],
+            self._path_labels(paths),
+            handoff_available=bool(HANDOFF_SIP_URI),
         )
         return f"{text}\n\n{opening_instructions(self.lead, self.persona_name)}"
 
@@ -303,6 +349,8 @@ class PhoneAgent(Agent):
             if not transition.ok or transition.entered is None:
                 if transition.capped:
                     logger.warning("workflow loop limit reached", extra={"tool": tool_name})
+                    if self.outcome is None:
+                        self.outcome = capped_outcome()
                 return transition.message
             step = transition.entered
             logger.info("workflow step", extra={"step": step.name, "path": run.path})
@@ -311,6 +359,9 @@ class PhoneAgent(Agent):
                 field, captured = transition.captured
                 self.emit("field_captured", {"field": field, "value": captured})
             paths = run.paths_from_current()
+            if not step_updates_instructions(self.pipeline):
+                block = step_block(asdict(step), self.lead, self._path_labels(paths), bool(HANDOFF_SIP_URI))
+                return f"Now at step {step.name}.\n{block}"
             async with self.instructions_lock:
                 self.base_instructions = self._snapshot_instructions(step, paths)
                 note = f"\n\n{self.mood_note}" if self.mood_note else ""
@@ -394,6 +445,13 @@ class PhoneAgent(Agent):
         """Hang up the call. Use only after record_outcome and your closing line."""
         if self.outcome is None:
             return "Call record_outcome first, then end the call."
+        try:
+            refusal = end_step_refusal(self.current_step(), self.outcome.get("disposition"))
+        except Exception:
+            logger.exception("end-step check failed")
+            refusal = None
+        if refusal is not None:
+            return refusal
         await ctx.wait_for_playout()
         await get_job_context().delete_room()
 
@@ -426,8 +484,8 @@ class PhoneAgent(Agent):
 
 
 class SarvamPhoneAgent(PhoneAgent):
-    def __init__(self, lead: dict, cfg: Config | None = None) -> None:
-        super().__init__(lead, language_rules=SARVAM_LANGUAGE_RULES, cfg=cfg)
+    def __init__(self, lead: dict, cfg: Config | None = None, pipeline: str | None = None) -> None:
+        super().__init__(lead, language_rules=SARVAM_LANGUAGE_RULES, cfg=cfg, pipeline=pipeline)
 
     @function_tool
     async def switch_language(self, ctx: RunContext, language_code: str) -> str:
@@ -468,7 +526,7 @@ def gemini_live_session(
     if mood_on:
         # Gemini hears the caller's tone itself; it gets the guide once instead of mid-call notes.
         rules += "\n\n" + tone_guide(handoff_available=bool(HANDOFF_SIP_URI))
-    return AgentSession(llm=llm), PhoneAgent(lead, language_rules=rules, cfg=cfg)
+    return AgentSession(llm=llm), PhoneAgent(lead, language_rules=rules, cfg=cfg, pipeline="gemini-live")
 
 
 def sarvam_tts():
@@ -669,6 +727,9 @@ async def entrypoint(ctx: JobContext) -> None:
         session, agent = gemini_live_session(lead, cfg, mood_on)
     agent.caller_identity = caller.identity
     agent.emit = sink.add
+    if call_config(cfg, agent) is not cfg:
+        logger.warning("console config unusable, the call runs the built-in agent", extra={"source": cfg.source})
+        cfg = BUILTIN_CONFIG
     if agent.workflow is not None and agent.workflow.current is not None:
         sink.add("step_entered", {"step_id": agent.workflow.current.id, "step_name": agent.workflow.current.name})
 

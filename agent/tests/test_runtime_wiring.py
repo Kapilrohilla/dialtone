@@ -1,7 +1,10 @@
 """Runtime wiring helpers and PhoneAgent construction (no LiveKit session or room needed)."""
 
+import pytest
+
 import agent
 import prompt
+import workflow
 from console_config import Config
 from dead_air import DeadAirConfig
 from prompt import builtin_instructions, opening_line
@@ -40,6 +43,34 @@ def snapshot(workflow=None, **overrides) -> dict:
 
 def console(snap: dict) -> Config:
     return Config("console", snap, 7)
+
+
+@pytest.fixture(autouse=True)
+def cascaded_pipeline(monkeypatch):
+    # Independent of the local .env: agents default to a cascaded pipeline, no handoff number.
+    monkeypatch.setattr(agent, "PIPELINE", "sarvam")
+    monkeypatch.setattr(agent, "HANDOFF_SIP_URI", "")
+
+
+TRANSFER_GRAPH = {
+    "steps": [
+        {"id": "s1", "name": "Greet", "type": "start", "prompt": "Greet."},
+        {"id": "t1", "name": "Hand over", "type": "transfer", "prompt": "Hand over to a person."},
+    ],
+    "paths": [{"from": "s1", "to": "t1", "label": "Driver wants a person"}],
+}
+
+LOOP_GRAPH = {
+    "steps": [
+        {"id": "a", "name": "A", "type": "start", "prompt": ""},
+        {"id": "b", "name": "B", "type": "prompt", "prompt": ""},
+    ],
+    "paths": [{"from": "a", "to": "b", "label": "go b"}, {"from": "b", "to": "a", "label": "go a"}],
+}
+
+
+def tool_named(a, name):
+    return next(t for t in a.tools if t.id == name)
 
 
 def test_path_tool_schema_with_and_without_value():
@@ -243,8 +274,120 @@ async def test_record_outcome_unguarded_without_workflow():
     assert await a.record_outcome(disposition="NI", reason="r", summary="s") == "Recorded. Now say your closing line."
 
 
-def test_recording_default_follows_env():
-    assert prompt.RECORDING_ENABLED is False  # tests run without RECORDING_ENABLED
+def test_recording_default_follows_env(monkeypatch):
+    monkeypatch.delenv("RECORDING_ENABLED", raising=False)
+    assert CONSENT not in opening_line({})
+    monkeypatch.setenv("RECORDING_ENABLED", "false")
+    assert CONSENT not in opening_line({})
+    monkeypatch.setenv("RECORDING_ENABLED", "true")
+    assert opening_line({}).endswith(" " + CONSENT)
+    assert CONSENT not in opening_line({}, recording=False)
+
+
+async def test_gemini_step_change_returns_step_block_without_instruction_update(monkeypatch):
+    a = agent.PhoneAgent(
+        LEAD, agent.GEMINI_LANGUAGE_RULES, console(snapshot({"id": 1, "graph": GRAPH})), pipeline="gemini-live"
+    )
+    start = a.base_instructions
+    calls = []
+
+    async def update_instructions(text):
+        calls.append(text)
+
+    monkeypatch.setattr(a, "update_instructions", update_instructions)
+    result = await tool_named(a, "go_to_city")({})
+    block = prompt.step_block(
+        {"name": "City", "type": "collect", "prompt": "Ask the city."},
+        LEAD,
+        [{"name": "go_to_wrap_up", "label": "Driver gave a city"}],
+    )
+    assert result == "Now at step City.\n" + block
+    assert "- Driver gave a city: call go_to_wrap_up" in result
+    assert calls == [] and a.base_instructions == start
+    end = await tool_named(a, "go_to_wrap_up")({"value": "Pune"})
+    assert "Record the outcome as INTERESTED with record_outcome" in end
+    assert calls == []
+
+
+async def test_cascaded_step_change_updates_instructions(monkeypatch):
+    a = agent.PhoneAgent(
+        LEAD, agent.GEMINI_LANGUAGE_RULES, console(snapshot({"id": 1, "graph": GRAPH})), pipeline="sarvam"
+    )
+    calls = []
+
+    async def update_instructions(text):
+        calls.append(text)
+
+    monkeypatch.setattr(a, "update_instructions", update_instructions)
+    assert await tool_named(a, "go_to_city")({}) == "Now at step City."
+    assert calls == [a.base_instructions] and "Current step: City" in calls[0]
+
+
+def test_step_updates_instructions_by_pipeline():
+    assert agent.step_updates_instructions("gemini-live") is False
+    assert agent.step_updates_instructions("sarvam") is True
+    assert agent.step_updates_instructions("elevenlabs") is True
+
+
+async def test_transfer_step_without_handoff_offers_callback():
+    a = agent.PhoneAgent(LEAD, agent.GEMINI_LANGUAGE_RULES, console(snapshot({"id": 1, "graph": TRANSFER_GRAPH})))
+    await tool_named(a, "go_to_hand_over")({})
+    assert prompt.NO_TRANSFER_DIRECTION in a.instructions
+    assert "tell the driver you are connecting them" not in a.instructions
+
+
+async def test_transfer_step_with_handoff_connects(monkeypatch):
+    monkeypatch.setattr(agent, "HANDOFF_SIP_URI", "sip:desk@example.test")
+    a = agent.PhoneAgent(LEAD, agent.GEMINI_LANGUAGE_RULES, console(snapshot({"id": 1, "graph": TRANSFER_GRAPH})))
+    await tool_named(a, "go_to_hand_over")({})
+    assert prompt.TRANSFER_DIRECTION in a.instructions
+
+
+def test_call_config_builtin_when_snapshot_unusable(monkeypatch):
+    cfg = console(snapshot())
+    good = agent.PhoneAgent(LEAD, agent.GEMINI_LANGUAGE_RULES, cfg)
+    assert agent.call_config(cfg, good) is cfg
+
+    def boom(*_a, **_k):
+        raise RuntimeError("bad console data")
+
+    monkeypatch.setattr(agent, "build_instructions", boom)
+    bad = agent.PhoneAgent(LEAD, agent.GEMINI_LANGUAGE_RULES, cfg)
+    fallback = agent.call_config(cfg, bad)
+    assert fallback.source == "builtin" and fallback.version_id is None
+    builtin = Config("builtin", None, None)
+    assert agent.call_config(builtin, bad) is builtin
+
+
+async def test_loop_cap_records_unresolved():
+    a = agent.PhoneAgent(LEAD, agent.GEMINI_LANGUAGE_RULES, console(snapshot({"id": 1, "graph": LOOP_GRAPH})))
+    results = []
+    for _ in range(6):
+        results.append(await tool_named(a, "go_to_b")({}))
+        results.append(await tool_named(a, "go_to_a")({}))
+    assert any(r == workflow.CAPPED_MESSAGE for r in results)
+    assert a.outcome["disposition"] == "UNRESOLVED"
+    assert a.outcome["reason"] == "workflow loop limit reached"
+    assert set(a.outcome) == set(agent.capped_outcome())
+    assert a.outcome["do_not_call"] is False and a.outcome["summary"] == ""
+
+
+async def test_loop_cap_keeps_recorded_outcome():
+    a = agent.PhoneAgent(LEAD, agent.GEMINI_LANGUAGE_RULES, console(snapshot({"id": 1, "graph": LOOP_GRAPH})))
+    await a.record_outcome(disposition="CBR", reason="later", summary="s")
+    for _ in range(6):
+        await tool_named(a, "go_to_b")({})
+        await tool_named(a, "go_to_a")({})
+    assert a.outcome["disposition"] == "CBR"
+
+
+async def test_end_call_refused_on_end_step_with_wrong_disposition():
+    a = agent.PhoneAgent(LEAD, agent.GEMINI_LANGUAGE_RULES, console(snapshot({"id": 1, "graph": GRAPH})))
+    await a.record_outcome(disposition="NI", reason="r", summary="s")  # recorded before the end step
+    await tool_named(a, "go_to_city")({})
+    await tool_named(a, "go_to_wrap_up")({"value": "Pune"})
+    refused = await a.end_call(None)
+    assert refused == "This step ends with INTERESTED. Call record_outcome with disposition INTERESTED."
 
 
 async def test_shutdown_report_before_caller_joins(monkeypatch):

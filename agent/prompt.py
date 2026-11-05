@@ -25,7 +25,6 @@ logger = logging.getLogger("phone-agent")
 PERSONA_NAME = os.getenv("AGENT_PERSONA_NAME", "Priya")
 KNOWLEDGE_FILE = Path(__file__).parent / "knowledge.md"
 # Recording consent (plan 4 turns recording on): appended to the opening line only when recording.
-RECORDING_ENABLED = os.getenv("RECORDING_ENABLED", "false").lower() == "true"
 RECORDING_CONSENT = "यह call quality के लिए record हो रही है।"
 
 # Persona line plus who Carrum is: script (ops own it once the console has a config).
@@ -219,6 +218,11 @@ def lead_instructions(lead: dict) -> str:
     return f"Lead record (already known, so don't ask again; correct it if the driver says otherwise):\n{facts}"
 
 
+def recording_enabled() -> bool:
+    """RECORDING_ENABLED, read when the line is built (so tests and per-process env agree)."""
+    return os.getenv("RECORDING_ENABLED", "false").lower() == "true"
+
+
 def opening_line(lead: dict, persona_name: str | None = None, recording: bool | None = None) -> str:
     """Today's opening line. persona_name (console persona) names the agent; None keeps today's text.
     recording None follows RECORDING_ENABLED; when on, the consent notice is appended."""
@@ -234,7 +238,7 @@ def opening_line(lead: dict, persona_name: str | None = None, recording: bool | 
             "ke liye driving opportunities provide karte hain. Kya aap iske baare mein jaanna chahenge?"
         )
     if recording is None:
-        recording = RECORDING_ENABLED
+        recording = recording_enabled()
     if recording:
         line += " " + RECORDING_CONSENT
     return line
@@ -294,7 +298,15 @@ def persona_line(persona_name: str) -> str:
     return f"You are {persona_name}, a female AI calling assistant for Carrum Mobility Solutions."
 
 
-def step_block(step: dict, lead: dict, paths: Sequence[Mapping] = ()) -> str:
+TRANSFER_DIRECTION = (
+    "Record the outcome, tell the driver you are connecting them, then call transfer_to_telecaller."
+)
+NO_TRANSFER_DIRECTION = (
+    "Record the outcome, then offer a callback from the telecalling team; don't say you are connecting them."
+)
+
+
+def step_block(step: dict, lead: dict, paths: Sequence[Mapping] = (), handoff_available: bool = True) -> str:
     lines = [f"Current step: {step.get('name', '')}", fill_variables(step.get("prompt") or "", lead).strip()]
     if paths:
         lines.append("When one of these happens, call the matching tool:")
@@ -305,9 +317,8 @@ def step_block(step: dict, lead: dict, paths: Sequence[Mapping] = ()) -> str:
             "then call end_call."
         )
     elif step.get("type") == "transfer":
-        lines.append(
-            "Record the outcome, tell the driver you are connecting them, then call transfer_to_telecaller."
-        )
+        # Without a handoff number the transfer can't happen: never promise one.
+        lines.append(TRANSFER_DIRECTION if handoff_available else NO_TRANSFER_DIRECTION)
     return "\n".join(line for line in lines if line)
 
 
@@ -317,6 +328,7 @@ def build_instructions(
     language_rules: str,
     step: dict | None = None,
     paths: Sequence[Mapping] = (),
+    handoff_available: bool = True,
 ) -> str:
     """The prompt for a call with a console config: system layer, script, then the current step."""
     parts = [SYSTEM_LAYER, persona_line(snapshot.get("persona_name") or PERSONA_NAME)]
@@ -325,7 +337,7 @@ def build_instructions(
         parts.append(f"## {section.get('title', '')}\n{body}")
     parts += [language_rules, knowledge_block(snapshot), lead_instructions(lead)]
     if step is not None:
-        parts.append(step_block(step, lead, paths))
+        parts.append(step_block(step, lead, paths, handoff_available))
     return "\n\n".join(parts)
 
 
