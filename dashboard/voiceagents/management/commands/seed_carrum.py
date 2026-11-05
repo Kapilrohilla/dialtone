@@ -172,8 +172,10 @@ class Command(BaseCommand):
                 "script": SCRIPT,
             },
         )
-        workflow, created = Workflow.objects.get_or_create(workspace=ws, name=WORKFLOW_NAME)
-        if created:  # same shape the workflows API saves: revision 1 holds the graph
+        # Names aren't unique (an operator may have made a copy), so get_or_create could raise.
+        if not Workflow.objects.filter(workspace=ws, name=WORKFLOW_NAME).exists():
+            workflow = Workflow.objects.create(workspace=ws, name=WORKFLOW_NAME)
+            # Same shape the workflows API saves: revision 1 holds the graph.
             WorkflowRevision.objects.create(workflow=workflow, number=1, graph=ONBOARDING_GRAPH)
         docs = 0
         path = Path(knowledge)

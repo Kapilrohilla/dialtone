@@ -80,3 +80,15 @@ def test_seed_creates_valid_driver_onboarding_workflow(tmp_path):
     assert all(isinstance(s.get("position"), dict) for s in graph["steps"])
     assert len(graph["steps"]) == 9 and len(graph["paths"]) == 8
     assert not Agent.objects.filter(workflow=wf).exists()
+
+
+@pytest.mark.django_db
+def test_seed_tolerates_two_workflows_with_the_seed_name(tmp_path):
+    from workspaces.models import Workspace
+    from workflows.models import Workflow
+
+    _seed("--knowledge", str(tmp_path / "missing.md"))
+    ws = Workspace.objects.get(slug="carrum")
+    Workflow.objects.create(workspace=ws, name="Driver onboarding")  # names aren't unique; an operator made a copy
+    _seed("--knowledge", str(tmp_path / "missing.md"))
+    assert Workflow.objects.filter(name="Driver onboarding").count() == 2
