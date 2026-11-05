@@ -86,3 +86,34 @@ def test_source_is_left_untouched(legacy_file):
     before = legacy_file.read_bytes()
     call_command("copy_from_sqlite", path=str(legacy_file))
     assert legacy_file.read_bytes() == before
+
+
+def test_dry_run_counts_but_writes_nothing(legacy_file, capsys):
+    call_command("copy_from_sqlite", path=str(legacy_file), dry_run=True)
+    assert "calls: 2" in capsys.readouterr().out
+    assert Call.objects.count() == 0 and User.objects.filter(username="ops").count() == 0
+    assert not (legacy_file.parent / ".copied-to-postgres").exists()
+
+
+def test_if_needed_copies_once_and_writes_marker(legacy_file):
+    call_command("copy_from_sqlite", path=str(legacy_file), if_needed=True)
+    assert Call.objects.count() == 2
+    assert (legacy_file.parent / ".copied-to-postgres").exists()
+
+    Call.objects.create(room="new-after-cutover")
+    call_command("copy_from_sqlite", path=str(legacy_file), if_needed=True)  # no-op
+    assert Call.objects.count() == 3
+
+
+def test_if_needed_skips_with_warning_when_target_has_calls(legacy_file, capsys, caplog):
+    Call.objects.create(id=1, room="live-call")
+    call_command("copy_from_sqlite", path=str(legacy_file), if_needed=True)
+    assert list(Call.objects.values_list("room", flat=True)) == ["live-call"]
+    assert "WARNING" in capsys.readouterr().err
+    assert any(r.levelname == "WARNING" for r in caplog.records)
+    assert not (legacy_file.parent / ".copied-to-postgres").exists()
+
+
+def test_if_needed_without_sqlite_file_does_nothing(tmp_path):
+    call_command("copy_from_sqlite", path=str(tmp_path / "none.sqlite3"), if_needed=True)
+    assert Call.objects.count() == 0
