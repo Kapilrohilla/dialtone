@@ -13,3 +13,49 @@ os.environ["DJANGO_SETTINGS_MODULE"] = "config.settings"
 import django  # noqa: E402
 
 django.setup()
+
+
+import pytest  # noqa: E402
+
+
+@pytest.fixture
+def workspace(db):
+    from workspaces.models import Workspace
+
+    return Workspace.objects.get_or_create(slug="carrum", defaults={"name": "Carrum Mobility"})[0]
+
+
+@pytest.fixture
+def other_workspace(db):
+    from workspaces.models import Workspace
+
+    return Workspace.objects.create(slug="other", name="Other Co")
+
+
+@pytest.fixture
+def member(workspace):
+    """Factory: member(role="editor") -> logged-in APIClient that belongs to `workspace`."""
+    from django.contrib.auth import get_user_model
+    from rest_framework.test import APIClient
+
+    from workspaces.models import Membership
+
+    counter = {"n": 0}
+
+    def make(role="editor"):
+        counter["n"] += 1
+        email = f"{role}{counter['n']}@example.com"
+        user = get_user_model().objects.create_user(username=email, email=email, password="pw-test-12345")
+        Membership.objects.create(user=user, workspace=workspace, role=role)
+        client = APIClient()
+        client.force_login(user)
+        client.user = user
+        return client
+
+    return make
+
+
+def assert_isolated(client, url):
+    """`url` points at an object owned by another workspace: a member must get 404, not 403/200."""
+    response = client.get(url)
+    assert response.status_code == 404, f"expected 404 for cross-workspace object, got {response.status_code}"

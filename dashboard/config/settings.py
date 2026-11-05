@@ -25,7 +25,9 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "rest_framework",
     "calls",
+    "workspaces",
 ]
 
 MIDDLEWARE = [
@@ -74,6 +76,17 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 LOGIN_URL = "/admin/login/"
+
+# The console frontend runs on a different local origin in development.
+CSRF_TRUSTED_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000"]
+
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework.authentication.SessionAuthentication"],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+        "workspaces.permissions.IsMember",
+    ],
+}
 
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "Asia/Kolkata"
