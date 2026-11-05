@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     "workspaces",
     "voiceagents",
     "knowledge",
+    "workflows",
 ]
 
 MIDDLEWARE = [
