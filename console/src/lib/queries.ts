@@ -16,8 +16,11 @@ import type {
   LiveCall,
   Me,
   Preferences,
+  PhoneNumber,
   Revision,
+  Role,
   SimResponse,
+  TeamMember,
   VoicesResponse,
   Graph,
   Workflow,
@@ -453,4 +456,54 @@ export type SimRequest = { messages: SimMessage[]; state: Record<string, unknown
 export function useSimulate(kind: "agent" | "workflow", id: number) {
   const path = `/api/${kind === "agent" ? "agents" : "workflows"}/${id}/simulate`;
   return useMutation({ mutationFn: (body: SimRequest) => apiFetch<SimResponse>(path, { method: "POST", json: body }) });
+}
+
+// ---- team ----
+
+export const teamKey = ["team"] as const;
+
+export function useTeam() {
+  return useQuery({ queryKey: teamKey, queryFn: () => apiFetch<TeamMember[]>("/api/team") });
+}
+
+export type Invite = { email: string; name: string; role: Role };
+
+/** Adds a member and returns their one-time set-password link as a path. Field errors (e.g. email) stay on the error for the dialog. */
+export function useInvite() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Invite) => apiFetch<{ set_password_url: string }>("/api/team", { method: "POST", json: body }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: teamKey }),
+  });
+}
+
+/** Changes a member's role. The toast carries the API's words (e.g. "Only an owner can do that."). */
+export function useSetRole() {
+  const qc = useQueryClient();
+  const toast = useToast();
+  return useMutation({
+    mutationFn: ({ id, role }: { id: number; role: Role }) => apiFetch<TeamMember>(`/api/team/${id}`, { method: "PATCH", json: { role } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: teamKey }),
+    onError: (e) => toast.show(e instanceof ApiError ? e.detail : "Could not change the role.", "bad"),
+  });
+}
+
+// ---- numbers ----
+
+export function usePhoneNumbers() {
+  return useQuery({ queryKey: ["phone-numbers"], queryFn: () => apiFetch<PhoneNumber[]>("/api/phone-numbers") });
+}
+
+// ---- integrations ----
+
+/** Tells us which tool a workspace wants next. Any member may ask. */
+export function useRequestIntegration() {
+  return useMutation({ mutationFn: (body: { tool: string; note: string }) => apiFetch<unknown>("/api/integrations/requests", { method: "POST", json: body }) });
+}
+
+// ---- password ----
+
+/** Field errors arrive on current_password and new_password. */
+export function useChangePassword() {
+  return useMutation({ mutationFn: (body: { current_password: string; new_password: string }) => apiFetch<void>("/api/me/password", { method: "POST", json: body }) });
 }

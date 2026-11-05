@@ -1,0 +1,41 @@
+.layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); align-items: start; min-height: calc(100vh - 72px); }
+.content { min-width: 0; }
+.nav { display: flex; flex-direction: column; gap: 2px; padding: 16px 12px; border-right: 1px solid var(--border); min-height: inherit; }
+.link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px 10px 9px;
+  border-left: 3px solid transparent;
+  border-radius: 4px;
+  color: var(--ink-2);
+  font-size: 15px;
+}
+a.link:hover { background: var(--well); }
+.link[aria-current="page"] { background: var(--well); border-left-color: var(--amber); color: var(--ink); font-weight: 500; }
+.link[data-disabled="true"] { color: var(--muted); cursor: default; }
+
+.page { max-width: 720px; padding: var(--gutter) 40px 48px; }
+.section { display: flex; flex-direction: column; gap: var(--row-gap); padding: var(--gutter) 0; border-bottom: 1px solid var(--border); }
+.section:first-child { padding-top: 0; }
+.section h2 { font-size: 18px; }
+.avatar { display: grid; place-items: center; width: 56px; height: 56px; border-radius: 50%; background: var(--amber-tint); color: var(--amber); font-size: 20px; font-weight: 500; }
+.identity { display: flex; align-items: center; gap: 16px; }
+.mono input { font-family: var(--font-mono); }
+.note { margin: 0; color: var(--muted); font-size: 15px; }
+.switches { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
+.footer { display: flex; justify-content: flex-end; gap: 12px; padding-top: var(--gutter); }
+.tableWrap { padding: var(--gutter) 40px 48px; }
+.tableNote { margin: 16px 0 0; color: var(--muted); font-size: 15px; }
+.mutedText { color: var(--muted); }
+.monoText { font-family: var(--font-mono); }
+.copyRow { display: flex; gap: 8px; align-items: flex-end; }
+.copyRow > :first-child { flex: 1; min-width: 0; }
+.form { display: flex; flex-direction: column; gap: var(--row-gap); }
+.roleSelect { height: 36px; padding: 0 8px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); color: var(--ink); font: inherit; }
+
+@media (max-width: 900px) {
+  .layout { grid-template-columns: minmax(0, 1fr); }
+  .nav { flex-direction: row; flex-wrap: wrap; border-right: 0; border-bottom: 1px solid var(--border); min-height: 0; }
+  .page, .tableWrap { padding: var(--gutter); }
+}
