@@ -214,7 +214,8 @@ def test_tampered_state_never_raises():
     assert len(run.path) <= 26 and all(isinstance(x, str) for x in run.path)
     for tool in ["go_to_b", "go_to_a", "go_to_b", "go_to_a", "go_to_b"]:
         assert run.take(tool).ok
-    assert run.take("go_to_a").capped
+    assert run.take("go_to_a").ok  # a clamped to 0 visits, so a3 is still allowed
+    assert run.take("go_to_b").capped  # b4 would exceed the cap
     run = WorkflowRun.from_state(loop_graph(), {"current_step_id": "a", "transitions": True}, max_transitions=2)
     assert run.transitions == 0
 
