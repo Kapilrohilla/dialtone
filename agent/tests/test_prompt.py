@@ -46,14 +46,31 @@ def rules():
     return "Language:\n- Start in Hindi."
 
 
-def test_builtin_matches_today():
+def fresh_prompt(tmp_path, monkeypatch):
+    """prompt.py loaded from a copy in an empty dir with the env cleared: no knowledge.md, no persona
+    override, recording off, default language. The golden fixtures are independent of the local setup."""
+    import importlib.util
+    import shutil
+
+    for var in ("AGENT_PERSONA_NAME", "RECORDING_ENABLED", "DEFAULT_LANGUAGE"):
+        monkeypatch.delenv(var, raising=False)
+    copy = tmp_path / "prompt_golden.py"
+    shutil.copy(Path(prompt.__file__), copy)
+    spec = importlib.util.spec_from_file_location("prompt_golden", copy)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_builtin_matches_today(tmp_path, monkeypatch):
     gemini = (FIXTURES / "builtin_gemini_lead.txt").read_text()
     sarvam = (FIXTURES / "builtin_sarvam_nolead.txt").read_text()
     # Fixtures were captured from PhoneAgent.base_instructions before the refactor.
     import agent
 
-    assert builtin_instructions(LEAD, agent.GEMINI_LANGUAGE_RULES) == gemini
-    assert builtin_instructions({}, agent.SARVAM_LANGUAGE_RULES) == sarvam
+    fresh = fresh_prompt(tmp_path, monkeypatch)
+    assert fresh.builtin_instructions(LEAD, fresh.GEMINI_LANGUAGE_RULES) == gemini
+    assert fresh.builtin_instructions({}, agent.SARVAM_LANGUAGE_RULES) == sarvam
 
 
 def test_system_layer_contents():
