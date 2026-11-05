@@ -46,6 +46,40 @@ describe("agents list", () => {
     expect(within(dialog).getAllByRole("listitem").map((li) => li.textContent)).toEqual(["Add a greeting.", "Pick a voice."]);
   });
 
+  it("a failed publish without a list shows the reason, not the Fix these first heading", async () => {
+    serve([draft]);
+    server.use(http.post("*/api/agents/8/publish", () => HttpResponse.json({ detail: "Not allowed." }, { status: 403 })));
+    const user = userEvent.setup();
+    renderWithProviders(<AgentsPage />);
+    await user.click(await screen.findByRole("button", { name: "Publish" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Publish" }));
+    expect(await within(dialog).findByText("Not allowed.")).toBeInTheDocument();
+    expect(within(dialog).queryByText("Fix these first:")).not.toBeInTheDocument();
+  });
+
+  it("a network failure on publish shows a generic message", async () => {
+    serve([draft]);
+    server.use(http.post("*/api/agents/8/publish", () => HttpResponse.error()));
+    const user = userEvent.setup();
+    renderWithProviders(<AgentsPage />);
+    await user.click(await screen.findByRole("button", { name: "Publish" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Publish" }));
+    expect(await within(dialog).findByText("Could not publish. Try again.")).toBeInTheDocument();
+    expect(within(dialog).queryByText("Fix these first:")).not.toBeInTheDocument();
+  });
+
+  it("a failed create shows a toast and stays on the list", async () => {
+    serve([]);
+    server.use(http.post("*/api/agents", () => HttpResponse.json({ detail: "You cannot create agents." }, { status: 403 })));
+    const user = userEvent.setup();
+    renderWithProviders(<AgentsPage />);
+    await user.click(await screen.findByRole("button", { name: "New agent" }));
+    expect(await screen.findByText("You cannot create agents.")).toBeInTheDocument();
+    expect(router.push).not.toHaveBeenCalled();
+  });
+
   it("new agent creates and opens the editor", async () => {
     serve([]);
     let body: unknown;
@@ -144,6 +178,15 @@ describe("agents list", () => {
     expect(await screen.findByText("Unpublish it first.")).toBeInTheDocument();
   });
 
+  it("an editor sees publish and menu actions after the same wait", async () => {
+    serve([live, draft]);
+    const { queryClient } = renderWithProviders(<AgentsPage />);
+    await screen.findByRole("table");
+    await waitFor(() => expect(queryClient.getQueryState(["me"])?.status).toBe("success"));
+    expect(await screen.findByRole("button", { name: "Publish" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /More actions/ }).length).toBeGreaterThan(0);
+  });
+
   it("viewer sees no publish or menu actions", async () => {
     serve([live, draft]);
     server.use(http.get("*/api/me", () => HttpResponse.json({ ...me, role: "viewer" })));
@@ -155,6 +198,7 @@ describe("agents list", () => {
     expect(screen.queryByRole("button", { name: "New agent" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Unpublish" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open" })).toBeInTheDocument();
+    expect(queryClient.getQueryData<{ role: string }>(["me"])?.role).toBe("viewer");
   });
 
   it("shows built-in script note when nothing is live", async () => {

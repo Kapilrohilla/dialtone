@@ -109,9 +109,11 @@ function useInvalidateAgents() {
 
 export function useCreateAgent() {
   const invalidate = useInvalidateAgents();
+  const toast = useToast();
   return useMutation({
     mutationFn: (body: { name: string }) => apiFetch<Agent>("/api/agents", { method: "POST", json: body }),
     onSuccess: (agent) => invalidate(agent.id),
+    onError: (e) => toast.show(e instanceof ApiError ? e.detail : "Could not create the agent.", "bad"),
   });
 }
 

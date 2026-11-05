@@ -17,7 +17,9 @@ export type PublishDialogProps = {
 export function PublishDialog({ agent, liveAgent, onClose, onPublished }: PublishDialogProps) {
   const publish = usePublish();
   const replaced = liveAgent && agent && liveAgent.id !== agent.id ? liveAgent : null;
-  const errors = publish.error instanceof ApiError ? (publish.error.fields.errors ?? [publish.error.detail]) : [];
+  const failure = publish.error;
+  const listed = failure instanceof ApiError ? (failure.fields.errors ?? []) : [];
+  const message = !failure || listed.length > 0 ? null : failure instanceof ApiError ? failure.detail : "Could not publish. Try again.";
 
   function close() {
     publish.reset();
@@ -49,15 +51,18 @@ export function PublishDialog({ agent, liveAgent, onClose, onPublished }: Publis
       <p className={styles.dialogText}>
         {replaced ? `${replaced.name} will stop answering calls.` : "It will answer the next call."}
       </p>
-      {errors.length > 0 && (
+      {listed.length > 0 && (
         <div role="alert" className={styles.errors}>
           <p className={styles.errorsTitle}>Fix these first:</p>
           <ul>
-            {errors.map((e) => (
-              <li key={e}>{e}</li>
+            {listed.map((e, i) => (
+              <li key={i}>{e}</li>
             ))}
           </ul>
         </div>
+      )}
+      {message && (
+        <p role="alert" className={styles.errors}>{message}</p>
       )}
     </Dialog>
   );
