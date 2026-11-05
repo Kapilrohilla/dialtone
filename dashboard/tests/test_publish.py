@@ -287,3 +287,75 @@ def test_is_outdated_after_agent_field_changes(workspace):
     agent.description = "New description"
     agent.save()
     assert is_outdated(agent) is False
+
+
+def _graph_with_knowledge_step(doc_id):
+    g = driver_graph()
+    g["steps"].append(step("k1", "Look up FAQ", "knowledge", knowledge_id=doc_id))
+    g["paths"] += [path("p9", "s4", "k1", "q"), path("p10", "k1", "e3", "done")]
+    return g
+
+
+@pytest.mark.django_db
+def test_snapshot_includes_workflow_step_knowledge(workspace):
+    linked = make_doc(workspace, "Linked", "linked text")
+    x = make_doc(workspace, "FAQ", "faq v1", "faq v2")
+    agent = make_agent(workspace, workflow=make_workflow(workspace, _graph_with_knowledge_step(x.id)))
+    agent.knowledge.add(linked, x)  # linked twice over (directly and via the step): listed once
+    agent.knowledge.remove(x)
+    v = publish(agent, make_user())
+    assert v.snapshot["knowledge"] == [
+        {"id": linked.id, "title": "Linked", "revision": 1, "body_md": "linked text"},
+        {"id": x.id, "title": "FAQ", "revision": 2, "body_md": "faq v2"},
+    ]
+    agent.knowledge.add(x)
+    v2 = publish(agent, make_user("pub2@example.com"))
+    assert [k["id"] for k in v2.snapshot["knowledge"]] == [linked.id, x.id]
+
+
+@pytest.mark.django_db
+def test_is_outdated_after_editing_workflow_step_knowledge(workspace, member):
+    c = member("editor")
+    x = make_doc(workspace, "FAQ", "faq v1")
+    agent = make_agent(workspace, workflow=make_workflow(workspace, _graph_with_knowledge_step(x.id)))
+    publish(agent, c.user)
+    assert is_outdated(agent) is False
+    c.patch(f"/api/knowledge/{x.id}", {"title": "Renamed FAQ"}, format="json")
+    assert is_outdated(agent) is False
+    c.patch(f"/api/knowledge/{x.id}", {"body_md": "faq v2"}, format="json")
+    assert is_outdated(agent) is True
+
+
+@pytest.mark.django_db
+def test_publish_snapshots_the_validated_revision(workspace, monkeypatch):
+    """A workflow save landing between validation and snapshot must not reach callers."""
+    import voiceagents.publish as pub
+
+    wf = make_workflow(workspace)
+    agent = make_agent(workspace, workflow=wf)
+    original = pub.validation_errors
+
+    def validate_then_save_broken(a, resolved=None):
+        errors = original(a, resolved)
+        broken = driver_graph()
+        broken["steps"].append(step("x", "Orphan", "end", outcome="NI"))
+        WorkflowRevision.objects.create(workflow=wf, number=2, graph=broken)
+        return errors
+
+    monkeypatch.setattr(pub, "validation_errors", validate_then_save_broken)
+    v = publish(agent, make_user())
+    assert v.snapshot["workflow"]["revision"] == 1
+    assert "Orphan" not in str(v.snapshot["workflow"]["graph"])
+    assert is_outdated(agent) is True  # the newer (broken) revision is not what callers get
+
+
+def test_agent_version_admin_is_read_only():
+    from django.contrib import admin
+    from django.test import RequestFactory
+
+    ma = admin.site._registry[AgentVersion]
+    req = RequestFactory().get("/")
+    assert not ma.has_add_permission(req)
+    assert not ma.has_change_permission(req)
+    assert not ma.has_delete_permission(req)
+    assert set(ma.readonly_fields) == {"agent", "number", "snapshot", "published_by", "published_at"}
