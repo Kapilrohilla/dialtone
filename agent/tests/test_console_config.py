@@ -206,3 +206,28 @@ def test_default_dashboard_url(monkeypatch):
     assert console_config.dashboard_url() == "https://x.example"
     monkeypatch.setenv("DASHBOARD_URL", "")
     assert console_config.dashboard_url() == ""
+
+
+@pytest.mark.parametrize("respond", [
+    lambda: web.json_response({"detail": "Not found."}, status=404),  # e.g. a proxy or a wrong path
+    lambda: web.Response(status=404, text="<html>Not Found</html>"),
+    lambda: web.json_response(["No published agent for this number."], status=404),
+])
+async def test_other_404_is_unavailable_and_keeps_cache(cache_dir, caplog, respond):
+    (cache_dir / "123.json").write_text(json.dumps({"version_id": 3, "snapshot": SNAP}))
+
+    async def nf(request):
+        return respond()
+
+    server = await serve(nf)
+    try:
+        with caplog.at_level("WARNING"):
+            cfg = await call(server, "123")
+            console_config._memo.clear()
+            (cache_dir / "123.json").unlink()
+            no_cache = await call(server, "123")
+    finally:
+        await server.close()
+    assert cfg == Config("cache", SNAP, 3)
+    assert no_cache == Config("builtin", None, None)
+    assert any(r.levelname == "WARNING" and "unavailable" in r.getMessage() for r in caplog.records)

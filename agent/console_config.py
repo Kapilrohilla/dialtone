@@ -20,6 +20,9 @@ RUNTIME_IDENTITY = "agent-runtime"
 # A publish reaches new calls within this delay: successful console responses are memoised per number.
 MEMO_TTL_S = 15.0
 
+# The console's 404 detail when no agent is published for the number (dashboard runtime API).
+NO_AGENT_DETAIL = "No published agent for this number."
+
 _memo: dict[str, tuple[float, "Config"]] = {}
 _warned_unwritable = False
 
@@ -102,7 +105,8 @@ def _delete_cache(number: str) -> None:
 
 
 async def _fetch(number: str, room: str, base_url: str, api_key: str, api_secret: str, timeout_s: float) -> Config | None:
-    """Config from the console, _BUILTIN on 404, None when unavailable (caller falls back to cache)."""
+    """Config from the console, _BUILTIN when it has no published agent for the number, None when
+    unavailable (caller falls back to cache)."""
     token = runtime_token(api_key, api_secret)
     timeout = aiohttp.ClientTimeout(total=timeout_s)
     async with aiohttp.ClientSession(timeout=timeout) as http:
@@ -112,7 +116,16 @@ async def _fetch(number: str, room: str, base_url: str, api_key: str, api_secret
             headers={"Authorization": f"Bearer {token}"},
         ) as resp:
             if resp.status == 404:
-                return _BUILTIN
+                # Only the console's own answer means "no agent": any other 404 (a proxy, a wrong
+                # DASHBOARD_URL) must not clear the cache.
+                try:
+                    detail = (await resp.json(content_type=None)).get("detail")
+                except Exception:
+                    detail = None
+                if detail == NO_AGENT_DETAIL:
+                    return _BUILTIN
+                logger.warning("console config unavailable", extra={"status": resp.status})
+                return None
             if resp.status == 401:
                 logger.warning("console rejected the runtime token; check LIVEKIT_API_KEY/SECRET")
                 return None
