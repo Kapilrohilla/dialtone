@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDuration, formatElapsed, formatPhone, formatWhen, timeAgo } from "@/lib/format";
+import { formatDuration, formatElapsed, formatPhone, formatWhen, shiftDay, timeAgo, todayIn } from "@/lib/format";
 
 const now = new Date("2026-11-05T10:00:00Z");
 
@@ -30,5 +30,11 @@ describe("format", () => {
   it("formats elapsed time", () => {
     expect(formatElapsed("2026-11-05T09:57:46Z", now)).toBe("02:14");
     expect(formatElapsed("2026-11-05T08:57:55Z", now)).toBe("1:02:05");
+  });
+  it("finds today's date in a time zone and shifts dates", () => {
+    expect(todayIn("Asia/Kolkata", new Date("2026-11-04T20:00:00Z"))).toBe("2026-11-05");
+    expect(todayIn("UTC", new Date("2026-11-04T20:00:00Z"))).toBe("2026-11-04");
+    expect(shiftDay("2026-11-05", -6)).toBe("2026-10-30");
+    expect(shiftDay("2026-03-01", -1)).toBe("2026-02-28");
   });
 });

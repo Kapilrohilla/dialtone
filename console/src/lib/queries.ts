@@ -1,12 +1,14 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui";
 import { ApiError, apiFetch, isSignedOut } from "@/lib/api";
 import type {
   Agent,
   AgentListItem,
+  CallDetail,
+  CallPage,
   Dashboard,
   Expression,
   KnowledgeDoc,
@@ -84,6 +86,54 @@ export const useTransfer = () => useLiveAction("transfer");
 
 /** Disconnects the caller. */
 export const useEndCall = () => useLiveAction("end");
+
+// ---- calls ----
+
+export type CallFilters = { q?: string; outcome?: string; agent?: string; mood?: string; city?: string; from?: string; to?: string; page?: number };
+
+const FILTER_ORDER = ["q", "outcome", "agent", "mood", "city", "from", "to", "page"] as const;
+
+/** The filters as a query string (no leading "?"), empty ones left out. Shared by the list, the CSV link and the page URL. */
+export function callsQuery(filters: CallFilters): string {
+  const params = new URLSearchParams();
+  for (const key of FILTER_ORDER) {
+    const value = filters[key];
+    if (value !== undefined && value !== "" && !(key === "page" && value === 1)) params.set(key, String(value));
+  }
+  return params.toString();
+}
+
+export const callsKey = (filters: CallFilters) => ["calls", callsQuery(filters)] as const;
+
+/** One page of call history. The previous page stays on screen while the next loads. */
+export function useCalls(filters: CallFilters, { enabled = true }: { enabled?: boolean } = {}) {
+  const query = callsQuery(filters);
+  return useQuery({
+    queryKey: callsKey(filters),
+    queryFn: () => apiFetch<CallPage>(`/api/calls${query ? `?${query}` : ""}`),
+    placeholderData: keepPreviousData,
+    enabled,
+  });
+}
+
+export function useCall(room: string | null) {
+  return useQuery({
+    queryKey: ["call", room],
+    queryFn: () => apiFetch<CallDetail>(`/api/calls/${encodeURIComponent(room ?? "")}`),
+    enabled: room !== null,
+  });
+}
+
+/** Marks a call for a call back; it then shows on the dashboard under "Needs a person". Marking twice is harmless. */
+export function useMarkNeedsPerson() {
+  const qc = useQueryClient();
+  const toast = useToast();
+  return useMutation({
+    mutationFn: (room: string) => apiFetch<unknown>(`/api/calls/${encodeURIComponent(room)}/needs-person`, { method: "POST", json: { needs_person: true } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: dashboardKey }),
+    onError: (e) => toast.show(e instanceof ApiError ? e.detail : "Could not mark this call.", "bad"),
+  });
+}
 
 // ---- dashboard ----
 

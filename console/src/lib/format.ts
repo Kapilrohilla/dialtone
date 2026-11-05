@@ -18,22 +18,39 @@ export function formatDuration(seconds: number | null | undefined): string {
 
 type Parts = { y: number; mo: number; d: number; h: number; mi: number; mon: string };
 
+const formatters = new Map<string, Intl.DateTimeFormat>();
+
+/** One formatter per time zone and month style: building them is slow and the call table formats many cells. */
+function formatterFor(tz: string, month: "short" | "numeric"): Intl.DateTimeFormat {
+  const key = `${tz}|${month}`;
+  let f = formatters.get(key);
+  if (!f) {
+    f = new Intl.DateTimeFormat("en-US", { timeZone: tz, year: "numeric", month, day: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+    formatters.set(key, f);
+  }
+  return f;
+}
+
 function partsIn(date: Date, tz: string): Parts {
   const read = (month: "short" | "numeric") =>
-    new Intl.DateTimeFormat("en-US", {
-      timeZone: tz,
-      year: "numeric",
-      month,
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      hourCycle: "h23",
-    })
+    formatterFor(tz, month)
       .formatToParts(date)
       .reduce<Record<string, string>>((acc, p) => ({ ...acc, [p.type]: p.value }), {});
   const named = read("short");
   const numeric = read("numeric");
   return { y: +named.year, mo: +numeric.month, d: +named.day, h: +named.hour, mi: +named.minute, mon: named.month };
+}
+
+/** The calendar date "now" falls on in `tz`, as YYYY-MM-DD. */
+export function todayIn(tz: string = DEFAULT_TZ, now: Date = new Date()): string {
+  const p = partsIn(now, tz);
+  return `${p.y}-${pad(p.mo)}-${pad(p.d)}`;
+}
+
+/** A YYYY-MM-DD date moved by `days` (negative goes back). */
+export function shiftDay(iso: string, days: number): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
 }
 
 const dayNumber = (p: Parts) => Math.floor(Date.UTC(p.y, p.mo - 1, p.d) / 86_400_000);
