@@ -7,5 +7,6 @@ urlpatterns = [
     path("api/", include("knowledge.urls")),
     path("api/", include("workflows.urls")),
     path("api/", include("voiceagents.urls")),
+    path("api/", include("runtime.urls")),
     path("", include("calls.urls")),
 ]

@@ -23,6 +23,16 @@ class Call(models.Model):
     called = models.CharField(max_length=64, blank=True)
     sip_call_id = models.CharField(max_length=255, blank=True)
     end_reason = models.CharField(max_length=64, blank=True)
+    # Null until the agent asks for its config (or for calls recorded before workspaces existed).
+    workspace = models.ForeignKey(
+        "workspaces.Workspace", null=True, blank=True, on_delete=models.CASCADE, related_name="calls"
+    )
+    # The version the call started with; never moved by a later publish.
+    agent_version = models.ForeignKey(
+        "voiceagents.AgentVersion", null=True, blank=True, on_delete=models.SET_NULL, related_name="calls"
+    )
+    needs_person = models.BooleanField(default=False)
+    needs_person_handled_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["-started_at"]
@@ -71,6 +81,28 @@ def _dict(value) -> dict:
     return value if isinstance(value, dict) else {}
 
 
+NEEDS_PERSON_MOODS = {"angry", "frustrated"}
+
+
+def _needs_person(report: dict) -> bool:
+    """A telecaller should follow up: callback asked for, follow-up agreed, or the caller ended up upset."""
+    mood = _dict(report.get("mood"))
+    return (
+        str(report.get("disposition") or "").strip().upper() == "CBR"
+        or bool(_dict(report.get("outcome")).get("telecaller_followup_agreed"))
+        or str(mood.get("final") or "").lower() in NEEDS_PERSON_MOODS
+        or str(mood.get("worst") or "").lower() in NEEDS_PERSON_MOODS
+    )
+
+
+def _agent_version(value):
+    from voiceagents.models import AgentVersion
+
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    return AgentVersion.objects.select_related("agent").filter(pk=value).first()
+
+
 class CallReport(models.Model):
     """The per-call report the agent POSTs when a call ends (mood, dead air, latency)."""
 
@@ -91,7 +123,14 @@ class CallReport(models.Model):
     @transaction.atomic
     def store(cls, report: dict) -> "CallReport":
         """Save a report; it may arrive before the room's webhooks, and a later report replaces an earlier one."""
-        call = Call.record_first(report["room"])
+        version = _agent_version(report.get("agent_version_id"))
+        fields = {"agent_version": version, "workspace_id": version.agent.workspace_id} if version else {}
+        call = Call.record_first(report["room"], **fields)
+        if not call.needs_person and _needs_person(report):
+            # Only ever set here; a telecaller clears it by handling the call, never a re-sent report.
+            call.needs_person = True
+            call.save(update_fields=["needs_person"])
+        # report["step_path"] stays in `data` with the rest of the report.
         mood = _dict(report.get("mood"))
         latency = _dict(report.get("latency"))
         dead_air = [e for e in report.get("dead_air") or [] if isinstance(e, dict)]
@@ -135,3 +174,23 @@ class TurnLabel(models.Model):
 
     def __str__(self) -> str:
         return f"{self.report.call.room} @ {self.at_s:.1f}s"
+
+
+class CallEvent(models.Model):
+    """One live event the agent streams during a call; `seq` is the agent's per-call counter."""
+
+    TURN, STEP_ENTERED, MOOD, FIELD_CAPTURED = "turn", "step_entered", "mood", "field_captured"
+    TYPES = [(TURN, "Turn"), (STEP_ENTERED, "Step entered"), (MOOD, "Mood"), (FIELD_CAPTURED, "Field captured")]
+
+    call = models.ForeignKey(Call, on_delete=models.CASCADE, related_name="events")
+    seq = models.PositiveIntegerField()
+    type = models.CharField(max_length=20, choices=TYPES)
+    payload = models.JSONField(default=dict)
+    at = models.DateTimeField()
+
+    class Meta:
+        ordering = ["call", "seq"]
+        constraints = [models.UniqueConstraint(fields=["call", "seq"], name="uniq_call_event_seq")]
+
+    def __str__(self) -> str:
+        return f"{self.call.room} #{self.seq} {self.type}"
