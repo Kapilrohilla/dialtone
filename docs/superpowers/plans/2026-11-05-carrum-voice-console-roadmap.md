@@ -33,3 +33,13 @@ Built on branch feature/agent-runtime: config fetch with cache and built-in fall
 
 - Plan 3: voice selection per pipeline (validated list) — P19.
 - Gemini start-step block stays in the system prompt; consider wording it as "later steps arrive as tool results".
+
+### Plan 2 staging checklist (before the first production deploy of feature/agent-runtime)
+
+- Greeting latency: time to first agent audio now includes the config fetch (≤ 1.5 s) and session start after the caller joins; check a caller's early "hello" isn't lost.
+- Gemini Live multi-step workflow: path tools with and without `value`, step blocks arriving as tool results, wrong-step paths refused, end step → record_outcome → end_call, a looping graph hitting the cap, an end-step outcome override.
+- Sarvam/ElevenLabs: a step change while a mood note is set.
+- Events reach Live calls; version id, step path and captured answers land on the Call/report.
+- Fallback drill: stop the dashboard (cached config used), then unpublish (built-in, cache deleted).
+- Containers: /cache writable by the agent user on a fresh volume; agent-sim answers with GOOGLE_API_KEY set (real Gemini text round trip).
+- Rollback drill: `ROLLBACK=1 make deploy` back to the plan-1 tree, then forward again.
