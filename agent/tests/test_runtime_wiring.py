@@ -500,3 +500,23 @@ async def test_end_step_outcome_matching_step_is_not_overridden():
     await a.record_outcome(disposition="NI", reason="r", summary="s")
     await a.record_outcome(disposition="INTERESTED", reason="r", summary="s")
     assert "end_step_outcome_overridden" not in a.outcome
+
+
+def test_unusable_snapshot_settings_fall_back_to_env_defaults(monkeypatch):
+    settings = {"dead_air": {"enabled": not agent.DEAD_AIR_ENABLED, "nudge_s": 1, "second_nudge_s": 2,
+                             "hang_up_s": 3}, "mood_adaptation": False}
+    cfg = console(snapshot(settings=settings))
+    good = agent.PhoneAgent(LEAD, agent.GEMINI_LANGUAGE_RULES, cfg)
+    assert agent.call_settings(cfg, good) == (cfg, settings)
+
+    def boom(*_a, **_k):
+        raise RuntimeError("bad console data")
+
+    monkeypatch.setattr(agent, "build_instructions", boom)
+    monkeypatch.setattr(agent, "MOOD_ENABLED", True)
+    bad = agent.PhoneAgent(LEAD, agent.GEMINI_LANGUAGE_RULES, cfg)
+    call_cfg, call_settings = agent.call_settings(cfg, bad)
+    assert call_cfg.source == "builtin"
+    assert agent.dead_air_enabled(call_settings) is agent.DEAD_AIR_ENABLED
+    assert agent.dead_air_config(call_settings) == agent.DEAD_AIR_CONFIG
+    assert agent.mood_enabled(call_settings) is True

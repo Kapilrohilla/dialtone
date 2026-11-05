@@ -199,6 +199,13 @@ def call_config(cfg: Config, agent) -> Config:
     return cfg
 
 
+def call_settings(cfg: Config, agent) -> tuple[Config, dict]:
+    """The config the call runs and its settings: env defaults (no settings) when the agent fell back to
+    the built-in prompt, so dead air and mood never follow a snapshot the call isn't using."""
+    cfg = call_config(cfg, agent)
+    return cfg, _settings(cfg.snapshot)
+
+
 def lead_record(metadata: str) -> dict:
     """The lead record passed as JSON dispatch metadata; empty when there is none."""
     try:
@@ -697,9 +704,11 @@ async def entrypoint(ctx: JobContext) -> None:
         session, agent = gemini_live_session(lead, cfg, mood_on)
     agent.caller_identity = caller.identity
     agent.emit = sink.add
-    if call_config(cfg, agent) is not cfg:
+    used, settings = call_settings(cfg, agent)
+    if used is not cfg:
         logger.warning("console config unusable, the call runs the built-in agent", extra={"source": cfg.source})
-        cfg = BUILTIN_CONFIG
+        cfg = used
+        mood_on = mood_enabled(settings)
     if agent.workflow is not None and agent.workflow.current is not None:
         sink.add("step_entered", {"step_id": agent.workflow.current.id, "step_name": agent.workflow.current.name})
 
