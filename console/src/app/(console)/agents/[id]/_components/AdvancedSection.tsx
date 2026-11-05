@@ -4,8 +4,8 @@ import { useId, useState } from "react";
 import { Disclosure, Field } from "@/components/ui";
 import { useVoices } from "@/lib/queries";
 import type { AgentSettings } from "@/lib/types";
-import { TIMINGS_GROUP } from "./useAgentSaves";
-import { pipelineLabel, type PanelSectionProps } from "./VoiceSection";
+import { groupOf, TIMINGS_GROUP } from "./useAgentSaves";
+import { pipelineLabel, type MarkInvalid, type PanelSectionProps } from "./VoiceSection";
 import styles from "./editor.module.css";
 
 type Timing = "nudge_s" | "second_nudge_s" | "hang_up_s";
@@ -20,7 +20,7 @@ const asText = (d: AgentSettings["dead_air"]) => ({ nudge_s: String(d.nudge_s), 
 export type AdvancedSectionProps = PanelSectionProps & {
   /** The timings' error (the server's, or "Use whole seconds."), shown under them. */
   timingsError?: string | null;
-  markInvalid: (group: string, message: string | null) => void;
+  markInvalid: MarkInvalid;
 };
 
 export function AdvancedSection({ agent, readOnly, save, timingsError, markInvalid }: AdvancedSectionProps) {
@@ -57,7 +57,9 @@ export function AdvancedSection({ agent, readOnly, save, timingsError, markInval
             onChange={(e) => setPhone(e.target.value)}
             onBlur={() => {
               const next = phone.trim();
+              // Back to the saved value: nothing to send, and an earlier failure no longer applies.
               if (next !== agent.phone_number) void save({ phone_number: next });
+              else markInvalid(groupOf({ phone_number: next }), null);
             }}
           />
           <fieldset className={styles.timings} aria-describedby={groupError ? errorId : undefined}>
@@ -92,6 +94,7 @@ export function AdvancedSection({ agent, readOnly, save, timingsError, markInval
             onChange={(e) => setDescription(e.target.value)}
             onBlur={() => {
               if (description !== agent.description) void save({ description });
+              else markInvalid(groupOf({ description }), null);
             }}
           />
         </div>

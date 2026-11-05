@@ -45,6 +45,20 @@ describe("settings profile", () => {
     expect(screen.getByLabelText("Work email")).toHaveAttribute("readonly");
   });
 
+  it("keeps the form and its edits when a background refetch of me fails", async () => {
+    const user = userEvent.setup();
+    const view = renderWithProviders(<ProfilePage />, { route: "/settings" });
+    const name = await screen.findByLabelText("Full name");
+    await user.clear(name);
+    await user.type(name, "Kapil R");
+    server.use(http.get("*/api/me", () => HttpResponse.json({ detail: "Server unavailable." }, { status: 503 })));
+    await view.queryClient.refetchQueries({ queryKey: ["me"] });
+    expect(view.queryClient.getQueryState(["me"])?.status).toBe("error");
+    await new Promise((r) => setTimeout(r, 50)); // let the screen re-render with the error
+    expect(screen.queryByText("Could not load your settings")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Full name")).toHaveValue("Kapil R");
+  });
+
   it("appearance previews instantly and Cancel restores it", async () => {
     const user = userEvent.setup();
     renderWithProviders(<ProfilePage />, { route: "/settings" });

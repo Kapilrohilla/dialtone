@@ -25,7 +25,8 @@ const isActive = (pathname: string, href: string) => (href === "/" ? pathname ==
 export function Sidebar() {
   const pathname = usePathname();
   const { data: me } = useMe();
-  const live = useLiveCalls(pathname === "/live" ? 0 : 10_000); // the Live calls screen polls faster itself
+  // The Live calls screen polls faster itself. A signed-out poll here only empties the count.
+  const live = useLiveCalls(pathname === "/live" ? 0 : 10_000, { signInRedirect: false });
   const logout = useLogout();
   const liveCount = live.isError ? 0 : (live.data?.length ?? 0);
 

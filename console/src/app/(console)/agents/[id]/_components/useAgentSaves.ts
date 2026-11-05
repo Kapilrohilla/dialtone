@@ -42,6 +42,9 @@ function removeDraft(key: string) {
   }
 }
 
+/** The group a field save belongs to when none is named: the fields sent. */
+export const groupOf = (body: AgentUpdate) => Object.keys(body).sort().join("+");
+
 const asApiError = (e: unknown) => (e instanceof ApiError ? e : new ApiError(0, "Could not save. Check your connection and try again."));
 
 /**
@@ -65,6 +68,8 @@ export function useAgentSaves(agent: Agent) {
   const initial = useRef(sections);
   const latest = useRef(sections);
   const pending = useRef(new Set<Promise<unknown>>());
+  /** Each group's last save: the next one in the same group waits for it, so saves land in the order made. */
+  const chains = useRef(new Map<string, Promise<unknown>>());
 
   const saveScript = useCallback(
     async (script: ScriptSection[]) => {
@@ -113,11 +118,18 @@ export function useAgentSaves(agent: Agent) {
     }
   }, []);
 
-  /** PATCHes `body`. `group` names what the error belongs to; it defaults to the fields sent. */
+  /** PATCHes `body` after the group's earlier save has finished. `group` names what the error belongs to;
+   *  it defaults to the fields sent. */
   const saveFields = useCallback(
-    async (body: AgentUpdate, group: string = Object.keys(body).sort().join("+")): Promise<boolean> => {
+    async (body: AgentUpdate, group: string = groupOf(body)): Promise<boolean> => {
+      const request = (chains.current.get(group) ?? Promise.resolve()).then(() => mutateAsync(body));
+      const settled = request.catch(() => undefined);
+      chains.current.set(group, settled);
+      void settled.then(() => {
+        if (chains.current.get(group) === settled) chains.current.delete(group);
+      });
       try {
-        await track(mutateAsync(body));
+        await track(request);
         setGroupError(group, null);
         setSaved(true);
         return true;

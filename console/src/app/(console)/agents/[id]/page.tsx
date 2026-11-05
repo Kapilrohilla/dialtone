@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { useState } from "react";
 import { Simulator } from "@/components/sim/Simulator";
 import { TopBar, type Crumb } from "@/components/shell/TopBar";
-import { Button, Chip, StateBlock } from "@/components/ui";
+import { Button, Chip, StateBlock, useToast } from "@/components/ui";
 import { ApiError } from "@/lib/api";
 import { useAgent, useAgents, useExpressions, useMe } from "@/lib/queries";
 import { canEdit } from "@/lib/roles";
@@ -15,7 +15,7 @@ import { NameCrumb } from "./_components/NameCrumb";
 import { SaveStatus } from "./_components/SaveStatus";
 import { ScriptDocument } from "./_components/ScriptDocument";
 import { SidePanel } from "./_components/SidePanel";
-import { TIMINGS_GROUP, useAgentSaves } from "./_components/useAgentSaves";
+import { groupOf, TIMINGS_GROUP, useAgentSaves } from "./_components/useAgentSaves";
 import styles from "./_components/editor.module.css";
 
 export default function AgentEditorPage() {
@@ -51,6 +51,7 @@ function AgentEditor({ agent, editable }: { agent: Agent; editable: boolean }) {
   const saves = useAgentSaves(agent);
   const { data: expressions } = useExpressions();
   const { data: agents } = useAgents();
+  const toast = useToast();
   const [publishing, setPublishing] = useState(false);
   const [testing, setTesting] = useState(false);
   const live = agents?.find((a) => a.status === "published") ?? null;
@@ -62,7 +63,8 @@ function AgentEditor({ agent, editable }: { agent: Agent; editable: boolean }) {
       await saves.flushAll();
       setPublishing(true);
     } catch {
-      // The top bar says why the script wasn't saved; publishing now would ship the old text.
+      // Publishing now would ship the old text. The top bar (and the timings) say what failed.
+      toast.show("Fix the errors before publishing.", "bad");
     }
   }
 
@@ -74,7 +76,17 @@ function AgentEditor({ agent, editable }: { agent: Agent; editable: boolean }) {
 
   const breadcrumb: Crumb[] = [
     { label: "Agents", href: "/agents" },
-    { label: agent.name, node: <NameCrumb name={agent.name} editable={editable} onSave={(name) => void saves.saveFields({ name })} /> },
+    {
+      label: agent.name,
+      node: (
+        <NameCrumb
+          name={agent.name}
+          editable={editable}
+          onSave={(name) => void saves.saveFields({ name })}
+          onUnchanged={() => saves.markInvalid(groupOf({ name: agent.name }), null)}
+        />
+      ),
+    },
     { label: "Script" },
   ];
 

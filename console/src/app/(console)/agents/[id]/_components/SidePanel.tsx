@@ -7,19 +7,19 @@ import { useWorkflows } from "@/lib/queries";
 import { AdvancedSection } from "./AdvancedSection";
 import { BehaviourSection } from "./BehaviourSection";
 import { KnowledgeSection } from "./KnowledgeSection";
-import { VoiceSection, type PanelSectionProps } from "./VoiceSection";
+import { VoiceSection, type MarkInvalid, type PanelSectionProps } from "./VoiceSection";
 import styles from "./editor.module.css";
 
 export type SidePanelProps = PanelSectionProps & {
   timingsError?: string | null;
-  markInvalid: (group: string, message: string | null) => void;
+  markInvalid: MarkInvalid;
 };
 
 /** The 320px settings column: voice, knowledge, workflow, behaviour, advanced. */
 export function SidePanel({ timingsError, markInvalid, ...props }: SidePanelProps) {
   return (
     <aside aria-label="Agent settings" className={styles.side}>
-      <VoiceSection {...props} />
+      <VoiceSection {...props} markInvalid={markInvalid} />
       <KnowledgeSection {...props} />
       <WorkflowSection {...props} />
       <BehaviourSection {...props} />

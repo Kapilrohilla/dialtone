@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 import { Button, Field } from "@/components/ui";
 import { useVoices, type AgentUpdate } from "@/lib/queries";
 import type { Agent } from "@/lib/types";
+import { groupOf } from "./useAgentSaves";
 import styles from "./editor.module.css";
 
 const PIPELINES: Record<string, string> = { "gemini-live": "Gemini Live", sarvam: "Sarvam", elevenlabs: "ElevenLabs" };
@@ -18,7 +19,10 @@ export type PanelSectionProps = {
   save: (body: AgentUpdate, group?: string) => Promise<boolean>;
 };
 
-export function VoiceSection({ agent, readOnly, save }: PanelSectionProps) {
+/** Clears (null) or sets a group's error without sending anything. */
+export type MarkInvalid = (group: string, message: string | null) => void;
+
+export function VoiceSection({ agent, readOnly, save, markInvalid }: PanelSectionProps & { markInvalid: MarkInvalid }) {
   const { data } = useVoices();
   const [persona, setPersona] = useState(agent.persona_name);
   const [voice, setVoice] = useState(agent.voice_id);
@@ -45,7 +49,9 @@ export function VoiceSection({ agent, readOnly, save }: PanelSectionProps) {
         onChange={(e) => setPersona(e.target.value)}
         onBlur={() => {
           const next = persona.trim();
+          // Back to the saved value: nothing to send, and an earlier failure no longer applies.
           if (next !== agent.persona_name) void save({ persona_name: next });
+          else markInvalid(groupOf({ persona_name: next }), null);
         }}
       />
       <Field

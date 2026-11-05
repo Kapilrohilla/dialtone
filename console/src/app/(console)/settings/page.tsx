@@ -49,8 +49,9 @@ function changesFrom(me: Me, draft: Draft): MeUpdate {
 }
 
 export default function ProfilePage() {
-  const { data: me, isPending, isError, error, refetch } = useMe();
-  if (isPending || isError || !me) {
+  const { data: me, isError, error, refetch } = useMe();
+  // Only a first load that failed replaces the form: a failed background refetch keeps it and its edits.
+  if (!me) {
     return (
       <>
         <TopBar title="Settings" />

@@ -50,12 +50,14 @@ export function useUpdateMe() {
 export function useLogout() {
   const qc = useQueryClient();
   const router = useRouter();
+  const toast = useToast();
   return useMutation({
     mutationFn: () => apiFetch<void>("/api/auth/logout", { method: "POST" }),
     onSuccess: () => {
       qc.clear();
       router.replace("/sign-in");
     },
+    onError: (e) => toast.show(e instanceof ApiError ? e.detail : "Could not sign out. Check your connection and try again.", "bad"),
   });
 }
 
@@ -64,9 +66,15 @@ export function useLogout() {
 export const liveKey = ["live"] as const;
 
 /** Calls in progress. Pass the poll interval in ms (0 reads the cache without polling). The sidebar polls at 10000
- *  and goes quiet on the Live calls screen, which polls at 2000 on the same key. */
-export function useLiveCalls(refetchMs: number) {
-  return useQuery({ queryKey: liveKey, queryFn: () => apiFetch<LiveCall[]>("/api/live"), refetchInterval: refetchMs || false });
+ *  and goes quiet on the Live calls screen, which polls at 2000 on the same key. The sidebar passes
+ *  `signInRedirect: false`: its background poll must never navigate away from unsaved edits (the next thing
+ *  the user does still goes to sign-in). */
+export function useLiveCalls(refetchMs: number, { signInRedirect = true }: { signInRedirect?: boolean } = {}) {
+  return useQuery({
+    queryKey: liveKey,
+    queryFn: () => apiFetch<LiveCall[]>("/api/live", { signInRedirect }),
+    refetchInterval: refetchMs || false,
+  });
 }
 
 type LiveAnswer = { detail: string };
@@ -186,6 +194,11 @@ export function useAgents() {
 
 export function useAgent(id: number) {
   return useQuery({ queryKey: agentKey(id), queryFn: () => apiFetch<Agent>(`/api/agents/${id}`) });
+}
+
+/** Every agent's "older version" flag (list and each open agent), after a change to something agents use. */
+function invalidateOutdatedFlags(qc: ReturnType<typeof useQueryClient>) {
+  return Promise.all([qc.invalidateQueries({ queryKey: agentsKey }), qc.invalidateQueries({ queryKey: ["agent"] })]);
 }
 
 function useInvalidateAgents() {
@@ -351,6 +364,7 @@ export function useSaveDoc(id: number, onSaved?: (doc: KnowledgeDoc, sent: DocUp
       toast.show(doc.used_by > 0 ? "Saved. Agents using this document need republishing before callers hear the change." : "Saved.", "ok");
       onSaved?.(doc, sent);
       qc.invalidateQueries({ queryKey: revisionsKey(id) });
+      void invalidateOutdatedFlags(qc);
       return remember(doc);
     },
     onError: (e) =>
@@ -434,13 +448,13 @@ export function useSaveWorkflow(id: number, onSaved?: (wf: Workflow, sent: Workf
       qc.setQueryData(workflowKey(id), wf);
       qc.invalidateQueries({ queryKey: workflowsKey });
       if (!sent.graph) return;
+      // Agents using it are now outdated; read the fresh list below to word the toast.
+      await invalidateOutdatedFlags(qc);
       const agents = await qc
         .ensureQueryData({ queryKey: agentsKey, queryFn: () => apiFetch<AgentListItem[]>("/api/agents") })
         .catch(() => undefined);
       const used = agents?.some((a) => a.workflow === id && a.status !== "archived");
       toast.show(used ? "Saved. Agents using this workflow need republishing before callers hear the change." : "Saved.", "ok");
-      // Their "older version" flags change with the workflow.
-      if (used) qc.invalidateQueries({ queryKey: agentsKey });
     },
     onError: (e) =>
       toast.show(isSignedOut(e) ? "You were signed out. Sign in again in another tab, then save." : e instanceof ApiError ? e.detail : "Could not save.", "bad"),

@@ -419,4 +419,111 @@ describe("agent script editor", () => {
     await user.click(within(section("Greeting")).getByRole("button", { name: "Expression" }));
     expect(screen.queryByRole("menuitem", { name: /^calm/ })).not.toBeInTheDocument();
   });
+
+  describe("a failed field save clears when the field goes back to its saved value", () => {
+    const draft = { ...baseAgent, status: "draft" as const, published_version: null };
+    const refuse = (field: keyof AgentUpdate) => (body: AgentUpdate) =>
+      field in body && body[field] !== draft[field as keyof Agent]
+        ? HttpResponse.json({ [field]: ["Not allowed here."] }, { status: 400 })
+        : undefined;
+
+    async function expectPublishOpens(user: ReturnType<typeof userEvent.setup>) {
+      await waitFor(() => expect(screen.queryByText("Not allowed here.")).not.toBeInTheDocument());
+      await user.click(screen.getByRole("button", { name: "Publish" }));
+      expect(await screen.findByRole("dialog", { name: "Publish Driver lead qualifier?" })).toBeInTheDocument();
+    }
+
+    it("agent's name field", async () => {
+      const patches = serve(draft, refuse("persona_name"));
+      const { user } = open();
+      const field = await screen.findByRole("textbox", { name: "Agent's name" });
+      await user.clear(field);
+      await user.type(field, "Asha");
+      await user.tab();
+      expect(await screen.findByText("Not allowed here.")).toBeInTheDocument();
+      await user.clear(field);
+      await user.type(field, draft.persona_name);
+      await user.tab();
+      await expectPublishOpens(user);
+      expect(patches).toEqual([{ persona_name: "Asha" }]);
+    });
+
+    it("phone number", async () => {
+      const patches = serve(draft, refuse("phone_number"));
+      const { user } = open();
+      await user.click(await screen.findByRole("button", { name: "Advanced" }));
+      const field = screen.getByRole("textbox", { name: "Phone number" });
+      await user.clear(field);
+      await user.type(field, "12");
+      await user.tab();
+      expect(await screen.findByText("Not allowed here.")).toBeInTheDocument();
+      await user.clear(field);
+      await user.type(field, draft.phone_number);
+      await user.tab();
+      await expectPublishOpens(user);
+      expect(patches).toEqual([{ phone_number: "12" }]);
+    });
+
+    it("description", async () => {
+      const patches = serve(draft, refuse("description"));
+      const { user } = open();
+      await user.click(await screen.findByRole("button", { name: "Advanced" }));
+      const field = screen.getByRole("textbox", { name: "Description" });
+      await user.type(field, " more");
+      await user.tab();
+      expect(await screen.findByText("Not allowed here.")).toBeInTheDocument();
+      await user.clear(field);
+      await user.type(field, draft.description);
+      await user.tab();
+      await expectPublishOpens(user);
+      expect(patches).toEqual([{ description: `${draft.description} more` }]);
+    });
+
+    it("breadcrumb rename", async () => {
+      const patches = serve(draft, refuse("name"));
+      const { user } = open();
+      await user.click(await screen.findByRole("button", { name: "Rename Driver lead qualifier" }));
+      const input = screen.getByRole("textbox", { name: "Agent name" });
+      await user.clear(input);
+      await user.type(input, "Driver qualifier{Enter}");
+      expect(await screen.findByText("Not allowed here.")).toBeInTheDocument();
+      // The crumb shows the saved name again; finishing with it clears the error.
+      await user.click(screen.getByRole("button", { name: "Rename Driver lead qualifier" }));
+      await user.keyboard("{Enter}");
+      await expectPublishOpens(user);
+      expect(patches).toEqual([{ name: "Driver qualifier" }]);
+    });
+  });
+
+  it("says why Publish stopped when a field is not saved", async () => {
+    serve({ ...baseAgent, status: "draft", published_version: null }, (body) =>
+      body.persona_name ? HttpResponse.json({ persona_name: ["Not allowed here."] }, { status: 400 }) : undefined,
+    );
+    const { user } = open();
+    const field = await screen.findByRole("textbox", { name: "Agent's name" });
+    await user.clear(field);
+    await user.type(field, "Asha");
+    await user.tab();
+    expect(await screen.findByText("Not allowed here.")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Publish" }));
+    expect(await screen.findByText("Fix the errors before publishing.")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("sends a quick off-on toggle one save at a time, in order", async () => {
+    const events: string[] = [];
+    serve(baseAgent, async (body) => {
+      const value = String(body.settings?.mood_adaptation);
+      events.push(`start ${value}`);
+      if (value === "false") await delay(150);
+      events.push(`end ${value}`);
+      return undefined;
+    });
+    const { user } = open();
+    const toggle = await screen.findByRole("switch", { name: "Adjust to caller's mood" });
+    await user.click(toggle);
+    await user.click(toggle);
+    await waitFor(() => expect(events).toEqual(["start false", "end false", "start true", "end true"]));
+    await waitFor(() => expect(screen.queryByText("Saving…")).not.toBeInTheDocument());
+  });
 });

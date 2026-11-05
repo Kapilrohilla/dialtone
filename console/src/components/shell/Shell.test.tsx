@@ -1,7 +1,7 @@
 import userEvent from "@testing-library/user-event";
 import { screen, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { liveCall, me } from "@/test/fixtures";
 import { renderWithProviders, router } from "@/test/render";
 import { server } from "@/test/server";
@@ -79,6 +79,25 @@ describe("shell", () => {
     await user.click(screen.getByRole("menuitem", { name: "Sign out" }));
     await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/sign-in"));
     expect(called).toBe(true);
+  });
+
+  it("says so when signing out fails", async () => {
+    server.use(http.post("*/api/auth/logout", () => HttpResponse.json({ detail: "Server unavailable." }, { status: 503 })));
+    const user = userEvent.setup();
+    open();
+    await user.click(await screen.findByRole("button", { name: "User menu" }));
+    await user.click(screen.getByRole("menuitem", { name: "Sign out" }));
+    expect(await screen.findByText("Server unavailable.")).toBeInTheDocument();
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  it("never leaves the page when the sidebar's live poll finds the user signed out", async () => {
+    const assign = vi.fn();
+    vi.stubGlobal("location", { pathname: "/agents/3", search: "", origin: "http://localhost:3000", href: "http://localhost:3000/agents/3", assign });
+    server.use(http.get("*/api/live", () => HttpResponse.json({ detail: "Authentication credentials were not provided." }, { status: 403 })));
+    const view = open("/agents/3");
+    await waitFor(() => expect(view.queryClient.getQueryState(["live"])?.status).toBe("error"));
+    expect(assign).not.toHaveBeenCalled();
   });
 
   it("offers a retry when me fails to load", async () => {

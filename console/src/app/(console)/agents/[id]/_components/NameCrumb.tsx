@@ -3,10 +3,17 @@
 import { useRef, useState } from "react";
 import styles from "./editor.module.css";
 
-export type NameCrumbProps = { name: string; editable: boolean; onSave: (name: string) => void; inputLabel?: string };
+export type NameCrumbProps = {
+  name: string;
+  editable: boolean;
+  onSave: (name: string) => void;
+  /** Enter or blur with the saved name: nothing to send (e.g. clear an earlier failed rename's error). */
+  onUnchanged?: () => void;
+  inputLabel?: string;
+};
 
 /** The agent's (or a workflow's) name in the breadcrumb: a text button that turns into an input. Enter or blur saves, Escape cancels. */
-export function NameCrumb({ name, editable, onSave, inputLabel = "Agent name" }: NameCrumbProps) {
+export function NameCrumb({ name, editable, onSave, onUnchanged, inputLabel = "Agent name" }: NameCrumbProps) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(name);
   const done = useRef(false);
@@ -34,7 +41,9 @@ export function NameCrumb({ name, editable, onSave, inputLabel = "Agent name" }:
     done.current = true;
     setEditing(false);
     const next = value.trim();
-    if (save && next && next !== name) onSave(next);
+    if (!save || !next) return;
+    if (next !== name) onSave(next);
+    else onUnchanged?.();
   }
 
   return (
