@@ -11,3 +11,4 @@ __pycache__/
 voice-samples/
 console/node_modules/
 console/.next/
+test/dashboard.html
