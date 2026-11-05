@@ -354,3 +354,17 @@ def test_answers_use_real_outcome_shape(member, workspace):
     }
     for meta in ("interest_strength", "telecaller_followup_agreed", "do_not_call"):
         assert meta not in answers
+
+
+def test_answers_layer_report_captured_under_events(member, workspace):
+    outcome = {"disposition": "INTERESTED", "reason": "r", "summary": "s", "city": "Pune", "licence": "yes"}
+    captured = {"city": "Pune, Wakad", "shift": "night", "vehicle": "", "bad": 5}
+    call = make_call(workspace, "cap", started=at(hh=10), disposition="INTERESTED", outcome=outcome,
+                     data_extra={"captured": captured})
+    event(call, 1, "field_captured", {"field": "shift", "value": "day"})
+    answers = member("viewer").get("/api/calls/cap").json()["answers"]
+    # outcome < report captured < live events; empty and non-string captures are skipped.
+    assert answers == {"city": "Pune, Wakad", "licence": "yes", "shift": "day"}
+    for bad in (["city"], "x", None):
+        CallReport.objects.filter(call=call).update(data={"room": "cap", "outcome": outcome, "captured": bad})
+        assert member("viewer").get("/api/calls/cap").json()["answers"]["city"] == "Pune"

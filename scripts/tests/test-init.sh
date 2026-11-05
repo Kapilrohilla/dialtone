@@ -18,9 +18,20 @@ key=$(grep -E '^DJANGO_SECRET_KEY=' "$tmp/.env" | cut -d= -f2-)
 pgpw=$(grep -E '^POSTGRES_PASSWORD=' "$tmp/.env" | cut -d= -f2-)
 [[ ${#pgpw} -ge 24 ]] || fail "POSTGRES_PASSWORD not generated"
 grep -qx 'POSTGRES_DB=dashboard' "$tmp/.env" || fail "POSTGRES_DB not added"
+grep -qx 'DASHBOARD_URL=http://127.0.0.1:8787' "$tmp/.env" || fail "DASHBOARD_URL not added"
+grep -qx 'RECORDING_ENABLED=false' "$tmp/.env" || fail "RECORDING_ENABLED not added"
 
 "$tmp/scripts/init.sh" >/dev/null
 [[ $(grep -E '^POSTGRES_PASSWORD=' "$tmp/.env" | cut -d= -f2-) == "$pgpw" ]] || fail "re-run changed the postgres password"
 [[ $(grep -c '^DJANGO_SECRET_KEY=' "$tmp/.env") == 1 ]] || fail "re-run duplicated the key"
 [[ $(grep -E '^DJANGO_SECRET_KEY=' "$tmp/.env" | cut -d= -f2-) == "$key" ]] || fail "re-run changed the key"
+
+# Existing values are kept, not reset to the defaults.
+printf 'DASHBOARD_URL=http://10.0.0.5:8787\nRECORDING_ENABLED=true\n' >> "$tmp/.env"
+sed -i.bak '/^DASHBOARD_URL=http:\/\/127/d;/^RECORDING_ENABLED=false/d' "$tmp/.env" && rm -f "$tmp/.env.bak"
+"$tmp/scripts/init.sh" >/dev/null
+grep -qx 'DASHBOARD_URL=http://10.0.0.5:8787' "$tmp/.env" || fail "DASHBOARD_URL overwritten"
+grep -qx 'RECORDING_ENABLED=true' "$tmp/.env" || fail "RECORDING_ENABLED overwritten"
+[[ $(grep -c '^DASHBOARD_URL=' "$tmp/.env") == 1 ]] || fail "DASHBOARD_URL duplicated"
+[[ $(grep -c '^RECORDING_ENABLED=' "$tmp/.env") == 1 ]] || fail "RECORDING_ENABLED duplicated"
 echo "init.sh: ok"

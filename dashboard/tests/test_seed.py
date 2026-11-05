@@ -22,8 +22,6 @@ def test_seed_idempotent(tmp_path):
     assert Agent.objects.count() == 1 and KnowledgeDocument.objects.count() == 1
     agent = Agent.objects.get()
     assert agent.name == "Driver lead qualifier" and agent.status == "draft"
-    assert [s["title"] for s in agent.script] == ["Greeting", "City and licence", "If the driver hesitates"]
-    assert "{{lead.name}}" in agent.script[0]["body"]
     assert agent.knowledge.count() == 1
     assert "Seeded Carrum Mobility: 1 agent, 1 knowledge document" in out
     doc = KnowledgeDocument.objects.get()
@@ -40,15 +38,28 @@ def test_seed_without_knowledge_file(tmp_path):
     assert "0 knowledge documents" in _seed()
 
 
-HESITATES = ("[[expr:sad]] मैं आपकी बात समझ सकती हूँ। [[expr:whisper]] "
-             "क्या मैं हमारी telecalling team से आपको call back करवा दूँ?")
+TITLES = ["Your job", "Opening", "Qualify", "Pick the plan", "Explain it",
+          "Questions and objections", "Confirm interest", "Close"]
 
 
 @pytest.mark.django_db
-def test_seed_hesitates_offers_a_call_back_and_keeps_existing_agents(tmp_path):
+def test_seed_script_matches_agent_fallback(tmp_path):
+    import re
     _seed("--knowledge", str(tmp_path / "missing.md"))
     agent = Agent.objects.get()
-    assert agent.script[2]["title"] == "If the driver hesitates" and agent.script[2]["body"] == HESITATES
+    assert [s["title"] for s in agent.script] == TITLES
+    assert len({s["id"] for s in agent.script}) == 8
+    for s in agent.script:
+        assert s["body"].strip() and "₹" not in s["body"]
+        assert not re.search(r"\d", re.sub(r"^\d+\.", "", s["body"].strip()))
+    assert "Uber Go rental" in agent.script[3]["body"]
+    assert "record_outcome" in agent.script[7]["body"]
+
+
+@pytest.mark.django_db
+def test_seed_keeps_existing_agents(tmp_path):
+    _seed("--knowledge", str(tmp_path / "missing.md"))
+    agent = Agent.objects.get()
     agent.script[2]["body"] = "edited by an operator"
     agent.save()
     _seed("--knowledge", str(tmp_path / "missing.md"))

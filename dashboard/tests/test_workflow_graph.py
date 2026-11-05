@@ -128,6 +128,14 @@ def test_unknown_expression_in_prompt():
     assert validate(g, set(), {"shout": "loudly"}) == []
 
 
+def test_long_pause_in_prompt():
+    g = driver_graph()
+    g["steps"][0]["prompt"] = "Hello [[expr:pause:12]]"
+    assert 'Step "Greeting": Pause is too long (12 s). Use at most 10 seconds.' in validate(g, set())
+    g["steps"][0]["prompt"] = "Hello [[expr:pause:10]]"
+    assert validate(g, set()) == []
+
+
 def test_missing_knowledge_id():
     g = driver_graph()
     g["steps"].append(step("k1", "Look up FAQ", "knowledge", knowledge_id=99))

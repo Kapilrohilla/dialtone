@@ -19,7 +19,13 @@ if [[ "${ROLLBACK:-}" == 1 ]]; then
   echo "Rolling back to the previous deploy..."
   ssh_vm 'set -e; [ -d ~/ai-calling.prev ] || { echo "no previous deploy to roll back to"; exit 1; }
     mv ~/ai-calling ~/ai-calling.rollback-tmp && mv ~/ai-calling.prev ~/ai-calling && mv ~/ai-calling.rollback-tmp ~/ai-calling.prev
-    cd ~/ai-calling && docker compose up -d --build && docker compose --profile agent up -d --build agent
+    cd ~/ai-calling && docker compose up -d --build
+    # Older trees have no agent-sim service: then remove its orphaned container instead of starting it.
+    if docker compose --profile agent config --services | grep -qx agent-sim; then
+      docker compose --profile agent up -d --build agent agent-sim
+    else
+      docker compose --profile agent up -d --build --remove-orphans agent
+    fi
     echo "now running: $(cat DEPLOYED_COMMIT 2>/dev/null || echo unknown)"'
   exit 0
 fi
@@ -61,13 +67,13 @@ cp ai-calling.new/.env ai-calling/.env
 [ -d ai-calling/sip/generated ] && cp -r ai-calling/sip/generated ai-calling.new/sip/ || true
 
 # Build new images while the old containers keep serving calls.
-cd ai-calling.new && docker compose build && docker compose --profile agent build agent && cd ~
+cd ai-calling.new && docker compose build && docker compose --profile agent build agent agent-sim && cd ~
 
 rm -rf ai-calling.prev && mv ai-calling ai-calling.prev && mv ai-calling.new ai-calling
 cd ai-calling
 start=\$(date -u +%Y-%m-%dT%H:%M:%SZ)
 docker compose up -d
-docker compose --profile agent up -d agent
+docker compose --profile agent up -d agent agent-sim
 
 # Fails the deploy (non-zero) if the dashboard crash-loops, e.g. the SQLite history copy failing at startup.
 scripts/wait-dashboard.sh \"\$start\"

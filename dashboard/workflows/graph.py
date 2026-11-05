@@ -2,7 +2,7 @@
 import re
 from collections import deque
 
-from voiceagents.tokens import unknown_expressions
+from voiceagents.tokens import long_pause_errors, unknown_expressions
 
 DISPOSITIONS = {
     "INTERESTED", "NI", "NE", "CBR", "CDRP", "ISUDO", "ISUID", "HND", "WRGN",
@@ -100,6 +100,8 @@ def validate(graph, knowledge_ids: set[int], custom_expressions: dict[str, str] 
         if isinstance(prompt, str) and prompt:
             for expr in unknown_expressions(prompt, custom):
                 errors.append(f'Step "{name}" uses an unknown expression "{expr}".')
+            for msg in long_pause_errors(prompt):
+                errors.append(f'Step "{name}": {msg}')
         seen: set[str] = set()
         reported: set[str] = set()
         for p in out[sid]:

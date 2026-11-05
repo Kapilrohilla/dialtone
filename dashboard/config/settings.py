@@ -21,6 +21,8 @@ LIVEKIT_API_KEY = os.getenv("LIVEKIT_API_KEY", "")
 LIVEKIT_API_SECRET = os.getenv("LIVEKIT_API_SECRET", "")
 # Where "Transfer to a person" sends a live caller (sip:... or tel:...); empty = transfer not set up.
 HANDOFF_SIP_URI = os.getenv("HANDOFF_SIP_URI", "")
+# The agent container's text simulator (agent/simulate.py) behind "Try it" and "Test call".
+AGENT_SIM_URL = os.getenv("AGENT_SIM_URL", "http://127.0.0.1:8790")
 
 INSTALLED_APPS = [
     "django.contrib.admin",

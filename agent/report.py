@@ -20,8 +20,12 @@ def build_report(
     latency: dict,
     behavior: dict | None,
     turns: list[dict] | None,
+    agent_version_id: int | None = None,
+    step_path: list[str] | None = None,
+    captured: dict | None = None,
 ) -> dict:
-    """turns, when given, are {"role", "text", "at_s"}; at_s and timeline times are seconds since the call started."""
+    """turns, when given, are {"role", "text", "at_s"}; at_s and timeline times are seconds since the call started.
+    captured, when given, is the workflow's {field: value} answers (collect steps)."""
     report = {
         "room": room,
         "disposition": outcome.get("disposition"),
@@ -34,6 +38,12 @@ def build_report(
     }
     if turns is not None:
         report["turns"] = turns
+    if agent_version_id is not None:
+        report["agent_version_id"] = agent_version_id
+    if step_path is not None:
+        report["step_path"] = step_path
+    if captured is not None:
+        report["captured"] = captured
     return report
 
 

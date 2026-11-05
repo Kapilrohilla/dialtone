@@ -1,5 +1,5 @@
 from voiceagents.tokens import (
-    ExprToken, TextToken, VarToken, parse, render_hints, unknown_expressions, variables,
+    ExprToken, TextToken, VarToken, parse, render_hints, long_pause_errors, unknown_expressions, variables,
 )
 
 
@@ -42,3 +42,12 @@ def test_variables_listed():
 def test_devanagari_untouched():
     body = "नमस्ते {{lead.name}} जी, कैसे हैं?"
     assert render_hints(body, {}) == body
+
+
+def test_long_pause_errors():
+    body = "[[expr:pause:10]] [[expr:pause:10.5]] [[expr:pause:2]] [[expr:pause:30]] [[expr:pause:10.5]]"
+    assert long_pause_errors(body) == [
+        "Pause is too long (10.5 s). Use at most 10 seconds.",
+        "Pause is too long (30 s). Use at most 10 seconds.",
+    ]
+    assert long_pause_errors("[[expr:pause]] [[expr:happy:99]]") == []

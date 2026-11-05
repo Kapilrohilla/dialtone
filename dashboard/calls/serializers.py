@@ -99,6 +99,12 @@ def captured_fields(events) -> dict:
     return out
 
 
+def report_captured(report) -> dict:
+    """{field: value} the agent's workflow captured, from report.data["captured"]; non-empty strings only."""
+    captured = _dict(_dict(report.data if report else None).get("captured"))
+    return {k: v for k, v in captured.items() if isinstance(k, str) and k and isinstance(v, str) and v}
+
+
 def latest(events, type_, key) -> str:
     """The `key` string of the newest `type_` event that has one, else ""."""
     for e in reversed(events):
@@ -112,9 +118,10 @@ def latest(events, type_, key) -> str:
 def call_detail(call, events) -> dict:
     """`events`: the call's CallEvents in seq order."""
     outcome = outcome_data(call)
-    answers = {k: outcome[k] for k in ANSWER_FIELDS if outcome.get(k) not in EMPTY}
-    answers.update(captured_fields(events))  # live captures win; they may add workflow-defined fields
     report = report_of(call)
+    answers = {k: outcome[k] for k in ANSWER_FIELDS if outcome.get(k) not in EMPTY}
+    answers.update(report_captured(report))  # the workflow's captures, sent with the report
+    answers.update(captured_fields(events))  # live captures win; they may add workflow-defined fields
     step_path = _dict(report.data if report else None).get("step_path")
     if isinstance(step_path, list):
         step_path = [s for s in step_path if isinstance(s, str)]
