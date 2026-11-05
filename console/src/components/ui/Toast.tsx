@@ -3,9 +3,10 @@ import { cx } from "./util";
 import styles from "./Toast.module.css";
 
 export type ToastTone = "ok" | "bad" | "neutral";
-type Item = { id: number; text: string; tone: ToastTone };
+export type ToastAction = { label: string; onClick: () => void };
+type Item = { id: number; text: string; tone: ToastTone; action?: ToastAction };
 
-const Ctx = createContext<{ show: (text: string, tone?: ToastTone) => void } | null>(null);
+const Ctx = createContext<{ show: (text: string, tone?: ToastTone, action?: ToastAction) => void } | null>(null);
 
 export function useToast() {
   const ctx = useContext(Ctx);
@@ -26,9 +27,9 @@ export function Toast({ children }: { children: ReactNode }) {
     return () => pending.forEach(clearTimeout);
   }, []);
 
-  const show = useCallback((text: string, tone: ToastTone = "neutral") => {
+  const show = useCallback((text: string, tone: ToastTone = "neutral", action?: ToastAction) => {
     const id = next.current++;
-    setItems((list) => [...list, { id, text, tone }]);
+    setItems((list) => [...list, { id, text, tone, action }]);
     const timer = setTimeout(() => {
       timers.current.delete(timer);
       setItems((list) => list.filter((i) => i.id !== id));
@@ -41,7 +42,12 @@ export function Toast({ children }: { children: ReactNode }) {
       {children}
       <div role="status" aria-live="polite" className={styles.region}>
         {items.map((i) => (
-          <p key={i.id} className={cx(styles.toast, styles[i.tone])}>{i.text}</p>
+          <p key={i.id} className={cx(styles.toast, styles[i.tone])}>
+            {i.text}
+            {i.action && (
+              <button type="button" className={styles.action} onClick={i.action.onClick}>{i.action.label}</button>
+            )}
+          </p>
         ))}
       </div>
     </Ctx.Provider>
