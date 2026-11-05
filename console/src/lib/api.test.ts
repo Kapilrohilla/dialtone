@@ -106,3 +106,21 @@ describe("apiFetch", () => {
     expect(e.status).toBe(502);
   });
 });
+
+describe("apiFetch with a FormData body", () => {
+  it("sends multipart with the csrf token and no JSON content type", async () => {
+    document.cookie = "csrftoken=tok9; path=/";
+    let seen: { csrf: string | null; type: string | null; text: string } | null = null;
+    server.use(
+      http.post("*/api/upload", async ({ request }) => {
+        const file = (await request.formData()).get("file") as File;
+        seen = { csrf: request.headers.get("X-CSRFToken"), type: request.headers.get("Content-Type"), text: await file.text() };
+        return HttpResponse.json({ id: 1 }, { status: 201 });
+      }),
+    );
+    const form = new FormData();
+    form.append("file", new File(["hi"], "a.md"));
+    await apiFetch("/api/upload", { method: "POST", body: form });
+    expect(seen).toEqual({ csrf: "tok9", type: expect.stringMatching(/^multipart\/form-data; boundary=/), text: "hi" });
+  });
+});

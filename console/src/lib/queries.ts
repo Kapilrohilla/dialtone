@@ -3,16 +3,18 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui";
-import { ApiError, apiFetch } from "@/lib/api";
+import { ApiError, apiFetch, isSignedOut } from "@/lib/api";
 import type {
   Agent,
   AgentListItem,
   Dashboard,
   Expression,
+  KnowledgeDoc,
   KnowledgeListItem,
   LiveCall,
   Me,
   Preferences,
+  Revision,
   SimResponse,
   VoicesResponse,
   WorkflowListItem,
@@ -207,6 +209,91 @@ export const knowledgeListKey = ["knowledge"] as const;
 
 export function useKnowledgeList() {
   return useQuery({ queryKey: knowledgeListKey, queryFn: () => apiFetch<KnowledgeListItem[]>("/api/knowledge") });
+}
+
+export const knowledgeDocKey = (id: number) => ["knowledge", "doc", id] as const;
+const revisionsKey = (id: number) => ["knowledge", "doc", id, "revisions"] as const;
+
+export function useKnowledgeDoc(id: number | undefined) {
+  return useQuery({
+    queryKey: knowledgeDocKey(id ?? 0),
+    queryFn: () => apiFetch<KnowledgeDoc>(`/api/knowledge/${id}`),
+    enabled: id !== undefined,
+  });
+}
+
+/** A document the server just returned: cached, and added to the list so it can be selected before the list refetches. */
+function useRememberDoc() {
+  const qc = useQueryClient();
+  return (doc: KnowledgeDoc) => {
+    qc.setQueryData(knowledgeDocKey(doc.id), doc);
+    const item: KnowledgeListItem = { id: doc.id, title: doc.title, updated_at: doc.updated_at, current_revision: doc.current_revision, used_by: doc.used_by };
+    qc.setQueryData<KnowledgeListItem[]>(knowledgeListKey, (list) =>
+      list ? (list.some((d) => d.id === doc.id) ? list.map((d) => (d.id === doc.id ? item : d)) : [...list, item]) : list,
+    );
+    return qc.invalidateQueries({ queryKey: knowledgeListKey, exact: true });
+  };
+}
+
+export function useCreateDoc() {
+  const remember = useRememberDoc();
+  const toast = useToast();
+  return useMutation({
+    mutationFn: (body: { title: string; body_md: string }) => apiFetch<KnowledgeDoc>("/api/knowledge", { method: "POST", json: body }),
+    onSuccess: remember,
+    onError: (e) => toast.show(e instanceof ApiError ? e.detail : "Could not create the document.", "bad"),
+  });
+}
+
+/** Multipart upload of one .md file (field `file`); the API's file errors (wrong type, too large, not UTF-8) are toasted. */
+export function useUploadDoc() {
+  const remember = useRememberDoc();
+  const toast = useToast();
+  return useMutation({
+    mutationFn: (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      return apiFetch<KnowledgeDoc>("/api/knowledge/upload", { method: "POST", body: form });
+    },
+    onSuccess: remember,
+    onError: (e) => toast.show(e instanceof ApiError ? e.detail : "Could not upload the file.", "bad"),
+  });
+}
+
+export type DocUpdate = { title?: string; body_md?: string };
+
+/** PATCH only what changed. Saving is deliberate on this screen, so the toast says what happens next. */
+export function useSaveDoc(id: number) {
+  const qc = useQueryClient();
+  const remember = useRememberDoc();
+  const toast = useToast();
+  return useMutation({
+    mutationFn: (body: DocUpdate) => apiFetch<KnowledgeDoc>(`/api/knowledge/${id}`, { method: "PATCH", json: body, signInRedirect: false }),
+    onSuccess: (doc) => {
+      toast.show(doc.used_by > 0 ? "Saved. Agents using this document need republishing before callers hear the change." : "Saved.", "ok");
+      qc.invalidateQueries({ queryKey: revisionsKey(id) });
+      return remember(doc);
+    },
+    onError: (e) =>
+      toast.show(isSignedOut(e) ? "You were signed out. Sign in again in another tab, then save." : e instanceof ApiError ? e.detail : "Could not save.", "bad"),
+  });
+}
+
+/** Newest first. */
+export function useRevisions(id: number | undefined) {
+  return useQuery({
+    queryKey: revisionsKey(id ?? 0),
+    queryFn: async () => (await apiFetch<Revision[]>(`/api/knowledge/${id}/revisions`)).sort((a, b) => b.number - a.number),
+    enabled: id !== undefined,
+  });
+}
+
+export function useRevision(id: number | undefined, n: number | null) {
+  return useQuery({
+    queryKey: [...revisionsKey(id ?? 0), n],
+    queryFn: () => apiFetch<Revision>(`/api/knowledge/${id}/revisions/${n}`),
+    enabled: id !== undefined && n !== null,
+  });
 }
 
 // ---- workflows ----
