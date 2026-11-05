@@ -6,7 +6,7 @@
 
 **Architecture:** New Django apps inside `dashboard/` (`workspaces`, `knowledge`, `workflows`, `voiceagents`, `runtime`) plus extensions to `calls`. JSON over Django REST Framework with session auth for people and the existing LiveKit-signed JWT for the agent. Everything is scoped to a `Workspace`; a data migration creates "Carrum Mobility" and assigns existing calls to it.
 
-**Tech Stack:** Python 3.12, Django 5.2.18, djangorestframework 3.15.2 (new), SQLite, pytest + pytest-django, livekit-api 1.2.1.
+**Tech Stack:** Python 3.12, Django 5.2.18, djangorestframework 3.15.2 (new), PostgreSQL 16 via psycopg 3 (replacing SQLite, Task 1b), pytest + pytest-django, livekit-api 1.2.1.
 
 **Spec:** `docs/superpowers/specs/2026-11-05-carrum-voice-console-design.md` (roadmap: `docs/superpowers/plans/2026-11-05-carrum-voice-console-roadmap.md`).
 
@@ -50,6 +50,28 @@
 - [ ] **Step 3: Implement** models, permissions, mixin, admin registration, migrations. Install DRF in `.venv`.
 - [ ] **Step 4: Run** `.venv/bin/pytest -q` — Expected: all pass, including the existing suite.
 - [ ] **Step 5: Commit** `feat(console-api): workspaces, roles and DRF setup`
+
+### Task 1b: PostgreSQL instead of SQLite
+
+Requested by the user on 2026-11-05: production and tests run on PostgreSQL; SQLite is removed as the app database (the legacy importer still *reads* old SQLite files).
+
+**Files:**
+- Modify: `dashboard/requirements.txt` (add `psycopg[binary]==3.2.3`), `dashboard/config/settings.py` (`DATABASES`), `dashboard/tests/conftest.py` (test DB env), `docker-compose.yml` (new `postgres` service + `postgres-data` volume; `dashboard` `depends_on: [livekit, postgres]`), `.env.example` (`POSTGRES_*`), `scripts/init.sh` (generate `POSTGRES_PASSWORD` like the LiveKit secret), `Makefile` (`test` target needs `TEST_POSTGRES_*` or a local server), `README.md` (dashboard section)
+- Create: `dashboard/calls/management/commands/copy_from_sqlite.py`, `scripts/migrate-dashboard-to-postgres.sh`
+- Test: `dashboard/tests/test_database.py`, `dashboard/tests/test_copy_from_sqlite.py`
+
+**Interfaces:**
+- Settings: `DATABASES["default"] = {"ENGINE": "django.db.backends.postgresql", "NAME": env POSTGRES_DB (default "dashboard"), "USER": POSTGRES_USER (default "dashboard"), "PASSWORD": POSTGRES_PASSWORD (required — `ImproperlyConfigured` if empty), "HOST": POSTGRES_HOST (default "127.0.0.1"), "PORT": POSTGRES_PORT (default "5432"), "CONN_MAX_AGE": 60, "CONN_HEALTH_CHECKS": True}`. `DASHBOARD_DB_DIR` stays only as the directory for files (recordings in plan 4).
+- Compose: `postgres` image `postgres:16.4-alpine` (pinned, never latest), `network_mode: host`, `command: ["postgres", "-c", "listen_addresses=127.0.0.1"]`, env `POSTGRES_DB/USER/PASSWORD` from `.env`, volume `postgres-data:/var/lib/postgresql/data`, healthcheck `pg_isready -U $POSTGRES_USER -h 127.0.0.1`; dashboard waits on `condition: service_healthy`.
+- `manage.py copy_from_sqlite --path /data/dashboard.sqlite3` — copies `Call`, `CallReport`, `TurnLabel` (and auth users/groups) from the old Django SQLite file into the current (Postgres) database in one transaction, preserving primary keys, then resets sequences (`sqlsequencereset`); refuses if the target already has calls unless `--force`; prints counts. Read-only on the source.
+- `scripts/migrate-dashboard-to-postgres.sh` — on the VM: `docker compose up -d postgres`, run `migrate`, run `copy_from_sqlite`, print counts from both sides, and leave the SQLite file in place as a backup. Never deletes it.
+- Tests run against Postgres: `conftest.py` sets `POSTGRES_*` from `TEST_POSTGRES_*` env (defaults host 127.0.0.1, port 5432, user/password `postgres`), pytest-django creates/destroys `test_dashboard`.
+
+- [ ] **Step 1: Write failing tests**: `test_engine_is_postgres`; `test_missing_password_is_improperly_configured` (reload settings in a subprocess); `test_copy_from_sqlite_preserves_ids_and_counts` (build a temp SQLite file with the old schema via Django's migrations on a second `sqlite` alias defined only in the test, insert 2 calls + 1 report + 1 turn label, copy, assert same ids/fields, then a new Call gets id 3); `test_copy_refuses_non_empty_target` (and `--force` allows it).
+- [ ] **Step 2: Run** `cd dashboard && .venv/bin/pytest tests/test_database.py tests/test_copy_from_sqlite.py -v` with a local Postgres running — Expected: FAIL.
+- [ ] **Step 3: Implement** settings, compose service, env/init/Makefile/README changes, command and script.
+- [ ] **Step 4: Run** the full suite on Postgres `.venv/bin/pytest -q` — Expected: every existing and Task 1 test PASS. Run `docker compose config -q` — Expected: no errors.
+- [ ] **Step 5: Commit** `feat(dashboard): run on PostgreSQL, with a one-off copy from SQLite`
 
 ### Task 2: Auth and profile API
 

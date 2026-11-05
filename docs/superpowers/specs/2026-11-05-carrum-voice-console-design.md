@@ -46,7 +46,7 @@ It is for Carrum's internal team first, but built so outside companies can be ad
 
 ## Constraints
 
-- Existing stack: Django 5.2, SQLite on the `dashboard-data` volume, uvicorn, whitenoise; LiveKit Agents 1.8.5 (Python) with three pipelines (gemini-live default, sarvam, elevenlabs). One GCP VM, `network_mode: host`, docker compose, `scripts/deploy.sh`.
+- Existing stack: Django 5.2, PostgreSQL 16 (replacing SQLite at the user's request, 2026-11-05; existing call history is copied over once), uvicorn, whitenoise; LiveKit Agents 1.8.5 (Python) with three pipelines (gemini-live default, sarvam, elevenlabs). One GCP VM, `network_mode: host`, docker compose, `scripts/deploy.sh`.
 - The dashboard listens on 127.0.0.1 only and is reached via `make tunnel` (SSH). The console keeps that model for this release: no public exposure, so HTTPS settings stay off.
 - Agent → dashboard calls are already authenticated with a short-lived LiveKit-signed JWT (`agent/report.py`, `report_ingest`). Reuse that for the new runtime endpoints.
 - Hindi/Hinglish (Devanagari) text everywhere: fonts and inputs must handle it.
@@ -67,7 +67,7 @@ Browser ──(SSH tunnel)──► Next.js (127.0.0.1:3000)
                               │  /api/* rewritten to
                               ▼
                          Django API (127.0.0.1:8787)  ◄── LiveKit webhooks (/webhook)
-                              │  SQLite /data           ◄── agent: config fetch, turn events, reports
+                              │  PostgreSQL           ◄── agent: config fetch, turn events, reports
                               ▼
                          LiveKit server API (rooms, SIP transfer, tokens)
 ```
