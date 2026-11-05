@@ -70,7 +70,8 @@ def test_publish_snapshot_contents(workspace):
     assert "(let out a small, friendly sigh)" in rendered
     assert "{{lead.city}}" in rendered and "[[expr:" not in rendered
     assert s["variables"] == ["lead.city", "lead.name"]
-    assert s["knowledge"] == [{"id": doc.id, "title": "Plans", "revision": 2, "body_md": "Plan A details"}]
+    assert s["knowledge"] == [{"id": doc.id, "title": "Plans", "revision": 2, "body_md": "Plan A details",
+                            "body_rendered": "Plan A details"}]
     assert s["workflow"]["id"] == wf.id and s["workflow"]["revision"] == 1
     prompts = {st["id"]: st["prompt"] for st in s["workflow"]["graph"]["steps"]}
     assert prompts["s1"] == "Namaste! (say this warmly and cheerfully) I am calling from Carrum."
@@ -305,8 +306,8 @@ def test_snapshot_includes_workflow_step_knowledge(workspace):
     agent.knowledge.remove(x)
     v = publish(agent, make_user())
     assert v.snapshot["knowledge"] == [
-        {"id": linked.id, "title": "Linked", "revision": 1, "body_md": "linked text"},
-        {"id": x.id, "title": "FAQ", "revision": 2, "body_md": "faq v2"},
+        {"id": linked.id, "title": "Linked", "revision": 1, "body_md": "linked text", "body_rendered": "linked text"},
+        {"id": x.id, "title": "FAQ", "revision": 2, "body_md": "faq v2", "body_rendered": "faq v2"},
     ]
     agent.knowledge.add(x)
     v2 = publish(agent, make_user("pub2@example.com"))
@@ -359,3 +360,24 @@ def test_agent_version_admin_is_read_only():
     assert not ma.has_change_permission(req)
     assert not ma.has_delete_permission(req)
     assert set(ma.readonly_fields) == {"agent", "number", "snapshot", "published_by", "published_at"}
+
+
+@pytest.mark.django_db
+def test_snapshot_knowledge_body_rendered(workspace):
+    doc = make_doc(workspace, "Tone", "[[expr:excited]] Welcome [[expr:sigh]]")
+    agent = make_agent(workspace)
+    agent.knowledge.add(doc)
+    v = publish(agent, make_user())
+    (k,) = v.snapshot["knowledge"]
+    assert k["body_md"] == "[[expr:excited]] Welcome [[expr:sigh]]"
+    assert k["body_rendered"] == "(say this with energy and enthusiasm) Welcome (let out a small, friendly sigh)"
+
+
+@pytest.mark.django_db
+def test_publish_rejects_long_pause(workspace):
+    agent = make_agent(workspace, script=[{"id": "s1", "title": "Opening", "body": "Hi [[expr:pause:10.5]]"}])
+    with pytest.raises(PublishError) as exc:
+        publish(agent, make_user())
+    assert exc.value.errors == ['Section "Opening": Pause is too long (10.5 s). Use at most 10 seconds.']
+    ok = make_agent(workspace, name="B", script=[{"id": "s1", "title": "Opening", "body": "Hi [[expr:pause:10]]"}])
+    publish(ok, make_user("pub3@example.com"))

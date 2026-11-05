@@ -16,7 +16,7 @@ from workflows.models import Workflow, WorkflowRevision
 from workspaces.models import Workspace
 
 from .models import Agent, AgentVersion
-from .tokens import render_hints, unknown_expressions, variables
+from .tokens import long_pause_errors, render_hints, unknown_expressions, variables
 
 EMPTY_GRAPH = {"steps": [], "paths": []}
 
@@ -117,6 +117,8 @@ def validation_errors(agent, resolved: Resolved | None = None) -> list[str]:
     for title, body in sections:
         for expr in unknown_expressions(body, custom):
             errors.append(f'Section "{title.strip() or "Untitled"}" uses an unknown expression "{expr}".')
+        for msg in long_pause_errors(body):
+            errors.append(f'Section "{title.strip() or "Untitled"}": {msg}')
     for doc in _linked_docs(agent).filter(archived=True):
         errors.append(f'Knowledge document "{doc.title}" is archived. Remove it from this agent or restore it.')
     wf = _workflow(agent)
@@ -147,7 +149,8 @@ def build_snapshot(agent, number: int, resolved: Resolved | None = None) -> dict
         collect(body)
 
     knowledge = [
-        {"id": doc.id, "title": doc.title, "revision": rev.number if rev else 0, "body_md": rev.body_md if rev else ""}
+        {"id": doc.id, "title": doc.title, "revision": rev.number if rev else 0, "body_md": rev.body_md if rev else "",
+         "body_rendered": render_hints(rev.body_md, custom) if rev else ""}
         for doc, rev in resolved.knowledge
     ]
 

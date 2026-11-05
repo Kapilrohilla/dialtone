@@ -63,6 +63,20 @@ def unknown_expressions(body: str, custom: dict[str, str]) -> list[str]:
     return out
 
 
+MAX_PAUSE_SECONDS = 10
+
+
+def long_pause_errors(body: str) -> list[str]:
+    out: list[str] = []
+    for t in parse(body):
+        if isinstance(t, ExprToken) and t.name == "pause" and t.seconds is not None \
+                and t.seconds > MAX_PAUSE_SECONDS:
+            msg = f"Pause is too long ({t.seconds:g} s). Use at most {MAX_PAUSE_SECONDS} seconds."
+            if msg not in out:
+                out.append(msg)
+    return out
+
+
 def _hint(t: ExprToken, custom: dict[str, str]) -> str | None:
     if t.name in BUILTIN_EXPRESSIONS:
         seconds = 1.0 if t.seconds is None else t.seconds
