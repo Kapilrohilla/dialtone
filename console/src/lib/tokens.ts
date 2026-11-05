@@ -1,7 +1,7 @@
 /** Script tokens, mirroring dashboard/voiceagents/tokens.py: `[[expr:name(:seconds)]]` expressions and
  *  `{{lead.field}}` variables. Everything else in a body is plain text. */
 
-const TOKEN_SOURCE = String.raw`\[\[expr:([a-z_]+)(?::(\d+(?:\.\d+)?))?\]\]|\{\{\s*(lead\.[a-z_]+)\s*\}\}`;
+export const TOKEN_SOURCE = String.raw`\[\[expr:([a-z_]+)(?::(\d+(?:\.\d+)?))?\]\]|\{\{\s*(lead\.[a-z_]+)\s*\}\}`;
 
 /** The server's token pattern (global). Use `new RegExp(TOKEN_RE)` when you need your own lastIndex. */
 export const TOKEN_RE = new RegExp(TOKEN_SOURCE, "g");

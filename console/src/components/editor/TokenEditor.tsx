@@ -8,7 +8,7 @@ import type { Expression } from "@/lib/types";
 import { MAX_PAUSE_S, MIN_PAUSE_S, formatSeconds } from "@/lib/tokens";
 import { exprChipRefresh } from "./ExprChipNode";
 import { editorExtensions, type TokenEditorMode } from "./extensions";
-import { fromEditor, toEditorHtml } from "./markdown";
+import { fromEditor, toEditorContent } from "./markdown";
 import { Toolbar } from "./Toolbar";
 import styles from "./editor.module.css";
 
@@ -19,7 +19,8 @@ export type TokenEditorProps = {
   value: string;
   /** The serialized text after each edit. Not called on mount or when `value` changes from outside; debounce in the caller. */
   onChange: (value: string) => void;
-  /** script: paragraphs, bold, italic, bullet lists. document: adds headings and tables. line: one paragraph. */
+  /** script: plain lines with chips. line: one line (workflow prompts). document: Markdown with headings,
+   *  lists and tables (knowledge). Script and line text is kept byte for byte. */
   mode: TokenEditorMode;
   /** The agent's custom expressions, name to hint. */
   customExpressions?: Record<string, string>;
@@ -49,7 +50,10 @@ export function TokenEditor({
 }: TokenEditorProps) {
   const onChangeRef = useRef(onChange);
   const customRef = useRef(customExpressions);
+  /** The `value` the content was last loaded from or reported as, to tell outside changes from echoes. */
   const lastValue = useRef(value);
+  /** The serialized text of the content as it stands, before any user edit since the last report. */
+  const baseline = useRef<string | null>(null);
   const wrapper = useRef<HTMLDivElement>(null);
   const [pause, setPause] = useState<PauseEdit | null>(null);
 
@@ -62,7 +66,7 @@ export function TokenEditor({
       immediatelyRender: false,
       editable: !readOnly,
       extensions: editorExtensions(mode, (name) => name in customRef.current),
-      content: toEditorHtml(value),
+      content: toEditorContent(value, mode),
       editorProps: {
         attributes: {
           role: "textbox",
@@ -84,11 +88,19 @@ export function TokenEditor({
           },
         },
       },
-      onUpdate({ editor: e }) {
-        // Schema housekeeping (the empty paragraph tiptap keeps after a closing table) changes the doc
-        // without changing the text: that is not an edit.
+      onCreate({ editor: e }) {
+        baseline.current = fromEditor(e);
+      },
+      onUpdate({ editor: e, transaction }) {
         const next = fromEditor(e);
-        if (next === lastValue.current) return;
+        // Only a user's edit is a change. Housekeeping (the paragraph tiptap keeps after a closing table)
+        // rides on a transaction without steps of its own: it moves the baseline instead.
+        if (!transaction.docChanged) {
+          baseline.current = next;
+          return;
+        }
+        if (next === baseline.current) return;
+        baseline.current = next;
         lastValue.current = next;
         onChangeRef.current(next);
       },
@@ -100,8 +112,9 @@ export function TokenEditor({
   useEffect(() => {
     if (!editor || editor.isDestroyed || value === lastValue.current) return;
     lastValue.current = value;
-    editor.commands.setContent(toEditorHtml(value), { emitUpdate: false });
-  }, [editor, value]);
+    editor.commands.setContent(toEditorContent(value, mode), { emitUpdate: false });
+    baseline.current = fromEditor(editor);
+  }, [editor, value, mode]);
 
   useEffect(() => {
     if (editor && !editor.isDestroyed && editor.isEditable === readOnly) editor.setEditable(!readOnly, false);

@@ -3,17 +3,26 @@ import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table
 import StarterKit from "@tiptap/starter-kit";
 import { Markdown } from "tiptap-markdown";
 import { ExprChipNode } from "./ExprChipNode";
+import { MarkdownChips, MarkdownHardBreak, MarkdownText } from "./markdown";
 import { VarChipNode } from "./VarChipNode";
 
 export type TokenEditorMode = "script" | "document" | "line";
 
-/** Nothing beyond what a spoken line needs: no code, links, quotes, rules or strike. */
-const SPOKEN = {
+/** Script and line modes are plain text: paragraphs (one per stored line), text and chips, nothing else. */
+const PLAIN = {
   blockquote: false,
+  bold: false,
+  bulletList: false,
   code: false,
   codeBlock: false,
+  hardBreak: false,
+  heading: false,
   horizontalRule: false,
+  italic: false,
   link: false,
+  listItem: false,
+  listKeymap: false,
+  orderedList: false,
   strike: false,
   underline: false,
   trailingNode: false,
@@ -21,7 +30,6 @@ const SPOKEN = {
 
 /** A workflow prompt is one paragraph: the document holds exactly one, and Enter does nothing. */
 const LineDocument = Node.create({ name: "doc", topNode: true, content: "paragraph" });
-
 
 const SingleLine = Extension.create({
   name: "singleLine",
@@ -33,39 +41,21 @@ const SingleLine = Extension.create({
 
 export function editorExtensions(mode: TokenEditorMode, isCustom: (name: string) => boolean): AnyExtension[] {
   const chips = [ExprChipNode.configure({ isCustom }), VarChipNode];
-  const markdown = Markdown.configure({ html: true, tightLists: true, bulletListMarker: "-", linkify: false, breaks: false });
 
-  if (mode === "line") {
-    return [
-      StarterKit.configure({
-        ...SPOKEN,
-        document: false,
-        bold: false,
-        italic: false,
-        bulletList: false,
-        orderedList: false,
-        listItem: false,
-        listKeymap: false,
-        heading: false,
-        hardBreak: false,
-      }),
-      LineDocument,
-      SingleLine,
-      ...chips,
-      markdown,
-    ];
-  }
-  if (mode === "script") {
-    return [StarterKit.configure({ ...SPOKEN, heading: false, orderedList: false }), ...chips, markdown];
-  }
-  // Knowledge documents keep whatever Markdown they arrive with; the toolbar offers H2/H3 and tables.
+  if (mode === "line") return [StarterKit.configure({ ...PLAIN, document: false }), LineDocument, SingleLine, ...chips];
+  if (mode === "script") return [StarterKit.configure(PLAIN), ...chips];
+
+  // Knowledge documents: Markdown, keeping whatever it arrives with; the toolbar offers H2/H3 and tables.
   return [
-    StarterKit.configure({ heading: { levels: [1, 2, 3] }, link: { openOnClick: false } }),
+    StarterKit.configure({ text: false, hardBreak: false, link: { openOnClick: false } }),
+    MarkdownText,
+    MarkdownHardBreak,
     Table.configure({ resizable: false }),
     TableRow,
     TableHeader,
     TableCell,
     ...chips,
-    markdown,
+    MarkdownChips,
+    Markdown.configure({ html: false, tightLists: true, bulletListMarker: "-", linkify: false, breaks: true }),
   ];
 }

@@ -36,25 +36,22 @@ export function Toolbar({ editor, mode, builtins, customExpressions, onCreateExp
     }),
   });
 
+  // Script and line modes are plain text with chips; only documents have Markdown formatting.
   const formatting: { label: string; icon: LucideIcon; pressed: boolean; run: () => void }[] =
-    mode === "line"
-      ? []
-      : [
+    mode === "document"
+      ? [
           { label: "Bold", icon: Bold, pressed: active.bold, run: () => editor.chain().focus().toggleBold().run() },
           { label: "Italic", icon: Italic, pressed: active.italic, run: () => editor.chain().focus().toggleItalic().run() },
           { label: "List", icon: List, pressed: active.list, run: () => editor.chain().focus().toggleBulletList().run() },
-        ];
-  if (mode === "document") {
-    formatting.push(
-      { label: "Heading", icon: Heading2, pressed: active.heading, run: () => cycleHeading(editor) },
-      {
-        label: "Table",
-        icon: Table,
-        pressed: active.table,
-        run: () => editor.chain().focus().insertTable({ rows: 3, cols: 2, withHeaderRow: true }).run(),
-      },
-    );
-  }
+          { label: "Heading", icon: Heading2, pressed: active.heading, run: () => cycleHeading(editor) },
+          {
+            label: "Table",
+            icon: Table,
+            pressed: active.table,
+            run: () => editor.chain().focus().insertTable({ rows: 3, cols: 2, withHeaderRow: true }).run(),
+          },
+        ]
+      : [];
 
   return (
     <div role="toolbar" aria-label="Formatting" className={styles.toolbar}>
