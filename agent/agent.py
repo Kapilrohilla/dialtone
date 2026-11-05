@@ -206,6 +206,12 @@ def call_settings(cfg: Config, agent) -> tuple[Config, dict]:
     return cfg, _settings(cfg.snapshot)
 
 
+def captured_answers(agent) -> dict | None:
+    """The workflow's captured {field: value} answers for the call report; None without a workflow."""
+    run = getattr(agent, "workflow", None)
+    return dict(run.captured) if run is not None else None
+
+
 def lead_record(metadata: str) -> dict:
     """The lead record passed as JSON dispatch metadata; empty when there is none."""
     try:
@@ -669,6 +675,7 @@ async def entrypoint(ctx: JobContext) -> None:
             turns=turns,
             agent_version_id=cfg.version_id,
             step_path=step_path(),
+            captured=captured_answers(agent),
         )
         await send_report(
             DASHBOARD_REPORT_URL, report, os.environ["LIVEKIT_API_KEY"], os.environ["LIVEKIT_API_SECRET"]

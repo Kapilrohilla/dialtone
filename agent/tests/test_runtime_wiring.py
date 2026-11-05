@@ -425,7 +425,7 @@ async def test_shutdown_report_before_caller_joins(monkeypatch):
     assert len(callbacks) == 1
     await callbacks[0]()
     assert sent[0]["disposition"] == "NOT_CONNECTED"
-    assert "agent_version_id" not in sent[0] and "step_path" not in sent[0]
+    assert "agent_version_id" not in sent[0] and "step_path" not in sent[0] and "captured" not in sent[0]
 
 
 LOOP_END_GRAPH = {
@@ -520,3 +520,15 @@ def test_unusable_snapshot_settings_fall_back_to_env_defaults(monkeypatch):
     assert agent.dead_air_enabled(call_settings) is agent.DEAD_AIR_ENABLED
     assert agent.dead_air_config(call_settings) == agent.DEAD_AIR_CONFIG
     assert agent.mood_enabled(call_settings) is True
+
+
+async def test_captured_answers_for_the_report():
+    assert agent.captured_answers(None) is None
+    plain = agent.PhoneAgent(LEAD, agent.GEMINI_LANGUAGE_RULES, console(snapshot()))
+    assert agent.captured_answers(plain) is None
+    a = agent.PhoneAgent(LEAD, agent.GEMINI_LANGUAGE_RULES, console(snapshot({"id": 1, "graph": GRAPH})))
+    assert agent.captured_answers(a) == {}
+    await tool_named(a, "go_to_city")({})
+    await tool_named(a, "go_to_wrap_up")({"value": "Pune"})
+    answers = agent.captured_answers(a)
+    assert answers == {"city": "Pune"} and answers is not a.workflow.captured

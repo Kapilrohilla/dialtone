@@ -36,3 +36,10 @@ def test_report_includes_version_and_step_path():
     assert report["agent_version_id"] == 7 and report["step_path"] == ["a", "b"]
     plain = build_report(**ARGS, turns=None)
     assert "agent_version_id" not in plain and "step_path" not in plain
+
+
+def test_report_includes_captured_answers_when_given():
+    report = build_report(**ARGS, turns=None, captured={"city": "Pune", "licence": "yes"})
+    assert report["captured"] == {"city": "Pune", "licence": "yes"}
+    assert "captured" not in build_report(**ARGS, turns=None)
+    assert build_report(**ARGS, turns=None, captured={})["captured"] == {}
