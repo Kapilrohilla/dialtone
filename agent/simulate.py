@@ -275,7 +275,7 @@ class Simulation:
         if name == "end_call":
             if self.outcome is None:
                 return "Call record_outcome first, then end the call."
-            refusal = end_step_refusal(self.current_step(), self.outcome["disposition"])
+            refusal = None if self.run.stopped else end_step_refusal(self.current_step(), self.outcome["disposition"])
             if refusal is not None:
                 return refusal
             self.ended = True
@@ -302,7 +302,7 @@ class Simulation:
         disposition = args.get("disposition")
         if disposition not in DISPOSITIONS:
             return f"Use one of: {', '.join(DISPOSITIONS)}."
-        refusal = end_step_refusal(self.current_step(), disposition)
+        refusal = None if self.run.stopped else end_step_refusal(self.current_step(), disposition)
         if refusal is not None:
             return refusal
         self.outcome = clean_outcome({**args, "disposition": disposition})

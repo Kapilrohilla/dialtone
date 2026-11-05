@@ -63,6 +63,8 @@ class WorkflowRun:
         self.captured: dict[str, str] = {}
         self.visits: dict[str, int] = {}
         self.transitions = 0
+        # Set once a transition hits the loop cap: every later path is refused too.
+        self.stopped = False
         self._load(graph)
 
     def _load(self, graph) -> None:
@@ -120,6 +122,7 @@ class WorkflowRun:
             "transitions": self.transitions,
             "captured": dict(self.captured),
             "path": list(self.path),
+            "stopped": self.stopped,
         }
 
     @classmethod
@@ -147,6 +150,7 @@ class WorkflowRun:
         p = state.get("path")
         names = [x for x in p if isinstance(x, str)] if isinstance(p, list) else []
         run.path = (names or [cur.name])[-(max_transitions + 1):]
+        run.stopped = state.get("stopped") is True
         return run
 
     # -- tools -----------------------------------------------------------
@@ -184,6 +188,8 @@ class WorkflowRun:
         cur = self.current
         if cur is None:
             return Transition(False, "That path isn't available from the start of the call.")
+        if self.stopped:
+            return Transition(False, CAPPED_MESSAGE, None, True)
         match = next((p for p in self.paths_from_current() if p.name == tool_name), None)
         if match is None:
             return Transition(False, f"That path isn't available from {cur.name}.")
@@ -193,6 +199,7 @@ class WorkflowRun:
         target = self._steps[match.to]
         if (self.visits.get(target.id, 0) + 1 > self.max_visits
                 or self.transitions + 1 > self.max_transitions):
+            self.stopped = True
             return Transition(False, CAPPED_MESSAGE, None, True)
         captured = None
         if cur.type == "collect" and cur.field:

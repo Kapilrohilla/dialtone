@@ -6,6 +6,7 @@ import pytest
 from aiohttp.test_utils import TestClient, TestServer
 
 import simulate
+import workflow
 from console_config import runtime_token
 from simulate import ModelTurn
 
@@ -427,3 +428,32 @@ async def test_sim_transfer_simulated_with_handoff_and_outcome(make_client, monk
     model, data, results = await run_transfer(make_client, OUTCOME)
     assert results == ["Transfer simulated."]
     assert data["outcome"]["disposition"] == "INTERESTED" and data["ended"] is False
+
+
+async def test_sim_cap_stops_the_workflow(make_client):
+    model = FakeModel(
+        ModelTurn(tool_calls=[call("go_to_city")]),
+        ModelTurn(tool_calls=[call("go_to_not_interested")]),
+        ModelTurn(tool_calls=[call("record_outcome", disposition="UNRESOLVED", reason="loop", summary="s"),
+                              call("end_call")]),
+    )
+    client = await make_client(model)
+    near_cap = {"current_step_id": "s1", "visits": {"s1": 3, "s2": 3}, "transitions": 5, "captured": {},
+                "path": ["Greet", "City", "Greet"], "outcome": None}
+    try:
+        data = await (await post(client, body([{"role": "caller", "text": "phir se"}], near_cap))).json()
+        results = [m["output"] for m in model.calls[2]["messages"] if m["role"] == "tool_result"]
+        assert results == [workflow.CAPPED_MESSAGE, workflow.CAPPED_MESSAGE]
+        assert data["state"]["stopped"] is True and data["step"] == {"id": "s1", "name": "Greet"}
+        assert data["outcome"]["disposition"] == "UNRESOLVED" and data["ended"] is True
+        # Stopped at an end step (restored state): the end-step guard no longer applies.
+        stopped_at_end = {"current_step_id": "s3", "visits": {"s1": 1, "s3": 1}, "transitions": 1,
+                          "captured": {}, "path": ["Greet", "Not interested"], "outcome": None, "stopped": True}
+        model2 = FakeModel(ModelTurn(tool_calls=[
+            call("record_outcome", disposition="UNRESOLVED", reason="loop", summary="s"), call("end_call")]))
+        client2 = await make_client(model2)
+        data2 = await (await post(client2, body([{"role": "caller", "text": "ok"}], stopped_at_end))).json()
+        await client2.close()
+        assert data2["outcome"]["disposition"] == "UNRESOLVED" and data2["ended"] is True
+    finally:
+        await client.close()

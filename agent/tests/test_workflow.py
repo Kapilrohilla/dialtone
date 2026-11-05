@@ -247,3 +247,25 @@ def test_all_path_tools_every_target_once_in_graph_order():
 def test_all_path_tools_empty_graph():
     assert WorkflowRun(None).all_path_tools() == []
     assert WorkflowRun({"steps": "x"}).all_path_tools() == []
+
+
+def test_cap_stops_the_engine():
+    from workflow import CAPPED_MESSAGE
+
+    run = WorkflowRun(loop_graph())
+    run.start()
+    for tool in ["go_to_b", "go_to_a", "go_to_b", "go_to_a", "go_to_b"]:
+        assert run.take(tool).ok
+    assert not run.stopped
+    assert run.take("go_to_a").capped and run.stopped
+    t = run.take("go_to_z")  # within the limits, but the workflow has stopped
+    assert t.capped and not t.ok and t.entered is None and t.message == CAPPED_MESSAGE
+    assert run.current.name == "B"
+    state = run.to_state()
+    assert state["stopped"] is True
+    again = WorkflowRun.from_state(loop_graph(), state)
+    assert again.stopped and again.take("go_to_z").capped and again.current.name == "B"
+    assert WorkflowRun(loop_graph()).to_state()["stopped"] is False
+    for bad in ["yes", 1, None, []]:
+        restored = WorkflowRun.from_state(loop_graph(), {**state, "stopped": bad})
+        assert restored.stopped is False and restored.take("go_to_z").ok

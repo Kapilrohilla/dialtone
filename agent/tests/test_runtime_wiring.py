@@ -426,3 +426,44 @@ async def test_shutdown_report_before_caller_joins(monkeypatch):
     await callbacks[0]()
     assert sent[0]["disposition"] == "NOT_CONNECTED"
     assert "agent_version_id" not in sent[0] and "step_path" not in sent[0]
+
+
+LOOP_END_GRAPH = {
+    "steps": LOOP_GRAPH["steps"] + [{"id": "z", "name": "Z", "type": "end", "prompt": "", "outcome": "NI"}],
+    "paths": LOOP_GRAPH["paths"] + [{"from": "b", "to": "z", "label": "done"}],
+}
+
+
+async def test_loop_cap_stops_the_workflow():
+    a = agent.PhoneAgent(LEAD, agent.GEMINI_LANGUAGE_RULES, console(snapshot({"id": 1, "graph": LOOP_END_GRAPH})))
+    for _ in range(2):
+        assert await tool_named(a, "go_to_b")({}) == "Now at step B."
+        assert await tool_named(a, "go_to_a")({}) == "Now at step A."
+    assert await tool_named(a, "go_to_b")({}) == "Now at step B."
+    assert await tool_named(a, "go_to_a")({}) == workflow.CAPPED_MESSAGE
+    assert await tool_named(a, "go_to_z")({}) == workflow.CAPPED_MESSAGE  # an end step, refused once stopped
+    assert a.workflow.stopped and a.workflow.current.name == "B"
+    ok = await a.record_outcome(disposition="UNRESOLVED", reason="workflow loop limit reached", summary="s")
+    assert ok == "Recorded. Now say your closing line."
+
+
+async def test_stopped_workflow_skips_end_step_guard(monkeypatch):
+    from types import SimpleNamespace
+
+    a = agent.PhoneAgent(LEAD, agent.GEMINI_LANGUAGE_RULES, console(snapshot({"id": 1, "graph": GRAPH})))
+    await tool_named(a, "go_to_city")({})
+    await tool_named(a, "go_to_wrap_up")({"value": "Pune"})
+    a.workflow.stopped = True  # e.g. restored from a capped state
+    ok = await a.record_outcome(disposition="UNRESOLVED", reason="workflow loop limit reached", summary="s")
+    assert ok == "Recorded. Now say your closing line."
+    deleted = []
+
+    async def playout():
+        return None
+
+    async def delete_room():
+        deleted.append(True)
+
+    monkeypatch.setattr(agent, "get_job_context", lambda: SimpleNamespace(delete_room=delete_room))
+    assert await a.end_call(SimpleNamespace(wait_for_playout=playout)) is None
+    assert deleted == [True]

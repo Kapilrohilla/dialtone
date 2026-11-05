@@ -320,6 +320,10 @@ class PhoneAgent(Agent):
             logger.exception("workflow step change failed", extra={"tool": tool_name})
             return "Carry on with the call."
 
+    def workflow_stopped(self) -> bool:
+        """The loop cap stopped the workflow: the end-step outcome rule no longer applies."""
+        return self.workflow is not None and self.workflow.stopped
+
     def current_step(self) -> dict | None:
         run = self.workflow
         return asdict(run.current) if run is not None and run.current is not None else None
@@ -364,7 +368,7 @@ class PhoneAgent(Agent):
             do_not_call: True if the driver asked not to be called again.
         """
         try:
-            refusal = end_step_refusal(self.current_step(), disposition)
+            refusal = None if self.workflow_stopped() else end_step_refusal(self.current_step(), disposition)
         except Exception:
             logger.exception("end-step check failed")
             refusal = None
@@ -395,7 +399,8 @@ class PhoneAgent(Agent):
         if self.outcome is None:
             return "Call record_outcome first, then end the call."
         try:
-            refusal = end_step_refusal(self.current_step(), self.outcome.get("disposition"))
+            refusal = (None if self.workflow_stopped()
+                       else end_step_refusal(self.current_step(), self.outcome.get("disposition")))
         except Exception:
             logger.exception("end-step check failed")
             refusal = None
