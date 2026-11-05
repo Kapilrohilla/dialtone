@@ -2,6 +2,8 @@ import re
 
 from rest_framework import serializers
 
+from calls.numbers import strip_nul
+
 from .models import Agent, AgentVersion, default_settings
 from .publish import is_outdated
 from .tokens import BUILTIN_EXPRESSIONS
@@ -142,6 +144,7 @@ class AgentWriteSerializer(serializers.Serializer):
         return value
 
     def validate_script(self, value):
+        value = strip_nul(value)  # Postgres jsonb rejects NUL; strip it like other free text
         if not isinstance(value, list):
             raise serializers.ValidationError("The script must be a list of sections.")
         if len(value) > MAX_SECTIONS:
@@ -160,6 +163,7 @@ class AgentWriteSerializer(serializers.Serializer):
         return out
 
     def validate_custom_expressions(self, value):
+        value = strip_nul(value)
         if not isinstance(value, dict):
             raise serializers.ValidationError("Custom expressions must be an object of name to hint.")
         if len(value) > MAX_CUSTOM_EXPRESSIONS:

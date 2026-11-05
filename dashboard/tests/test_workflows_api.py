@@ -98,3 +98,16 @@ def test_weird_values_patch_returns_200_with_errors(member):
             s[k] = v
         r = c.patch(f"/api/workflows/{pk}", {"graph": g}, format="json")
         assert r.status_code == 200 and r.json()["errors"], (k, v)
+
+
+@pytest.mark.django_db
+def test_nul_in_graph_is_stripped_not_500(member):
+    c = member("editor")
+    pk = c.post("/api/workflows", {"name": "W"}, format="json").json()["id"]
+    g = driver_graph()
+    g["steps"][0]["name"] = "Hel\u0000lo"
+    g["note\u0000"] = "x\u0000"
+    r = c.patch(f"/api/workflows/{pk}", {"graph": g}, format="json")
+    assert r.status_code == 200, r.content
+    saved = WorkflowRevision.objects.get(workflow_id=pk).graph
+    assert saved["steps"][0]["name"] == "Hello" and saved["note"] == "x"

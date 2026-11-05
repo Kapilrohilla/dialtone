@@ -6,6 +6,7 @@ from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from calls.numbers import strip_nul
 from workspaces.permissions import CanEdit, IsMember, workspace_for
 
 from .models import KnowledgeDocument, KnowledgeRevision
@@ -29,8 +30,11 @@ class _Base(APIView):
 
 
 def _add_revision(doc, body, user):
-    """Append a revision unless `body` equals the current one. Caller holds a transaction."""
-    cur = doc.revisions.select_for_update().order_by("-number").first()
+    """Append a revision unless `body` equals the current one. Caller holds a transaction.
+
+    The document row is locked first so concurrent saves number their revisions one after the other."""
+    KnowledgeDocument.objects.select_for_update().only("pk").get(pk=doc.pk)
+    cur = doc.revisions.order_by("-number").first()
     if cur is not None and cur.body_md == body:
         return
     KnowledgeRevision.objects.create(
@@ -92,7 +96,7 @@ class KnowledgeUploadView(_Base):
         if f.size > MAX_UPLOAD_BYTES:
             return Response({"detail": "File is too large; the limit is 1 MB."}, status=400)
         try:
-            body = f.read().decode("utf-8")
+            body = strip_nul(f.read().decode("utf-8"))  # Postgres text rejects NUL
         except UnicodeDecodeError:
             return Response({"detail": "File must be UTF-8 text."}, status=400)
         title = name[: -len(".md")].strip() or "Untitled"

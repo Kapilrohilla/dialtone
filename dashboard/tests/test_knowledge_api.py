@@ -92,3 +92,32 @@ def test_knowledge_isolated(member, other_workspace):
     assert_isolated(c, f"/api/knowledge/{doc.id}/revisions/1")
     assert c.patch(f"/api/knowledge/{doc.id}", {"title": "y"}, format="json").status_code == 404
     assert c.get("/api/knowledge").json() == []
+
+
+@pytest.mark.django_db
+def test_save_locks_the_document_row_before_numbering(member):
+    from django.db import connection
+    from django.test.utils import CaptureQueriesContext
+
+    c = member("editor")
+    pk = _create(c).json()["id"]
+    with CaptureQueriesContext(connection) as ctx:
+        assert c.patch(f"/api/knowledge/{pk}", {"body_md": "v2"}, format="json").status_code == 200
+    table = KnowledgeDocument._meta.db_table
+    assert any(f'FROM "{table}"' in q["sql"] and "FOR UPDATE" in q["sql"] for q in ctx.captured_queries)
+
+
+@pytest.mark.django_db
+def test_nul_in_json_body_is_a_readable_400(member):
+    c = member("editor")
+    r = _create(c, body="a\u0000b")
+    assert r.status_code == 400 and "Null characters" in r.json()["body_md"][0]
+
+
+@pytest.mark.django_db
+def test_upload_md_with_nul_is_stripped_not_500(member):
+    c = member("editor")
+    f = SimpleUploadedFile("faq.md", "a\u0000b".encode("utf-8"))
+    r = c.post("/api/knowledge/upload", {"file": f}, format="multipart")
+    assert r.status_code == 201, r.content
+    assert c.get(f"/api/knowledge/{r.json()['id']}").json()["body_md"] == "ab"

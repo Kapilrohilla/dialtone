@@ -259,3 +259,18 @@ def test_knowledge_used_by_counts_agents(member, workspace):
     used = {d["id"]: d["used_by"] for d in c.get("/api/knowledge").json()}
     assert used == {doc.id: 2, unused.id: 0}
     assert KnowledgeDocument.objects.count() == 2
+
+
+@pytest.mark.django_db
+def test_nul_in_script_and_custom_expressions_is_stripped_not_500(member):
+    c = member("editor")
+    script = [{"id": "s1", "title": "Open\u0000ing", "body": "Hi\u0000 there"}]
+    r = create(c, script=script, custom_expressions={"sigh": "a small\u0000 sigh"})
+    assert r.status_code == 201, r.content
+    assert r.json()["script"] == [{"id": "s1", "title": "Opening", "body": "Hi there"}]
+    assert r.json()["custom_expressions"] == {"sigh": "a small sigh"}
+    r = c.patch(f"/api/agents/{r.json()['id']}", {"script": [{"id": "s\u00001", "title": "T", "body": "\u0000"}],
+                                                  "custom_expressions": {"si\u0000gh": "x"}}, format="json")
+    assert r.status_code == 200, r.content
+    assert r.json()["script"] == [{"id": "s1", "title": "T", "body": ""}]
+    assert r.json()["custom_expressions"] == {"sigh": "x"}
