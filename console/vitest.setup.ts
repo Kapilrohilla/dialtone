@@ -22,6 +22,14 @@ if (typeof HTMLDialogElement !== "undefined" && !HTMLDialogElement.prototype.sho
   };
 }
 
+// ProseMirror measures ranges to scroll the caret into view and hit-tests clicks with elementFromPoint;
+// jsdom has neither. Empty rects and "no element there" keep it on its fallback paths.
+if (!document.elementFromPoint) document.elementFromPoint = () => null;
+if (!Range.prototype.getClientRects) {
+  Range.prototype.getClientRects = () => [] as unknown as DOMRectList;
+  Range.prototype.getBoundingClientRect = () => new DOMRect();
+}
+
 beforeAll(() => server.listen({ onUnhandledFrame: "error" }));
 afterEach(() => {
   cleanup();
