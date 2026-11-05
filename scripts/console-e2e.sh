@@ -44,7 +44,13 @@ export DASHBOARD_DB_DIR="$root/console/test-results/dashboard-data"
 export CSRF_EXTRA_TRUSTED_ORIGINS="http://127.0.0.1:${CONSOLE_PORT},http://localhost:${CONSOLE_PORT}"
 
 pids=()
+backup=""
 cleanup() {
+  # `next build` rewrites these to point at its distDir; put them back even if the build is interrupted.
+  if [[ -n "$backup" && -d "$backup" ]]; then
+    cp "$backup/tsconfig.json" "$backup/next-env.d.ts" "$root/console/"
+    rm -rf "$backup"
+  fi
   for pid in "${pids[@]:-}"; do
     [[ -n "$pid" ]] && kill "$pid" 2>/dev/null || true
   done
@@ -93,14 +99,11 @@ wait_for "http://127.0.0.1:${DJANGO_PORT}/api/auth/csrf" Django "$log_dir/django
 
 cd "$root/console"
 echo "Building the console against Django on :${DJANGO_PORT}..."
-# `next build` rewrites tsconfig.json and next-env.d.ts to point at its distDir; put them back afterwards.
+# `next build` rewrites tsconfig.json and next-env.d.ts to point at its distDir; the EXIT trap restores them.
 backup=$(mktemp -d)
 cp tsconfig.json next-env.d.ts "$backup/"
-build_ok=1
-NEXT_DIST_DIR=$DIST_DIR DJANGO_URL="http://127.0.0.1:${DJANGO_PORT}" npx next build >"$log_dir/next-build.log" 2>&1 || build_ok=0
-cp "$backup/tsconfig.json" "$backup/next-env.d.ts" .
-rm -rf "$backup"
-[[ $build_ok == 1 ]] || { tail -40 "$log_dir/next-build.log" >&2; exit 1; }
+NEXT_DIST_DIR=$DIST_DIR DJANGO_URL="http://127.0.0.1:${DJANGO_PORT}" npx next build >"$log_dir/next-build.log" 2>&1 \
+  || { tail -40 "$log_dir/next-build.log" >&2; exit 1; }
 # The standalone server serves static files and public/ from next to itself.
 standalone="$DIST_DIR/standalone"
 rm -rf "$standalone/$DIST_DIR/static" "$standalone/public"

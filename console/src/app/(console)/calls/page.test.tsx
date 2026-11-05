@@ -77,11 +77,17 @@ describe("call history", () => {
     expect(within(row).getByText("No summary")).toBeInTheDocument();
   });
 
+  it("labels the phone search like the other filters", async () => {
+    renderWithProviders(<CallsPage />, { route: `/calls?${RANGE}` });
+    await screen.findByRole("table", { name: "Calls" });
+    expect(screen.getByLabelText("Phone number")).toHaveAttribute("type", "search");
+  });
+
   it("search debounces into q", async () => {
     const user = userEvent.setup();
     renderWithProviders(<CallsPage />, { route: `/calls?${RANGE}` });
     await screen.findByRole("table", { name: "Calls" });
-    await user.type(screen.getByRole("searchbox", { name: "Search by phone number" }), "9876");
+    await user.type(screen.getByRole("searchbox", { name: "Phone number" }), "9876");
     expect(router.replace).not.toHaveBeenCalledWith(expect.stringContaining("q="), expect.anything());
     await waitFor(() => expect(lastUrl(router.replace)).toContain("q=9876"));
     expect(router.replace.mock.calls.filter(([url]) => String(url).includes("q="))).toHaveLength(1);
@@ -98,7 +104,7 @@ describe("call history", () => {
           </Toast>
         </QueryClientProvider>,
       );
-    const box = screen.getByRole("searchbox", { name: "Search by phone number" });
+    const box = screen.getByRole("searchbox", { name: "Phone number" });
     await user.type(box, "98");
     await waitFor(() => expect(lastUrl(router.replace)).toContain("q=98"));
     await user.type(box, "7 "); // typed before the URL catches up
@@ -114,7 +120,7 @@ describe("call history", () => {
   it("follows an external URL change, such as Clear filters", async () => {
     const user = userEvent.setup();
     const view = renderWithProviders(<CallsPage />, { route: `/calls?q=98&${RANGE}` });
-    const box = screen.getByRole("searchbox", { name: "Search by phone number" });
+    const box = screen.getByRole("searchbox", { name: "Phone number" });
     expect(box).toHaveValue("98");
     await user.type(box, "7");
     await user.click(screen.getByRole("button", { name: "Clear filters" }));

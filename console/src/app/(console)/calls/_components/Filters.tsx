@@ -1,5 +1,5 @@
 import { Search } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Button, Field } from "@/components/ui";
 import { OUTCOME_GROUPS } from "@/lib/outcomes";
 import { useAgents, type CallFilters } from "@/lib/queries";
@@ -47,6 +47,7 @@ export type FiltersProps = {
 
 export function Filters({ filters, anyFilter, error, onChange, onClear }: FiltersProps) {
   const { data: agents } = useAgents();
+  const searchId = useId();
   const [more, setMore] = useState(Boolean(filters.mood || filters.city));
   const search = useDebouncedText(filters.q ?? "", (q) => onChange({ q }, "replace"));
   const mood = useDebouncedText(filters.mood ?? "", (v) => onChange({ mood: v }, "replace"));
@@ -56,14 +57,17 @@ export function Filters({ filters, anyFilter, error, onChange, onClear }: Filter
     <section aria-label="Filters" className={styles.filters}>
       <div className={styles.filterRow}>
         <div className={styles.search}>
-          <Search size={18} strokeWidth={1.75} aria-hidden="true" />
-          <input
-            type="search"
-            aria-label="Search by phone number"
-            placeholder="Search by phone number"
-            value={search.text}
-            onChange={(e) => search.type(e.target.value)}
-          />
+          <label htmlFor={searchId} className={styles.searchLabel}>Phone number</label>
+          <div className={styles.searchBox}>
+            <Search size={18} strokeWidth={1.75} aria-hidden="true" />
+            <input
+              id={searchId}
+              type="search"
+              placeholder="Search by phone number"
+              value={search.text}
+              onChange={(e) => search.type(e.target.value)}
+            />
+          </div>
         </div>
         <Field
           control="select"

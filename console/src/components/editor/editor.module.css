@@ -119,6 +119,9 @@
 .content th, .content td { padding: 6px 10px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
 .content th { font-weight: 600; border-bottom-color: var(--rule-strong); }
 .content th p, .content td p { margin: 0; }
+/* Script and line text: one paragraph per stored line, so lines sit at plain text spacing. */
+.plain { line-height: 1.6; }
+.plain p + p { margin-top: 0; }
 
 /* Chips: whole tokens the caret steps over. */
 .chip {

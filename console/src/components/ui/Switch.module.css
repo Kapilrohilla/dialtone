@@ -31,4 +31,4 @@
   transition: transform 0.12s, background-color 0.12s;
 }
 .switch[aria-checked="true"] .track { background: var(--primary-fill); border-color: var(--primary-fill); }
-.switch[aria-checked="true"] .thumb { transform: translateX(16px); background: var(--primary-ink); }
+.switch[aria-checked="true"] .thumb { transform: translateX(16px); background: var(--panel); }

@@ -29,7 +29,7 @@ function baseURL() {
   return process.env.E2E_BASE_URL ?? "http://localhost:3100";
 }
 
-/** Fails the test on any uncaught page error (a crash), and collects console errors for the report. */
+/** Collects uncaught page errors (crashes); call the returned check at the end of a test to fail on any. */
 function watchErrors(page: Page) {
   const crashes: string[] = [];
   page.on("pageerror", (e) => crashes.push(e.message));
@@ -47,6 +47,8 @@ async function openAgent(page: Page) {
   await page.getByRole("table").getByRole("link", { name: "Driver lead qualifier" }).click();
   await expect(page).toHaveURL(/\/agents\/\d+$/);
   await expect(page.getByRole("region", { name: "Opening" })).toBeVisible();
+  // The side panel loads the attached knowledge separately; wait so screenshots show it.
+  await expect(page.getByText("Approved pricing and rules", { exact: true })).toBeVisible();
 }
 
 async function openWorkflow(page: Page) {
@@ -192,7 +194,10 @@ test("7. call history is empty and exports a date range", async ({ page }) => {
   await signIn(page);
   await page.goto("/calls");
   await expect(page.getByText("No calls yet.")).toBeVisible();
-  const href = await page.getByRole("link", { name: "Export" }).getAttribute("href");
+  const exportLink = page.getByRole("link", { name: "Export" });
+  // A link styled as a button: no underline.
+  await expect(exportLink).toHaveCSS("text-decoration-line", "none");
+  const href = await exportLink.getAttribute("href");
   expect(href).toMatch(/from=\d{4}-\d{2}-\d{2}/);
   expect(href).toMatch(/to=\d{4}-\d{2}-\d{2}/);
   await shot(page, LIGHT, "08-call-history");

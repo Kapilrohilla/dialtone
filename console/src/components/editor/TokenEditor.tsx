@@ -77,7 +77,7 @@ export function TokenEditor({
           role: "textbox",
           "aria-label": ariaLabel,
           "aria-multiline": mode === "line" ? "false" : "true",
-          class: cx(styles.content, mode === "line" && styles.line),
+          class: cx(styles.content, mode !== "document" && styles.plain, mode === "line" && styles.line),
         },
         handleDOMEvents: {
           click(view, event) {

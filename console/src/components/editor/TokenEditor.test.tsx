@@ -165,6 +165,13 @@ describe("TokenEditor", () => {
     expect(lastChange(onChange)).toBe("{{lead.vehicle_type}}");
   });
 
+  // Script and line text store one paragraph per line, so they get plain-text spacing; documents keep paragraph gaps.
+  it.each([["script", true], ["line", true], ["document", false]] as const)("%s mode uses plain line spacing: %s", async (mode, plain) => {
+    setup({ value: "one\ntwo", mode });
+    const box = await screen.findByRole("textbox", { name: "Script" });
+    expect(box.classList.contains("plain")).toBe(plain);
+  });
+
   it("has only chip tools in script mode", async () => {
     setup({ value: "" });
     await screen.findByRole("textbox", { name: "Script" });
