@@ -141,3 +141,44 @@ def test_csrf_required_for_session_post(user):
     c = APIClient(enforce_csrf_checks=True)
     c.force_login(user)
     assert c.post("/api/me/password", {"current_password": PW, "new_password": "a-Better-pw-98765"}, format="json").status_code == 403
+
+
+@pytest.fixture(autouse=True)
+def _clear_cache():
+    from django.core.cache import cache
+
+    cache.clear()
+    yield
+    cache.clear()
+
+
+def test_admin_cannot_promote_self_to_owner(member):
+    admin = member("admin")
+    r = admin.patch(f"/api/team/{admin.user.id}", {"role": "owner"}, format="json")
+    assert r.status_code == 403 and r.json() == {"detail": "Only an owner can do that."}
+
+
+def test_admin_cannot_invite_owner(member):
+    r = member("admin").post("/api/team", {"email": "o@example.com", "name": "O", "role": "owner"}, format="json")
+    assert r.status_code == 403
+    assert not User.objects.filter(email="o@example.com").exists()
+
+
+def test_admin_cannot_change_owner_role(member):
+    owner = member("owner")
+    member("owner")  # a second owner so the last-owner guard is not what blocks it
+    r = member("admin").patch(f"/api/team/{owner.user.id}", {"role": "viewer"}, format="json")
+    assert r.status_code == 403
+
+
+def test_owner_can_promote_to_owner(member):
+    owner = member("owner")
+    other = member("admin")
+    r = owner.patch(f"/api/team/{other.user.id}", {"role": "owner"}, format="json")
+    assert r.status_code == 200 and r.json()["role"] == "owner"
+
+
+def test_login_throttled(user):
+    c = APIClient()
+    codes = [c.post("/api/auth/login", {"email": "asha@example.com", "password": "bad"}, format="json").status_code for _ in range(11)]
+    assert codes[:10] == [400] * 10 and codes[10] == 429

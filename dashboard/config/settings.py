@@ -98,6 +98,7 @@ REST_FRAMEWORK = {
         "rest_framework.permissions.IsAuthenticated",
         "workspaces.permissions.IsMember",
     ],
+    "DEFAULT_THROTTLE_RATES": {"login": "10/min", "set_password": "10/min"},
 }
 
 LANGUAGE_CODE = "en-us"

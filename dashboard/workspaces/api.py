@@ -10,6 +10,7 @@ from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework import permissions, serializers, status
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from . import serializers as s
@@ -18,6 +19,10 @@ from .permissions import CanManageTeam, IsMember, _membership, workspace_for
 
 User = get_user_model()
 OPEN = [permissions.AllowAny]
+
+
+def owner_only():
+    return Response({"detail": "Only an owner can do that."}, status=status.HTTP_403_FORBIDDEN)
 
 
 class CsrfView(APIView):
@@ -31,6 +36,8 @@ class CsrfView(APIView):
 
 class LoginView(APIView):
     permission_classes = OPEN
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "login"
 
     def post(self, request):
         data = s.LoginSerializer(data=request.data)
@@ -60,6 +67,8 @@ class SetPasswordView(APIView):
 
     permission_classes = OPEN
     authentication_classes: list = []
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "set_password"
 
     def post(self, request):
         data = s.SetPasswordSerializer(data=request.data)
@@ -129,6 +138,8 @@ class TeamView(APIView):
         data = s.InviteSerializer(data=request.data)
         data.is_valid(raise_exception=True)
         v = data.validated_data
+        if v["role"] == Membership.OWNER and _membership(request).role != Membership.OWNER:
+            return owner_only()
         with transaction.atomic():
             user = User(username=v["email"], email=v["email"], first_name=v["name"])
             user.set_unusable_password()
@@ -150,6 +161,8 @@ class TeamMemberView(APIView):
         data = s.RoleSerializer(data=request.data)
         data.is_valid(raise_exception=True)
         role = data.validated_data["role"]
+        if _membership(request).role != Membership.OWNER and Membership.OWNER in (role, membership.role):
+            return owner_only()
         with transaction.atomic():
             owners = Membership.objects.select_for_update().filter(workspace=ws, role=Membership.OWNER)
             owner_ids = list(owners.values_list("pk", flat=True))
