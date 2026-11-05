@@ -192,6 +192,60 @@ describe("live calls", () => {
     expect(within(screen.getByRole("navigation", { name: "Calls in progress" })).getAllByRole("button")).toHaveLength(1);
   });
 
+  it("keeps the selected call when the list reorders", async () => {
+    let order = [liveCall, second];
+    server.use(http.get("*/api/live", () => HttpResponse.json(order)));
+    renderWithProviders(<LivePage />, { route: "/live" });
+    expect(await screen.findByText("हाँ, बोलिए।")).toBeInTheDocument();
+    order = [second, liveCall];
+    await advance(2500);
+    await waitFor(() => expect(within(screen.getByRole("navigation", { name: "Calls in progress" })).getAllByRole("button")[0]).toHaveTextContent("Frustrated"));
+    expect(screen.getByText("हाँ, बोलिए।")).toBeInTheDocument();
+    expect(screen.queryByText("Mujhe kisi se baat karni hai.")).not.toBeInTheDocument();
+  });
+
+  it("holds a stale ?room= on the first call across a reorder", async () => {
+    let order = [liveCall, second];
+    server.use(http.get("*/api/live", () => HttpResponse.json(order)));
+    renderWithProviders(<LivePage />, { route: "/live?room=gone" });
+    expect(await screen.findByText("हाँ, बोलिए।")).toBeInTheDocument();
+    order = [second, liveCall];
+    await advance(2500);
+    await waitFor(() => expect(within(screen.getByRole("navigation", { name: "Calls in progress" })).getAllByRole("button")[0]).toHaveTextContent("Frustrated"));
+    expect(screen.getByText("हाँ, बोलिए।")).toBeInTheDocument();
+  });
+
+  it("a reorder while the confirm is open still ends the original call", async () => {
+    let order = [liveCall, second];
+    const posts: string[] = [];
+    server.use(
+      http.get("*/api/live", () => HttpResponse.json(order)),
+      http.post("*/api/live/:room/end", ({ params }) => { posts.push(String(params.room)); return HttpResponse.json({ detail: "Call ended." }); }),
+    );
+    const user = setup();
+    renderWithProviders(<LivePage />, { route: "/live" });
+    await user.click(await screen.findByRole("button", { name: "End call" }));
+    const dialog = await screen.findByRole("dialog");
+    order = [second, liveCall];
+    await advance(2500);
+    await user.click(within(dialog).getByRole("button", { name: "End call" }));
+    expect(await screen.findByText("Call ended.")).toBeInTheDocument();
+    expect(posts).toEqual(["call-9b21"]);
+  });
+
+  it("closes an open confirm when the call ends", async () => {
+    let live = true;
+    server.use(http.get("*/api/live", () => HttpResponse.json(live ? [liveCall] : [second])));
+    const user = setup();
+    renderWithProviders(<LivePage />, { route: "/live" });
+    await user.click(await screen.findByRole("button", { name: "End call" }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    live = false;
+    await advance(2500);
+    expect(await screen.findByText("This call has ended.")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
   it("hides actions for viewers once the role has loaded", async () => {
     server.use(http.get("*/api/me", () => HttpResponse.json({ ...me, role: "viewer" })));
     const { queryClient } = renderWithProviders(<LivePage />, { route: "/live" });
@@ -249,6 +303,7 @@ describe("live calls", () => {
     await advance(2500);
     expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't reach the call server.");
     expect(screen.getByRole("log")).toBeInTheDocument();
+    expect(screen.queryByText("This call has ended.")).not.toBeInTheDocument();
     fail = false;
     const seen = requests;
     await advance(2500);

@@ -23,10 +23,12 @@ export function Transcript({ lines, label = "Transcript", empty = "Nothing has b
   const ref = useRef<HTMLDivElement>(null);
   const atBottom = useRef(true);
 
+  // The live feed is a sliding window (its length stops growing at the cap), so follow the newest line, not the count.
+  const newest = lines.length ? `${lines[lines.length - 1].at}|${lines[lines.length - 1].text}` : "";
   useLayoutEffect(() => {
     const el = ref.current;
     if (el && atBottom.current) el.scrollTop = el.scrollHeight;
-  }, [lines.length]);
+  }, [newest]);
 
   function onScroll() {
     const el = ref.current;
@@ -38,8 +40,10 @@ export function Transcript({ lines, label = "Transcript", empty = "Nothing has b
       {lines.length === 0 && <p className={styles.empty}>{empty}</p>}
       {lines.map((line, i) => {
         const agent = line.speaker === "agent";
+        // `at` is stable as the window slides; a counter separates lines sharing a timestamp.
+        const key = `${line.at}#${lines.slice(0, i).filter((l) => l.at === line.at).length}`;
         return (
-          <div key={`${line.at}-${i}`} className={styles.line}>
+          <div key={key} className={styles.line}>
             <span className={cx(styles.who, agent ? styles.agent : styles.caller)}>{agent ? "Agent" : "Caller"}</span>
             <p className={styles.text}>
               {line.expressions.length > 0 && (

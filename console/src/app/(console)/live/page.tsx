@@ -72,18 +72,21 @@ function Live() {
     });
   }, [calls, dataUpdatedAt]);
 
-  // With no ?room=, stay on the call that was first on screen even if an earlier one hangs up.
+  // With no ?room= (or one that was never live here), stay on the first call that was on screen even if the
+  // list reorders or that call hangs up.
   const firstRoom = calls?.[0]?.room;
+  const unknownPick = picked !== null && calls !== undefined && !calls.some((c) => c.room === picked) && !seen[picked];
   useEffect(() => {
-    if (picked === null && firstRoom) setPicked(firstRoom);
-  }, [picked, firstRoom]);
+    if (firstRoom && (picked === null || unknownPick)) setPicked(firstRoom);
+  }, [picked, unknownPick, firstRoom]);
 
   const room = picked ?? firstRoom;
   const live = calls?.find((c) => c.room === room);
   const last = room ? seen[room] : undefined;
-  const ended = !live && calls !== undefined && last !== undefined;
+  // Only a successful fetch can say a call is over; after a failed one the list is just stale.
+  const ended = !live && calls !== undefined && !isError && last !== undefined;
   // A ?room= that was never live here (stale link) falls back to the first call.
-  const shown = live ?? last?.call ?? (picked !== null && !last ? calls?.[0] : undefined);
+  const shown = live ?? last?.call ?? (unknownPick ? calls?.[0] : undefined);
 
   function select(next: string) {
     setPicked(next);

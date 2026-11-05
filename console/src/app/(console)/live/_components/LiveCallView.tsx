@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Transcript } from "@/components/Transcript";
 import { Button, Dialog } from "@/components/ui";
 import { cx } from "@/components/ui/util";
@@ -25,6 +25,9 @@ export function LiveCallView({ call, now, ended, canAct }: LiveCallViewProps) {
   const [confirm, setConfirm] = useState<"transfer" | "end" | null>(null);
   const transfer = useTransfer();
   const end = useEndCall();
+  useEffect(() => {
+    if (ended) setConfirm(null);
+  }, [ended]);
   const busy = transfer.isPending || end.isPending;
 
   function run(action: "transfer" | "end") {

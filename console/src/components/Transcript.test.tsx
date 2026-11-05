@@ -47,4 +47,28 @@ describe("Transcript", () => {
     rerender(<Transcript lines={[...lines, { speaker: "caller", text: "Ek minute.", expressions: [], at: "2026-11-05T09:02:20Z" }]} />);
     expect(log.scrollTop).toBe(200);
   });
+
+  it("keeps following when the window slides at a constant length", () => {
+    const at = (n: number) => `2026-11-05T09:02:${String(10 + n).padStart(2, "0")}Z`;
+    const window = (from: number) =>
+      Array.from({ length: 3 }, (_, i): TranscriptTurn => ({ speaker: "caller", text: `Line ${from + i}`, expressions: [], at: at(from + i) }));
+    const { rerender } = render(<Transcript lines={window(0)} />);
+    const log = screen.getByRole("log");
+    metrics(log, { scrollHeight: 1000, clientHeight: 300, top: 700 });
+    log.dispatchEvent(new Event("scroll"));
+    rerender(<Transcript lines={window(1)} />);
+    expect(log.scrollTop).toBe(1000);
+
+    log.scrollTop = 200;
+    log.dispatchEvent(new Event("scroll"));
+    rerender(<Transcript lines={window(2)} />);
+    expect(log.scrollTop).toBe(200);
+  });
+
+  it("renders lines that share a timestamp without key clashes", () => {
+    const same = { speaker: "caller", text: "Haan.", expressions: [], at: "2026-11-05T09:02:09Z" };
+    render(<Transcript lines={[same, { ...same, text: "Theek hai." }]} />);
+    expect(screen.getByText("Haan.")).toBeInTheDocument();
+    expect(screen.getByText("Theek hai.")).toBeInTheDocument();
+  });
 });
