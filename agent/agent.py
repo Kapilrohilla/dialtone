@@ -24,6 +24,7 @@ import json
 import logging
 import os
 import time
+from dataclasses import asdict
 from pathlib import Path
 from typing import Literal
 
@@ -47,16 +48,20 @@ from livekit.agents.metrics import EOUMetrics, LLMMetrics, RealtimeModelMetrics,
 from livekit.plugins import silero
 
 from adapt import apply_mood, sends_mood_notes
+from console_config import Config, dashboard_url, load_config
 from behavior import BehaviorTracker, reply_latency_reliable
 from dead_air import DeadAirConfig, DeadAirWatcher
+from events import EventSink
 from greeting import GreetingGate, greeting_instructions
 from metrics import LatencyStats
 from mood import MoodReading, MoodTracker
 from prompt import BASE_INSTRUCTIONS, SCRIPT_FALLBACK, SYSTEM_LAYER  # noqa: F401  (layers live in prompt.py)
-from prompt import builtin_instructions, opening_line
+from prompt import PERSONA_NAME, build_instructions, builtin_instructions, end_step_refusal, opening_instructions
+from prompt import opening_line
 from report import build_report, send_report
 from sentiment import make_classifier
-from tone import tone_guide
+from tone import mood_message, tone_guide
+from workflow import PathTool, Step, WorkflowRun
 
 load_dotenv()
 
@@ -102,6 +107,8 @@ DEAD_AIR_PROMPTS = {
     "hang_up": "Say a brief polite goodbye: you'll try again another time.",
 }
 
+BUILTIN_CONFIG = Config("builtin", None, None)
+
 # Languages the agent can switch to on the cascaded pipelines (Gemini Live covers these and more).
 LANGUAGES = {
     "hi-IN": "Hindi",
@@ -139,6 +146,63 @@ Language:
 
 
 
+def _settings(snapshot: dict | None) -> dict:
+    settings = snapshot.get("settings") if isinstance(snapshot, dict) else None
+    return settings if isinstance(settings, dict) else {}
+
+
+def _seconds(value) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
+        return None
+    return float(value)
+
+
+def dead_air_config(settings: dict | None) -> DeadAirConfig:
+    """Dead-air timings from the agent's settings; env defaults for anything missing. Bad values
+    (wrong type, not increasing) fall back to the env defaults as a whole."""
+    dead_air = settings.get("dead_air") if isinstance(settings, dict) else None
+    if not isinstance(dead_air, dict):
+        return DEAD_AIR_CONFIG
+    timings = []
+    for key in ("nudge_s", "second_nudge_s", "hang_up_s"):
+        if key not in dead_air:
+            timings.append(getattr(DEAD_AIR_CONFIG, key))
+            continue
+        value = _seconds(dead_air[key])
+        if value is None:
+            return DEAD_AIR_CONFIG
+        timings.append(value)
+    if not timings[0] < timings[1] < timings[2]:
+        return DEAD_AIR_CONFIG
+    return DeadAirConfig(nudge_s=timings[0], second_nudge_s=timings[1], hang_up_s=timings[2])
+
+
+def dead_air_enabled(settings: dict | None) -> bool:
+    dead_air = settings.get("dead_air") if isinstance(settings, dict) else None
+    enabled = dead_air.get("enabled") if isinstance(dead_air, dict) else None
+    return enabled if isinstance(enabled, bool) else DEAD_AIR_ENABLED
+
+
+def mood_enabled(settings: dict | None) -> bool:
+    enabled = settings.get("mood_adaptation") if isinstance(settings, dict) else None
+    return enabled if isinstance(enabled, bool) else MOOD_ENABLED
+
+
+def path_tool_schema(tool: PathTool) -> dict:
+    """OpenAI-style function schema for a workflow path tool (livekit raw_schema)."""
+    return {
+        "name": tool.name,
+        "description": tool.description,
+        "parameters": {
+            "type": "object",
+            "properties": {"value": {"type": "string", "description": "What the driver answered"}}
+            if tool.takes_value
+            else {},
+            "required": ["value"] if tool.takes_value else [],
+        },
+    }
+
+
 def lead_record(metadata: str) -> dict:
     """The lead record passed as JSON dispatch metadata; empty when there is none."""
     try:
@@ -150,12 +214,109 @@ def lead_record(metadata: str) -> dict:
 
 
 class PhoneAgent(Agent):
-    def __init__(self, lead: dict, language_rules: str = GEMINI_LANGUAGE_RULES) -> None:
-        # Kept so a caller-mood note can be swapped in and out without losing the base prompt.
+    def __init__(self, lead: dict, language_rules: str = GEMINI_LANGUAGE_RULES, cfg: Config | None = None) -> None:
+        self.lead = lead
+        self.language_rules = language_rules
+        self.snapshot: dict | None = None
+        self.workflow: WorkflowRun | None = None
+        self.persona_name: str | None = None
+        # Sends call events (step_entered, field_captured); the entrypoint points it at the EventSink.
+        self.emit = lambda type, payload: None
+        # The current caller-mood note (cascaded pipelines), kept across workflow step changes.
+        self.mood_note: str | None = None
+        # Serialises instruction updates so a mood note and a step change never overwrite each other.
+        self.instructions_lock = asyncio.Lock()
+        path_tools: list = []
+        # Kept so a caller-mood note can be swapped in and out without losing the base prompt. With a
+        # workflow it is the current step's prompt, updated on every step change.
         self.base_instructions = builtin_instructions(lead, language_rules)
-        super().__init__(instructions=self.base_instructions)
+        self.opening = opening_line(lead)
+        snapshot = cfg.snapshot if cfg is not None else None
+        if snapshot is not None:
+            try:
+                persona = snapshot.get("persona_name")
+                persona = persona if isinstance(persona, str) and persona.strip() else PERSONA_NAME
+                workflow = self._start_workflow(snapshot)
+                step = workflow.current if workflow else None
+                paths = workflow.paths_from_current() if workflow else []
+                self.snapshot, self.persona_name = snapshot, persona
+                self.base_instructions = self._snapshot_instructions(step, paths)
+                self.opening = opening_line(lead, persona)
+                path_tools = [self._path_tool(p) for p in paths]
+                self.workflow = workflow
+            except Exception:
+                # A call must never fail because of console data: run today's built-in agent instead.
+                logger.warning("console config unusable, using the built-in prompt", exc_info=True)
+                self.snapshot = self.workflow = self.persona_name = None
+                self.base_instructions = builtin_instructions(lead, language_rules)
+                self.opening = opening_line(lead)
+                path_tools = []
+        super().__init__(instructions=self.base_instructions, tools=path_tools)
+        # record_outcome, end_call, transfer_to_telecaller (+ switch_language): kept on every step.
+        self._base_tools = [t for t in self.tools if all(t is not p for p in path_tools)]
         self.outcome: dict | None = None
         self.caller_identity: str | None = None
+
+    @staticmethod
+    def _start_workflow(snapshot: dict) -> WorkflowRun | None:
+        workflow = snapshot.get("workflow")
+        graph = workflow.get("graph") if isinstance(workflow, dict) else None
+        if not isinstance(graph, dict):
+            return None
+        run = WorkflowRun(graph)
+        if run.start() is None:
+            logger.warning("workflow has no start step; running the script only")
+            return None
+        return run
+
+    def _snapshot_instructions(self, step: Step | None, paths: list[PathTool]) -> str:
+        text = build_instructions(
+            self.snapshot,
+            self.lead,
+            self.language_rules,
+            asdict(step) if step is not None else None,
+            [{"name": p.name, "label": p.description} for p in paths],
+        )
+        return f"{text}\n\n{opening_instructions(self.lead, self.persona_name)}"
+
+    def _path_tool(self, tool: PathTool):
+        async def take_path(raw_arguments: dict) -> str:
+            return await self._take_path(tool.name, raw_arguments)
+
+        return function_tool(take_path, raw_schema=path_tool_schema(tool))
+
+    async def _take_path(self, tool_name: str, raw_arguments) -> str:
+        """Move the workflow along one path. Never raises: a bad step must not break the call."""
+        try:
+            run = self.workflow
+            if run is None:
+                return "Carry on with the call."
+            value = raw_arguments.get("value") if isinstance(raw_arguments, dict) else None
+            transition = run.take(tool_name, value if isinstance(value, str) else None)
+            if not transition.ok or transition.entered is None:
+                if transition.capped:
+                    logger.warning("workflow loop limit reached", extra={"tool": tool_name})
+                return transition.message
+            step = transition.entered
+            logger.info("workflow step", extra={"step": step.name, "path": run.path})
+            self.emit("step_entered", {"step_id": step.id, "step_name": step.name})
+            if transition.captured is not None:
+                field, captured = transition.captured
+                self.emit("field_captured", {"field": field, "value": captured})
+            paths = run.paths_from_current()
+            async with self.instructions_lock:
+                self.base_instructions = self._snapshot_instructions(step, paths)
+                note = f"\n\n{self.mood_note}" if self.mood_note else ""
+                await self.update_instructions(self.base_instructions + note)
+            await self.update_tools(self._base_tools + [self._path_tool(p) for p in paths])
+            return f"Now at step {step.name}."
+        except Exception:
+            logger.exception("workflow step change failed", extra={"tool": tool_name})
+            return "Carry on with the call."
+
+    def current_step(self) -> dict | None:
+        run = self.workflow
+        return asdict(run.current) if run is not None and run.current is not None else None
 
     @function_tool
     async def record_outcome(
@@ -196,6 +357,14 @@ class PhoneAgent(Agent):
             main_question: The driver's main question or objection.
             do_not_call: True if the driver asked not to be called again.
         """
+        try:
+            refusal = end_step_refusal(self.current_step(), disposition)
+        except Exception:
+            logger.exception("end-step check failed")
+            refusal = None
+        if refusal is not None:
+            logger.info("outcome refused at end step", extra={"disposition": disposition})
+            return refusal
         self.outcome = {
             "disposition": disposition,
             "reason": reason,
@@ -251,8 +420,8 @@ class PhoneAgent(Agent):
 
 
 class SarvamPhoneAgent(PhoneAgent):
-    def __init__(self, lead: dict) -> None:
-        super().__init__(lead, language_rules=SARVAM_LANGUAGE_RULES)
+    def __init__(self, lead: dict, cfg: Config | None = None) -> None:
+        super().__init__(lead, language_rules=SARVAM_LANGUAGE_RULES, cfg=cfg)
 
     @function_tool
     async def switch_language(self, ctx: RunContext, language_code: str) -> str:
@@ -275,7 +444,9 @@ class SarvamPhoneAgent(PhoneAgent):
         return f"Now speaking {LANGUAGES[language_code]}."
 
 
-def gemini_live_session(lead: dict) -> tuple[AgentSession, PhoneAgent]:
+def gemini_live_session(
+    lead: dict, cfg: Config = BUILTIN_CONFIG, mood_on: bool = MOOD_ENABLED
+) -> tuple[AgentSession, PhoneAgent]:
     from livekit.plugins import google
 
     llm = google.realtime.RealtimeModel(
@@ -288,10 +459,10 @@ def gemini_live_session(lead: dict) -> tuple[AgentSession, PhoneAgent]:
     )
     # Gemini does its own turn detection; no local VAD/STT/TTS needed.
     rules = GEMINI_LANGUAGE_RULES
-    if MOOD_ENABLED:
+    if mood_on:
         # Gemini hears the caller's tone itself; it gets the guide once instead of mid-call notes.
         rules += "\n\n" + tone_guide(handoff_available=bool(HANDOFF_SIP_URI))
-    return AgentSession(llm=llm), PhoneAgent(lead, language_rules=rules)
+    return AgentSession(llm=llm), PhoneAgent(lead, language_rules=rules, cfg=cfg)
 
 
 def sarvam_tts():
@@ -316,7 +487,9 @@ def elevenlabs_tts():
     )
 
 
-def cascaded_session(proc: JobProcess, lead: dict, tts) -> tuple[AgentSession, PhoneAgent]:
+def cascaded_session(
+    proc: JobProcess, lead: dict, tts, cfg: Config = BUILTIN_CONFIG
+) -> tuple[AgentSession, PhoneAgent]:
     from livekit.plugins import openai, sarvam
     from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
@@ -328,7 +501,7 @@ def cascaded_session(proc: JobProcess, lead: dict, tts) -> tuple[AgentSession, P
         tts=tts,
         turn_handling={"turn_detection": MultilingualModel()},
     )
-    return session, SarvamPhoneAgent(lead)
+    return session, SarvamPhoneAgent(lead, cfg)
 
 
 def prewarm(proc: JobProcess) -> None:
@@ -389,24 +562,56 @@ server = AgentServer(
 async def entrypoint(ctx: JobContext) -> None:
     ctx.log_context_fields = {"room": ctx.room.name, "pipeline": PIPELINE}
     lead = lead_record(ctx.job.metadata)
-
-    if PIPELINE == "sarvam":
-        session, agent = cascaded_session(ctx.proc, lead, sarvam_tts())
-    elif PIPELINE == "elevenlabs":
-        session, agent = cascaded_session(ctx.proc, lead, elevenlabs_tts())
-    elif PIPELINE == "gemini-live":
-        session, agent = gemini_live_session(lead)
-    else:
+    if PIPELINE not in ("sarvam", "elevenlabs", "gemini-live"):
         raise ValueError(f"unknown AGENT_PIPELINE {PIPELINE!r}")
 
-    phone = None
-    watcher = DeadAirWatcher(DEAD_AIR_CONFIG)
+    # The called number picks the published agent; the fetch fits in the greeting gate's listening window.
+    caller = await ctx.wait_for_participant(
+        kind=[rtc.ParticipantKind.PARTICIPANT_KIND_SIP, rtc.ParticipantKind.PARTICIPANT_KIND_STANDARD]
+    )
+    phone = caller.attributes.get("sip.phoneNumber")
+    called = caller.attributes.get("sip.trunkPhoneNumber", "")
+    try:
+        cfg = await load_config(
+            called,
+            ctx.room.name,
+            base_url=dashboard_url(),
+            api_key=os.environ.get("LIVEKIT_API_KEY", ""),
+            api_secret=os.environ.get("LIVEKIT_API_SECRET", ""),
+        )
+    except Exception:  # load_config never raises; belt and braces for a live call
+        logger.warning("config load failed, using the built-in agent", exc_info=True)
+        cfg = BUILTIN_CONFIG
+    settings = _settings(cfg.snapshot)
+    mood_on = mood_enabled(settings)
+
+    if PIPELINE == "sarvam":
+        session, agent = cascaded_session(ctx.proc, lead, sarvam_tts(), cfg)
+    elif PIPELINE == "elevenlabs":
+        session, agent = cascaded_session(ctx.proc, lead, elevenlabs_tts(), cfg)
+    else:
+        session, agent = gemini_live_session(lead, cfg, mood_on)
+    agent.caller_identity = caller.identity
+
+    # Live call events for the console; only for calls running a console agent (fresh or cached).
+    events_base = dashboard_url() if cfg.source != "builtin" else ""
+    sink = EventSink(
+        f"{events_base}/api/runtime/events" if events_base else "",
+        ctx.room.name,
+        os.environ.get("LIVEKIT_API_KEY", ""),
+        os.environ.get("LIVEKIT_API_SECRET", ""),
+    )
+    agent.emit = sink.add
+    if agent.workflow is not None and agent.workflow.current is not None:
+        sink.add("step_entered", {"step_id": agent.workflow.current.id, "step_name": agent.workflow.current.name})
+
+    watcher = DeadAirWatcher(dead_air_config(settings))
     gate = GreetingGate()
     background_tasks: set[asyncio.Task] = set()
     agent_state = "initializing"
     latency = LatencyStats()
     tracker = MoodTracker()
-    classifier = make_classifier(PIPELINE) if MOOD_ENABLED else None
+    classifier = make_classifier(PIPELINE) if mood_on else None
     call_start = time.monotonic()
     call_start_wall = time.time()
     last_agent_line = ""
@@ -423,11 +628,15 @@ async def entrypoint(ctx: JobContext) -> None:
         changed = tracker.observe(reading)
         if changed is not None:
             logger.info("mood changed", extra={"mood": changed, "source": reading.source})
+            sink.add("mood", {"label": changed, "confidence": reading.confidence})
             if not sends_mood_notes(PIPELINE):
                 return
-            await apply_mood(
-                agent, session.tts, changed, agent.base_instructions, handoff_available=bool(HANDOFF_SIP_URI)
-            )
+            # Under the lock, so the base is the current workflow step's prompt, never a stale one.
+            async with agent.instructions_lock:
+                agent.mood_note = mood_message(changed, handoff_available=bool(HANDOFF_SIP_URI))
+                await apply_mood(
+                    agent, session.tts, changed, agent.base_instructions, handoff_available=bool(HANDOFF_SIP_URI)
+                )
 
     def start_background(coro) -> None:
         task = asyncio.create_task(coro)
@@ -456,7 +665,7 @@ async def entrypoint(ctx: JobContext) -> None:
 
     @session.on("speech_created")
     def _on_speech(ev) -> None:
-        if MOOD_ENABLED:
+        if mood_on:
             ev.speech_handle.add_done_callback(
                 lambda handle: behavior.agent_turn_ended(time.monotonic(), handle.interrupted)
             )
@@ -491,6 +700,9 @@ async def entrypoint(ctx: JobContext) -> None:
         text = getattr(ev.item, "text_content", None)
         if text:
             logger.info("transcript", extra={"role": ev.item.role, "text": text})
+            if ev.item.role in ("user", "assistant"):
+                speaker = "caller" if ev.item.role == "user" else "agent"
+                sink.add("turn", {"speaker": speaker, "text": text, "expressions": []})
             if ev.item.role == "user":
                 # Also covers pipelines that don't report the caller's speaking state.
                 watcher.user_activity(time.monotonic(), text)
@@ -500,7 +712,7 @@ async def entrypoint(ctx: JobContext) -> None:
                 if classifier is not None:
                     # Runs alongside the call; the result only shapes the next reply.
                     start_background(classify_turn(last_agent_line, text, at_s))
-                if MOOD_ENABLED:
+                if mood_on:
                     # No speaking-state event (some pipelines): measure up to the transcript instead.
                     if reply_latency is None and listening_at is not None:
                         reply_latency = time.monotonic() - listening_at
@@ -533,14 +745,22 @@ async def entrypoint(ctx: JobContext) -> None:
                 "outcome": outcome,
                 "dead_air": watcher.events,
                 "latency": latency.summary(),
-                "mood": tracker.summary() if MOOD_ENABLED else None,
-                "behavior": behavior.features() if MOOD_ENABLED else None,
+                "mood": tracker.summary() if mood_on else None,
+                "behavior": behavior.features() if mood_on else None,
                 "usage": str(session.usage),
+                "config": cfg.source,
+                "version_id": cfg.version_id,
+                "step_path": agent.workflow.path if agent.workflow is not None else None,
             },
         )
 
     async def send_call_report() -> None:
         # Shutdown callbacks are awaited, so the report goes out before the job process exits.
+        # Flush the last events first (bounded), then the report.
+        try:
+            await sink.close(timeout_s=1.0)
+        except Exception:
+            logger.warning("event sink close failed", exc_info=True)
         if not DASHBOARD_REPORT_URL:
             return
         turns = None
@@ -557,12 +777,14 @@ async def entrypoint(ctx: JobContext) -> None:
         report = build_report(
             room=ctx.room.name,
             outcome=final_outcome(),
-            mood=tracker.summary() if MOOD_ENABLED else None,
+            mood=tracker.summary() if mood_on else None,
             timeline=tracker.timeline,
             dead_air=watcher.events,
             latency=latency.summary(),
-            behavior=behavior.features() if MOOD_ENABLED else None,
+            behavior=behavior.features() if mood_on else None,
             turns=turns,
+            agent_version_id=cfg.version_id,
+            step_path=list(agent.workflow.path) if agent.workflow is not None else None,
         )
         await send_report(
             DASHBOARD_REPORT_URL, report, os.environ["LIVEKIT_API_KEY"], os.environ["LIVEKIT_API_SECRET"]
@@ -572,12 +794,16 @@ async def entrypoint(ctx: JobContext) -> None:
 
     await session.start(agent=agent, room=ctx.room)
 
-    caller = await ctx.wait_for_participant(
-        kind=[rtc.ParticipantKind.PARTICIPANT_KIND_SIP, rtc.ParticipantKind.PARTICIPANT_KIND_STANDARD]
+    logger.info(
+        "call started",
+        extra={
+            "caller": phone,
+            "called": called,
+            "lead_id": lead.get("lead_id"),
+            "config": cfg.source,
+            "version_id": cfg.version_id,
+        },
     )
-    phone = caller.attributes.get("sip.phoneNumber")
-    agent.caller_identity = caller.identity
-    logger.info("call started", extra={"caller": phone, "lead_id": lead.get("lead_id")})
 
     # Listen first: callers often say "hello" as they pick up. Greet once they pause.
     gate.start(time.monotonic())
@@ -588,9 +814,9 @@ async def entrypoint(ctx: JobContext) -> None:
         # The model already answered the caller's hello with the opening line (it's in its instructions).
         logger.info("greeting started by the model", extra={"caller_said": gate.caller_said})
     else:
-        session.generate_reply(instructions=greeting_instructions(opening_line(lead), gate.caller_said))
+        session.generate_reply(instructions=greeting_instructions(agent.opening, gate.caller_said))
 
-    if DEAD_AIR_ENABLED:
+    if dead_air_enabled(settings):
         start_background(watch_dead_air(session, agent, watcher))
 
     # After the greeting is queued, so ambience setup never delays it.

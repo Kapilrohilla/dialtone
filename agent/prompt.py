@@ -24,6 +24,9 @@ logger = logging.getLogger("phone-agent")
 
 PERSONA_NAME = os.getenv("AGENT_PERSONA_NAME", "Priya")
 KNOWLEDGE_FILE = Path(__file__).parent / "knowledge.md"
+# Recording consent (plan 4 turns recording on): appended to the opening line only when recording.
+RECORDING_ENABLED = os.getenv("RECORDING_ENABLED", "false").lower() == "true"
+RECORDING_CONSENT = "यह call quality के लिए record हो रही है।"
 
 # Persona line plus who Carrum is: script (ops own it once the console has a config).
 _PERSONA = f"""
@@ -216,21 +219,30 @@ def lead_instructions(lead: dict) -> str:
     return f"Lead record (already known, so don't ask again; correct it if the driver says otherwise):\n{facts}"
 
 
-def opening_line(lead: dict) -> str:
+def opening_line(lead: dict, persona_name: str | None = None, recording: bool | None = None) -> str:
+    """Today's opening line. persona_name (console persona) names the agent; None keeps today's text.
+    recording None follows RECORDING_ENABLED; when on, the consent notice is appended."""
+    me = f"main {persona_name}, Carrum Mobility" if persona_name else "main Carrum Mobility"
     if lead.get("previously_interested"):
-        return (
-            "Namaste sir, main Carrum Mobility ki AI calling assistant bol rahi hoon. Aapne Uber par gaadi "
+        line = (
+            f"Namaste sir, {me} ki AI calling assistant bol rahi hoon. Aapne Uber par gaadi "
             "chalane ke liye interest dikhaya tha. Kya abhi ek minute baat kar sakte hain?"
         )
-    return (
-        "Namaste sir, main Carrum Mobility se AI calling assistant bol rahi hoon. Hum Uber par gaadi chalane "
-        "ke liye driving opportunities provide karte hain. Kya aap iske baare mein jaanna chahenge?"
-    )
+    else:
+        line = (
+            f"Namaste sir, {me} se AI calling assistant bol rahi hoon. Hum Uber par gaadi chalane "
+            "ke liye driving opportunities provide karte hain. Kya aap iske baare mein jaanna chahenge?"
+        )
+    if recording is None:
+        recording = RECORDING_ENABLED
+    if recording:
+        line += " " + RECORDING_CONSENT
+    return line
 
 
-def opening_instructions(lead: dict) -> str:
+def opening_instructions(lead: dict, persona_name: str | None = None, recording: bool | None = None) -> str:
     return (
-        f"Your opening line: {opening_line(lead)}\n"
+        f"Your opening line: {opening_line(lead, persona_name, recording)}\n"
         "If the driver speaks first (e.g. \"hello\", \"haan ji\", \"kaun?\"), let them finish, acknowledge "
         "it briefly (\"Ji, hello sir!\"), then say your opening line. Say the opening line only once."
     )
