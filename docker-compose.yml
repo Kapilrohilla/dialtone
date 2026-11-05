@@ -101,9 +101,12 @@ services:
       - dashboard-data:/data
 
   # Carrum Voice console (Next.js). Localhost only, like the dashboard; open it via `make tunnel`.
-  # Proxies /api/* to the dashboard at DJANGO_URL, baked in at build time (default http://127.0.0.1:8787).
+  # Proxies /api/* to the dashboard at DJANGO_URL, baked in at build time from DASHBOARD_PORT (default 8787).
   console:
-    build: ./console
+    build:
+      context: ./console
+      args:
+        DJANGO_URL: "http://127.0.0.1:${DASHBOARD_PORT:-8787}"
     image: ai-calling-console:local
     network_mode: host
     restart: unless-stopped

@@ -30,6 +30,7 @@ test: test-db    ## run unit tests (needs agent/.venv and dashboard/.venv with r
 	cd console && npm ci --prefer-offline && npm test && npm run typecheck && npm run lint
 	scripts/tests/test-init.sh
 	scripts/tests/test-wait-dashboard.sh
+	scripts/tests/test-wait-console.sh
 	scripts/tests/test-deploy-rollback.sh
 
 console-dev:     ## run the Next.js console on :3000, proxying /api to the dashboard on :8787

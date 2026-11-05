@@ -11,6 +11,8 @@ FROM node:22.11-alpine AS build
 WORKDIR /app
 ARG DJANGO_URL=http://127.0.0.1:8787
 ENV DJANGO_URL=$DJANGO_URL NEXT_TELEMETRY_DISABLED=1
+# The VM (e2-medium, 4 GB) builds next to the live call processes: cap the build's heap.
+ENV NODE_OPTIONS=--max-old-space-size=1536
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 # package.json says "type": "module", and next build copies it next to server.js. With the default

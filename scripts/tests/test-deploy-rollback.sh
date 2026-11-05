@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # deploy.sh with stubbed gcloud/docker/curl (the "VM" is a temp HOME).
 # Rollback: brings agent-sim and console up only when the rolled-back compose defines them, and removes
-# their orphaned containers otherwise. Deploy: waits for the console's /sign-in and fails when it never answers.
+# their orphaned containers otherwise. Deploy: builds one image at a time, stops before swapping directories
+# when a build fails, checks the agent before the console, and fails when the console never answers.
 set -euo pipefail
 root=$(cd "$(dirname "$0")/../.." && pwd)
 tmp=$(mktemp -d)
@@ -18,6 +19,7 @@ STUB
 cat > "$tmp/bin/docker" <<'STUB'
 #!/usr/bin/env bash
 echo "docker $*" >> "$STUB_DIR/docker.log"
+[[ -n "${BUILD_FAIL:-}" && "$*" == *" build $BUILD_FAIL" ]] && { echo "build of $BUILD_FAIL failed" >&2; exit 1; }
 if [[ "$*" == "compose --profile agent config --services" ]]; then printf '%s\n' $SERVICES; exit 0; fi
 if [[ "$*" == *agent-sim* && " $SERVICES " != *" agent-sim "* ]]; then echo "no such service: agent-sim" >&2; exit 1; fi
 if [[ "$*" == *console* && " $SERVICES " != *" console "* ]]; then echo "no such service: console" >&2; exit 1; fi
@@ -69,6 +71,7 @@ grep -q '127.0.0.1:3000/sign-in' "$tmp/curl.log" || fail "deploy did not poll th
 grep -q 'console did not answer' <<<"$out" || fail "console failure not reported"
 grep -q 'ROLLBACK=1 make deploy' <<<"$out" || fail "rollback command not printed"
 grep -q 'compose logs.*console' "$tmp/docker.log" || fail "console logs not printed"
+grep -q 'agent registered' <<<"$out" || fail "console failure hid whether the agent registered"
 [[ $(grep -c '127.0.0.1:3000/sign-in' "$tmp/curl.log") -le 31 ]] || fail "waited longer than 60s worth of polls"
 
 # Deploying with a console that answers.
@@ -76,4 +79,19 @@ deploy_setup
 out=$(FORCE=1 CONSOLE_CURL_EXIT=0 "$root/scripts/deploy.sh" 2>&1) || fail "deploy with a healthy console exited non-zero"
 grep -q 'console answering' <<<"$out" || fail "console success not reported"
 grep -q "deployed $(git -C "$root" rev-parse --short HEAD)" <<<"$out" || fail "deploy did not finish"
-echo "deploy.sh rollback and console wait: ok"
+builds=$(grep -E 'compose (--profile agent )?build' "$tmp/docker.log" | sed 's/^docker //')
+[[ "$builds" == $'compose build dashboard\ncompose build console\ncompose --profile agent build agent\ncompose --profile agent build agent-sim' ]] \
+  || fail "images not built one at a time in order: $builds"
+
+# Deploying when a build fails: stops with the reason, the old version keeps running, nothing is swapped.
+for broken in console agent-sim; do
+  deploy_setup
+  if out=$(FORCE=1 BUILD_FAIL=$broken CONSOLE_CURL_EXIT=0 "$root/scripts/deploy.sh" 2>&1); then
+    fail "deploy succeeded although the $broken build failed"
+  fi
+  grep -q 'build failed; nothing changed, the old version is still running' <<<"$out" || fail "$broken build failure not reported"
+  [[ $(cat "$HOME/ai-calling/DEPLOYED_COMMIT") == new && $(cat "$HOME/ai-calling.prev/DEPLOYED_COMMIT") == old ]] \
+    || fail "directories swapped after the $broken build failed"
+  grep -q 'up -d' "$tmp/docker.log" && fail "containers restarted after the $broken build failed"
+done
+echo "deploy.sh rollback, builds and console wait: ok"
