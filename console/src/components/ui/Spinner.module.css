@@ -1,0 +1,2 @@
+.spin { animation: turn 0.9s linear infinite; flex: none; }
+@keyframes turn { to { transform: rotate(360deg); } }

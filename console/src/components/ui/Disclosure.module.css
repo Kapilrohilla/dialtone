@@ -1,0 +1,2 @@
+.toggle { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0; border: 0; background: none; font-size: 15px; font-weight: 500; color: var(--ink-2); }
+.body { display: flex; flex-direction: column; gap: var(--row-gap); padding-top: 12px; }

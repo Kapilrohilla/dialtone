@@ -1,0 +1,16 @@
+.chip {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.ok { background: var(--ok-tint); color: var(--ok); }
+.amber { background: var(--amber-tint); color: var(--amber); }
+.blue { background: var(--blue-tint); color: var(--blue); }
+.bad { background: var(--bad-tint); color: var(--bad); }
+.neutral { background: var(--well); color: var(--ink-2); }
+.muted { background: var(--well); color: var(--muted); }

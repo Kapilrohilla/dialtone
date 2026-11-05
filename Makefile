@@ -1,4 +1,4 @@
-.PHONY: init up down restart agent agent-dev sip logs ps lk deploy tunnel test test-db dashboard-admin
+.PHONY: init up down restart agent agent-dev sip logs ps lk deploy tunnel test test-db dashboard-admin console-dev
 
 init:            ## create .env and generate LiveKit keys
 	scripts/init.sh
@@ -27,9 +27,13 @@ test-db:         ## start the disposable Postgres the dashboard tests use (127.0
 test: test-db    ## run unit tests (needs agent/.venv and dashboard/.venv with requirements-dev.txt)
 	cd agent && .venv/bin/pytest -q
 	cd dashboard && .venv/bin/pytest -q
+	cd console && npm ci --prefer-offline && npm test && npm run typecheck && npm run lint
 	scripts/tests/test-init.sh
 	scripts/tests/test-wait-dashboard.sh
 	scripts/tests/test-deploy-rollback.sh
+
+console-dev:     ## run the Next.js console on :3000, proxying /api to the dashboard on :8787
+	cd console && DJANGO_URL=http://127.0.0.1:8787 npm run dev
 
 dashboard-admin: ## create a dashboard login (Django superuser) in the running container
 	docker compose exec dashboard python manage.py createsuperuser

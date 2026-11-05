@@ -1,0 +1,187 @@
+// Shapes of the Django API, copied from the serializers and views they come from.
+
+export type Role = "owner" | "admin" | "editor" | "viewer";
+export type Appearance = "light" | "dark" | "system";
+
+// dashboard/workspaces/serializers.py
+export type Preferences = {
+  appearance: Appearance;
+  notify_needs_person: boolean;
+  notify_daily_summary: boolean;
+  time_zone: string;
+};
+
+export type Me = {
+  id: number;
+  name: string;
+  email: string;
+  phone: string;
+  role: Role;
+  workspace: { id: number; name: string; slug: string };
+  preferences: Preferences;
+};
+
+export type TeamMember = {
+  id: number;
+  name: string;
+  email: string;
+  role: Role;
+  last_login: string | null;
+};
+
+// dashboard/knowledge/serializers.py
+export type KnowledgeListItem = {
+  id: number;
+  title: string;
+  updated_at: string;
+  current_revision: number;
+  used_by: number;
+};
+
+export type KnowledgeDoc = KnowledgeListItem & { body_md: string };
+
+export type Revision = {
+  number: number;
+  edited_by: string | null;
+  created_at: string;
+  /** Present on GET /api/knowledge/:id/revisions/:n only. */
+  body_md?: string;
+};
+
+// dashboard/workflows (api.py detail + graph.py)
+export type StepType = "start" | "prompt" | "collect" | "knowledge" | "transfer" | "end";
+
+export type Step = {
+  id: string;
+  name: string;
+  type: StepType;
+  prompt?: string;
+  field?: string;
+  knowledge_id?: number;
+  outcome?: string;
+  position?: { x: number; y: number };
+};
+
+export type Path = { id?: string; from: string; to: string; label: string };
+export type Graph = { steps: Step[]; paths: Path[] };
+
+export type WorkflowListItem = {
+  id: number;
+  name: string;
+  updated_at: string;
+  current_revision: number;
+};
+
+export type Workflow = WorkflowListItem & {
+  graph: Graph;
+  /** Validation errors for the saved graph, plain words. */
+  errors: string[];
+};
+
+// dashboard/voiceagents/serializers.py
+export type AgentStatus = "draft" | "published" | "archived";
+
+export type AgentSettings = {
+  mood_adaptation: boolean;
+  dead_air: { enabled: boolean; nudge_s: number; second_nudge_s: number; hang_up_s: number };
+};
+
+export type ScriptSection = { id: string; title: string; body: string };
+
+export type AgentListItem = {
+  id: number;
+  name: string;
+  description: string;
+  status: AgentStatus;
+  phone_number: string;
+  updated_at: string;
+  updated_by_name: string | null;
+  is_outdated: boolean;
+  calls_this_week: number;
+};
+
+export type Agent = Omit<AgentListItem, "calls_this_week"> & {
+  language: string;
+  persona_name: string;
+  voice_id: string;
+  settings: AgentSettings;
+  script: ScriptSection[];
+  custom_expressions: Record<string, string>;
+  /** Knowledge document ids. */
+  knowledge: number[];
+  /** Workflow id, or null. */
+  workflow: number | null;
+  published_version: number | null;
+  created_at: string;
+};
+
+export type AgentVersion = { number: number; published_by_name: string | null; published_at: string };
+
+// GET /api/expressions
+export type Expression = { name: string; hint: string; builtin: boolean };
+
+// GET /api/voices
+export type Voice = { id: string; name: string; description: string; sample: string | null };
+export type VoicesResponse = { pipeline: string; voices: Voice[] };
+
+// dashboard/calls/serializers.py and api.py
+export type OutcomeGroup = "Interested" | "Call back" | "Not interested" | "Dropped" | "Not reached";
+
+export type CallRow = {
+  room: string;
+  started_at: string | null;
+  caller: string;
+  agent_name: string | null;
+  /** Display group, "" when the call has no report yet. */
+  outcome: OutcomeGroup | "";
+  outcome_code: string;
+  mood: string;
+  duration_s: number | null;
+  summary: string;
+};
+
+export type TranscriptTurn = { speaker: string; text: string; expressions: string[]; at: string };
+
+export type CallDetail = CallRow & {
+  reason: string;
+  answers: Record<string, unknown>;
+  step_path: string[];
+  transcript: TranscriptTurn[];
+  /** Null until recordings arrive (plan 4). */
+  recording_url: string | null;
+};
+
+export type CallPage = { results: CallRow[]; count: number; page: number; pages: number };
+
+export type LiveCall = {
+  room: string;
+  caller: string;
+  city: string;
+  started_at: string | null;
+  step_path: string[];
+  captured: Record<string, string>;
+  current_step: string;
+  mood: string;
+  transcript_tail: TranscriptTurn[];
+};
+
+export type Dashboard = {
+  calls_today: number;
+  connected_pct: number | null;
+  interested: number;
+  avg_duration_s: number | null;
+  needs_person: { room: string; caller: string; reason: string; at: string | null }[];
+  outcomes_week: { outcome: OutcomeGroup; count: number }[];
+  live_agent: { id: number; name: string; phone_number: string } | null;
+};
+
+export type PhoneNumber = { number: string; trunk_name: string; agent_name: string | null };
+
+// agent/simulate.py Simulation.response
+export type SimResponse = {
+  reply: string;
+  state: Record<string, unknown>;
+  step: { id: string; name: string } | null;
+  outcome: Record<string, unknown> | null;
+  ended: boolean;
+};

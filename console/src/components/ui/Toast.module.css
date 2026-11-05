@@ -1,0 +1,4 @@
+.region { position: fixed; right: var(--gutter); bottom: var(--gutter); z-index: 50; display: flex; flex-direction: column; gap: 8px; align-items: flex-end; pointer-events: none; }
+.toast { padding: 10px 16px; background: var(--panel); color: var(--ink); border: 1px solid var(--rule-strong); border-radius: var(--radius); font-size: 15px; }
+.ok { border-color: var(--ok); }
+.bad { border-color: var(--bad); }

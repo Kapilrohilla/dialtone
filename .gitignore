@@ -9,3 +9,5 @@ __pycache__/
 *.tfstate.*
 *.tfplan
 voice-samples/
+console/node_modules/
+console/.next/
