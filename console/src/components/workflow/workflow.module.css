@@ -109,7 +109,18 @@
 .label { font-size: 14px; font-weight: 500; color: var(--ink-2); }
 .says { min-height: 40px; padding: 8px 12px; background: var(--well); border-radius: var(--radius); }
 .muted { margin: 0; color: var(--muted); font-size: 15px; }
-.pathRow { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr) 32px; gap: 8px; align-items: center; }
+/* Label and remove on one line, the target below at full width: step names don't fit beside a label in 340px. */
+.pathRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 32px;
+  grid-template-areas: "label remove" "target target";
+  gap: 8px;
+  align-items: center;
+  padding-bottom: 8px;
+}
+.pathRow > input { grid-area: label; }
+.pathRow > select { grid-area: target; }
+.pathRow > button { grid-area: remove; }
 .pathRowReadOnly { display: flex; justify-content: space-between; gap: 8px; font-size: 15px; }
 .pathTarget { color: var(--ink-2); }
 .input {

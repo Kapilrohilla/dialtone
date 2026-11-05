@@ -103,6 +103,8 @@ LOGIN_URL = "/admin/login/"
 
 # The console frontend runs on a different local origin in development.
 CSRF_TRUSTED_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000"]
+# Extra origins, comma-separated (the e2e smoke run serves the console on :3100).
+CSRF_TRUSTED_ORIGINS += [o.strip() for o in os.getenv("CSRF_EXTRA_TRUSTED_ORIGINS", "").split(",") if o.strip()]
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework.authentication.SessionAuthentication"],

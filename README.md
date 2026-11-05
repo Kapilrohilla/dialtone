@@ -236,3 +236,17 @@ cd agent && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python -m livekit.agents download-files
 make agent-dev   # point LIVEKIT_URL in .env at your server
 ```
+
+### Console
+
+The console (`console/`, Next.js) talks only to its own server, which proxies `/api/*` to the dashboard (`DJANGO_URL`, read at build time; default `http://127.0.0.1:8787`).
+
+```bash
+cd console && npm ci
+make console-dev                 # http://localhost:3000, with the dashboard running on :8787
+cd console && npm test && npm run typecheck && npm run lint
+```
+
+Sign in with a workspace member (`python manage.py create_member you@example.com --role owner`).
+
+**End-to-end smoke run.** `make test-db && make console-e2e` re-creates the database `console_e2e` on the test Postgres (127.0.0.1:55432), seeds it, creates the owner `e2e@carrum.test` with a random password (or `E2E_PASSWORD`), starts Django on 127.0.0.1:8788 and a production build of the console on 127.0.0.1:3100, and runs Playwright (`console/e2e/smoke.spec.ts`) through every screen. LiveKit and the simulator are not started, so the run also checks that the console says so. The build goes to `console/.next/e2e`, leaving `console/.next` alone. Screenshots land in `console/test-results/light/` and `console/test-results/dark/`, server logs in `console/test-results/servers/`, the HTML report in `console/playwright-report/`. First time: `cd console && npx playwright install chromium`. Extra arguments go to Playwright, e.g. `scripts/console-e2e.sh --grep Knowledge`.

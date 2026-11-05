@@ -1,4 +1,4 @@
-.PHONY: init up down restart agent agent-dev sip logs ps lk deploy tunnel test test-db dashboard-admin console-dev
+.PHONY: init up down restart agent agent-dev sip logs ps lk deploy tunnel test test-db dashboard-admin console-dev console-e2e
 
 init:            ## create .env and generate LiveKit keys
 	scripts/init.sh
@@ -34,6 +34,9 @@ test: test-db    ## run unit tests (needs agent/.venv and dashboard/.venv with r
 
 console-dev:     ## run the Next.js console on :3000, proxying /api to the dashboard on :8787
 	cd console && DJANGO_URL=http://127.0.0.1:8787 npm run dev
+
+console-e2e:     ## Playwright smoke run of the console against a disposable Django + Postgres (needs make test-db)
+	scripts/console-e2e.sh
 
 dashboard-admin: ## create a dashboard login (Django superuser) in the running container
 	docker compose exec dashboard python manage.py createsuperuser

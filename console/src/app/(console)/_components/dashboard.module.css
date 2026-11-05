@@ -27,6 +27,6 @@
 .skeleton { display: block; background: var(--well); border-radius: 4px; }
 .primaryLink {
   display: inline-flex; align-items: center; height: var(--control-h); padding: 0 16px; border-radius: var(--radius);
-  background: var(--primary-fill); color: var(--primary-ink); font-size: 15px; font-weight: 500;
+  background: var(--primary-fill); color: var(--primary-ink); font-size: 15px; font-weight: 500; text-decoration: none;
 }
 .primaryLink:hover { background: color-mix(in srgb, var(--primary-fill) 88%, var(--ink)); }

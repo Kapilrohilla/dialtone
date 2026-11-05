@@ -1,6 +1,6 @@
-.layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); align-items: start; min-height: calc(100vh - 72px); }
+.layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); align-items: start; min-height: 100vh; }
 .content { min-width: 0; }
-.nav { display: flex; flex-direction: column; gap: 2px; padding: 16px 12px; border-right: 1px solid var(--border); min-height: inherit; }
+.nav { display: flex; flex-direction: column; gap: 2px; padding: 16px 12px; border-right: 1px solid var(--border); align-self: stretch; }
 .link {
   display: flex;
   align-items: center;
@@ -10,6 +10,7 @@
   border-radius: 4px;
   color: var(--ink-2);
   font-size: 15px;
+  text-decoration: none;
 }
 a.link:hover { background: var(--well); }
 .link[aria-current="page"] { background: var(--well); border-left-color: var(--amber); color: var(--ink); font-weight: 500; }
