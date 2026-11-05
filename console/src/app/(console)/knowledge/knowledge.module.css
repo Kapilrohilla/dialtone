@@ -87,3 +87,4 @@
   .list { border-right: 0; border-bottom: 1px solid var(--border); min-height: 0; }
   .main { padding: var(--gutter); }
 }
+.stale { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 14px; border-radius: var(--radius); background: var(--blue-tint); color: var(--ink); font-size: 15px; }

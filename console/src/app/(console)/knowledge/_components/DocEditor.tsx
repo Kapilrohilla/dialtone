@@ -17,11 +17,21 @@ type Props = {
   onBody: (body: string) => void;
   onMode: (mode: EditorMode) => void;
   onHistory: () => void;
+  /** Set when a newer saved version exists and this draft has edits. */
+  onLoadTheirs?: () => void;
 };
 
-export function DocEditor({ title, body, mode, readOnly, newest, timeZone, onTitle, onBody, onMode, onHistory }: Props) {
+export function DocEditor({ title, body, mode, readOnly, newest, timeZone, onTitle, onBody, onMode, onHistory, onLoadTheirs }: Props) {
   return (
     <div className={styles.doc}>
+      {onLoadTheirs && (
+        <div className={styles.stale} role="status">
+          <span>Someone saved a newer version of this document. Saving will replace their changes.</span>
+          <Button variant="text" onClick={onLoadTheirs}>
+            Load their version
+          </Button>
+        </div>
+      )}
       <input className={styles.title} aria-label="Document title" value={title} readOnly={readOnly} maxLength={200} onChange={(e) => onTitle(e.target.value)} />
       <Segmented
         className={styles.toggle}
@@ -46,9 +56,7 @@ export function DocEditor({ title, body, mode, readOnly, newest, timeZone, onTit
               Last edited{newest.edited_by ? " by " : ""}
               {newest.edited_by && <span className={styles.who}>{newest.edited_by}</span>}, {formatWhen(newest.created_at, timeZone)}
             </>
-          ) : (
-            " "
-          )}
+          ) : null}
         </span>
         <Button variant="text" onClick={onHistory}>
           Version history

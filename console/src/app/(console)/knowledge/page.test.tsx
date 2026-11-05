@@ -239,4 +239,69 @@ describe("Knowledge base", () => {
     expect(screen.queryByRole("button", { name: "Upload .md" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "New document" })).not.toBeInTheDocument();
   });
+
+  const theirs = { ...knowledgeDoc, current_revision: 3, body_md: "A teammate rewrote this." };
+
+  it("silently loads a newer saved version into an untouched draft", async () => {
+    const { docs, patches } = serve();
+    const { queryClient } = renderWithProviders(<KnowledgePage />, { route: "/knowledge" });
+    await screen.findByText(/The weekly plan is for drivers/);
+    docs[0] = theirs;
+    await queryClient.invalidateQueries({ queryKey: ["knowledge", "doc", 7] });
+    expect(await screen.findByText("A teammate rewrote this.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(screen.queryByText(/Someone saved a newer version/)).not.toBeInTheDocument();
+    expect(patches).toEqual([]);
+  });
+
+  it("tells the person about a newer saved version when they have edits, and saves only what they edited", async () => {
+    const { docs, patches } = serve();
+    const { queryClient } = renderWithProviders(<KnowledgePage />, { route: "/knowledge" });
+    const user = userEvent.setup();
+    await user.type(await screen.findByRole("textbox", { name: "Document title" }), "!");
+    docs[0] = theirs;
+    await queryClient.invalidateQueries({ queryKey: ["knowledge", "doc", 7] });
+    expect(await screen.findByText(/Someone saved a newer version of this document\. Saving will replace their changes\./)).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Pricing and plans, Pune!")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await screen.findByText(/^Saved/);
+    expect(patches).toEqual([{ title: "Pricing and plans, Pune!" }]);
+    await waitFor(() => expect(screen.queryByText(/Someone saved a newer version/)).not.toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+  });
+
+  it("loads their version after confirming, dropping the edits", async () => {
+    const { docs } = serve();
+    const { queryClient } = renderWithProviders(<KnowledgePage />, { route: "/knowledge" });
+    const user = userEvent.setup();
+    await user.type(await screen.findByRole("textbox", { name: "Document title" }), "!");
+    docs[0] = theirs;
+    await queryClient.invalidateQueries({ queryKey: ["knowledge", "doc", 7] });
+    await user.click(await screen.findByRole("button", { name: "Load their version" }));
+    await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Discard" }));
+    expect(await screen.findByDisplayValue("Pricing and plans, Pune")).toBeInTheDocument();
+    expect(await screen.findByText("A teammate rewrote this.")).toBeInTheDocument();
+    expect(screen.queryByText(/Someone saved a newer version/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+  });
+
+  it("restoring a version over unsaved edits asks first", async () => {
+    serve();
+    renderWithProviders(<KnowledgePage />, { route: "/knowledge" });
+    const user = userEvent.setup();
+    await user.type(await screen.findByRole("textbox", { name: "Document title" }), "!");
+    await user.click(screen.getByRole("button", { name: "Version history" }));
+    const panel = await screen.findByRole("dialog", { name: "Version history" });
+    await user.click((await within(panel).findAllByRole("button", { name: /^Version \d/ }))[1]);
+    await within(panel).findByText(oldBody);
+    await user.click(within(panel).getByRole("button", { name: "Restore this version" }));
+    const ask = await screen.findByRole("dialog", { name: "Discard unsaved changes to Pricing and plans, Pune!?" });
+    await user.click(within(ask).getByRole("button", { name: "Keep editing" }));
+    expect(screen.getByRole("textbox", { name: "Document text" })).not.toHaveTextContent(oldBody);
+    expect(screen.getByRole("dialog", { name: "Version history" })).toBeInTheDocument();
+    await user.click(within(screen.getByRole("dialog", { name: "Version history" })).getByRole("button", { name: "Restore this version" }));
+    await user.click(within(await screen.findByRole("dialog", { name: /Discard unsaved/ })).getByRole("button", { name: "Discard" }));
+    expect(await screen.findByText(oldBody)).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Version history" })).not.toBeInTheDocument();
+  });
 });

@@ -263,14 +263,16 @@ export function useUploadDoc() {
 export type DocUpdate = { title?: string; body_md?: string };
 
 /** PATCH only what changed. Saving is deliberate on this screen, so the toast says what happens next. */
-export function useSaveDoc(id: number) {
+/** `onSaved` runs with the saved document in the same tick the cache is updated. */
+export function useSaveDoc(id: number, onSaved?: (doc: KnowledgeDoc, sent: DocUpdate) => void) {
   const qc = useQueryClient();
   const remember = useRememberDoc();
   const toast = useToast();
   return useMutation({
     mutationFn: (body: DocUpdate) => apiFetch<KnowledgeDoc>(`/api/knowledge/${id}`, { method: "PATCH", json: body, signInRedirect: false }),
-    onSuccess: (doc) => {
+    onSuccess: (doc, sent) => {
       toast.show(doc.used_by > 0 ? "Saved. Agents using this document need republishing before callers hear the change." : "Saved.", "ok");
+      onSaved?.(doc, sent);
       qc.invalidateQueries({ queryKey: revisionsKey(id) });
       return remember(doc);
     },

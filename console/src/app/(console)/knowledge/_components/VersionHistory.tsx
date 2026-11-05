@@ -10,6 +10,13 @@ type Props = { docId: number; open: boolean; onClose: () => void; timeZone: stri
 export function VersionHistory({ docId, open, onClose, timeZone, canEdit, onRestore }: Props) {
   const revisions = useRevisions(open ? docId : undefined);
   const [chosen, setChosen] = useState<number | null>(null);
+  // Each opening of a document's history starts with nothing chosen.
+  const scope = open ? docId : null;
+  const [seen, setSeen] = useState(scope);
+  if (seen !== scope) {
+    setSeen(scope);
+    setChosen(null);
+  }
   const revision = useRevision(open ? docId : undefined, chosen);
   const body = revision.data?.body_md;
 
@@ -26,7 +33,6 @@ export function VersionHistory({ docId, open, onClose, timeZone, canEdit, onRest
             onClick={() => {
               if (body === undefined) return;
               onRestore(body);
-              onClose();
             }}
           >
             Restore this version
