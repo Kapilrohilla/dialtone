@@ -52,6 +52,12 @@ function keepMeasured(next: StepFlowNode[], prev: StepFlowNode[]) {
   });
 }
 
+/** New paths never go into a start step or out of an end step. */
+function canConnect(graph: Graph, from: string | null, to: string | null) {
+  const type = (id: string | null) => graph.steps.find((s) => s.id === id)?.type;
+  return !!from && !!to && from !== to && type(from) !== "end" && type(to) !== "start";
+}
+
 const isTyping = (el: EventTarget | null) =>
   el instanceof HTMLElement && (el.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName));
 
@@ -86,7 +92,8 @@ function Flow({ graph, selectedId, readOnly, onSelect, onMove, onConnect, onAdd,
         nodeTypes={nodeTypes}
         onNodesChange={onNodesChange}
         onNodeDragStop={(_e, _node, dragged) => dragged.forEach((n) => onMove(n.id, { x: Math.round(n.position.x), y: Math.round(n.position.y) }))}
-        onConnect={(c: Connection) => c.source && c.target && c.source !== c.target && onConnect(c.source, c.target)}
+        isValidConnection={(c) => canConnect(graph, c.source, c.target)}
+        onConnect={(c: Connection) => canConnect(graph, c.source, c.target) && onConnect(c.source, c.target)}
         nodesDraggable={!readOnly}
         nodesConnectable={!readOnly}
         edgesFocusable={false}

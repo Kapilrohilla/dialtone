@@ -8,6 +8,7 @@ import { ApiError } from "@/lib/api";
 import type { KnowledgeDoc } from "@/lib/types";
 import { useCreateDoc, useKnowledgeDoc, useKnowledgeList, useMe, useRevisions, useSaveDoc, type DocUpdate } from "@/lib/queries";
 import { canEdit as roleCanEdit } from "@/lib/roles";
+import { useLeaveGuard } from "@/lib/useLeaveGuard";
 import { DocEditor, type EditorMode } from "./_components/DocEditor";
 import { DocList } from "./_components/DocList";
 import { UploadButton } from "./_components/UploadButton";
@@ -62,8 +63,6 @@ function Knowledge() {
   const save = useSaveDoc(docId ?? 0, (saved, sent) => setDraft((d) => (d && d.id === saved.id ? afterSave(d, saved, sent) : d)));
   const [mode, setMode] = useState<EditorMode>("rich");
   const [history, setHistory] = useState(false);
-  /** What to do once the person agrees to drop unsaved changes. */
-  const [pending, setPending] = useState<(() => void) | null>(null);
 
   // A newly loaded document starts a fresh draft. A newer saved revision replaces an untouched draft silently;
   // an edited one is kept and the person is told.
@@ -86,6 +85,7 @@ function Knowledge() {
     if (current.draft.body !== current.draft.baseBody) changes.body_md = current.draft.body;
   }
   const dirty = Object.keys(changes).length > 0;
+  const { pending, guarded, stay, leave } = useLeaveGuard(dirty);
 
   const latest = useRef({ dirty, changes, canSave: editable && !save.isPending, save });
   useEffect(() => {
@@ -99,36 +99,9 @@ function Knowledge() {
       const { dirty, changes, canSave, save } = latest.current;
       if (dirty && canSave) save.mutate(changes);
     }
-    function onBeforeUnload(e: BeforeUnloadEvent) {
-      if (!latest.current.dirty) return;
-      e.preventDefault();
-      e.returnValue = "";
-    }
-    // In-app links (the sidebar) ask first too.
-    function onClick(e: MouseEvent) {
-      if (!latest.current.dirty || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-      const a = (e.target as Element).closest?.("a[href]");
-      const href = a?.getAttribute("href");
-      if (!a || !href?.startsWith("/") || a.getAttribute("target") === "_blank") return;
-      e.preventDefault();
-      e.stopPropagation();
-      setPending(() => () => router.push(href));
-    }
     document.addEventListener("keydown", onKey);
-    window.addEventListener("beforeunload", onBeforeUnload);
-    document.addEventListener("click", onClick, true);
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      window.removeEventListener("beforeunload", onBeforeUnload);
-      document.removeEventListener("click", onClick, true);
-    };
-  }, [router]);
-
-  /** Runs `action` now, or after the person agrees to discard unsaved changes. */
-  function guarded(action: () => void) {
-    if (latest.current.dirty) setPending(() => action);
-    else action();
-  }
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
 
   function open(id: number) {
     setDraft(null);
@@ -254,19 +227,12 @@ function Knowledge() {
       )}
       <Dialog
         open={pending !== null}
-        onClose={() => setPending(null)}
+        onClose={stay}
         title={`Discard unsaved changes to ${current?.draft.title.trim() || "this document"}?`}
         footer={
           <>
-            <Button onClick={() => setPending(null)}>Keep editing</Button>
-            <Button
-              variant="danger"
-              onClick={() => {
-                const action = pending;
-                setPending(null);
-                action?.();
-              }}
-            >
+            <Button onClick={stay}>Keep editing</Button>
+            <Button variant="danger" onClick={leave}>
               Discard
             </Button>
           </>

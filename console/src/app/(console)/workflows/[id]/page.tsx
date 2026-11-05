@@ -6,14 +6,14 @@ import { Simulator } from "@/components/sim/Simulator";
 import { TopBar } from "@/components/shell/TopBar";
 import { Button, Dialog, StateBlock, useToast } from "@/components/ui";
 import { Canvas } from "@/components/workflow/Canvas";
-import { addPath, addStep, removePath, removeStep, updatePath, updateStep, withPathIds } from "@/components/workflow/graph";
+import { addPath, addStep, removePath, removeStep, retypeStep, updatePath, updateStep, withPathIds } from "@/components/workflow/graph";
 import { layoutMissing } from "@/components/workflow/layout";
 import { StepPanel } from "@/components/workflow/StepPanel";
-import { useLeaveGuard } from "@/components/workflow/useLeaveGuard";
 import styles from "@/components/workflow/workflow.module.css";
 import { ApiError } from "@/lib/api";
 import { useExpressions, useKnowledgeList, useMe, useSaveWorkflow, useWorkflow } from "@/lib/queries";
 import { canEdit } from "@/lib/roles";
+import { useLeaveGuard } from "@/lib/useLeaveGuard";
 import type { Graph, Step, Workflow } from "@/lib/types";
 import { NameCrumb } from "../../agents/[id]/_components/NameCrumb";
 
@@ -50,7 +50,8 @@ function seed(wf: Workflow): Draft {
 /** The step an error message names in quotes, if any. */
 function stepNamedIn(message: string, steps: Step[]) {
   for (const [, quoted] of message.matchAll(/"([^"]+)"/g)) {
-    const step = steps.find((s) => (s.name.trim() || s.id) === quoted) ?? steps.find((s) => s.id === quoted);
+    // The server names a step by its name as typed, or by its id when the name is blank (graph.py _label).
+    const step = steps.find((s) => (s.name.trim() ? s.name : s.id) === quoted);
     if (step) return step;
   }
   return undefined;
@@ -179,6 +180,7 @@ function Builder({ workflow, editable }: { workflow: Workflow; editable: boolean
           knowledge={knowledge}
           builtins={expressions?.filter((e) => e.builtin)}
           onChange={(patch) => selected && edit((g) => updateStep(g, selected.id, patch))}
+          onTypeChange={(type) => selected && edit((g) => retypeStep(g, selected.id, type))}
           onAddPath={() => selected && addPathFrom(selected)}
           onPathChange={(id, patch) => edit((g) => updatePath(g, id, patch))}
           onPathRemove={(id) => edit((g) => removePath(g, id))}

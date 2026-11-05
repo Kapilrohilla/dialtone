@@ -2,6 +2,7 @@ import type { Edge, Node } from "@xyflow/react";
 import { DISPOSITIONS } from "@/lib/outcomes";
 import { exprLabel, parse } from "@/lib/tokens";
 import type { Graph, Path, Step, StepType } from "@/lib/types";
+import { NODE_H, NODE_W } from "./layout";
 
 // Pure graph edits for the workflow builder. Every function returns a new graph and never mutates its input.
 
@@ -51,12 +52,12 @@ export function edgeTone(path: Path, steps: Step[]): EdgeTone {
   return group === "Interested" ? "ok" : group === "Call back" ? "amber" : "neutral";
 }
 
-/** A path to a step further right than it is below leaves the card's right side; any other path leaves the bottom.
- *  So the seeded left-to-right workflow and a top-to-bottom one both read cleanly. */
+/** Workflows read top to bottom, so a path leaves the bottom of its card for the top of the next. Only a path to a
+ *  card standing to the right on the same row goes across, from the right side into the left. */
 export function pathSide(from: Step, to: Step): "across" | "down" {
   const a = from.position ?? { x: 0, y: 0 };
   const b = to.position ?? { x: 0, y: 0 };
-  return b.x - a.x > Math.abs(b.y - a.y) ? "across" : "down";
+  return b.x - a.x >= NODE_W && Math.abs(b.y - a.y) < NODE_H ? "across" : "down";
 }
 
 /** React Flow nodes and edges. Paths whose ends are missing are left out (the server's errors name them). */
@@ -118,6 +119,28 @@ export function removeStep(graph: Graph, id: string): Graph {
   if (!step) return graph;
   if (step.type === "start" && graph.steps.filter((s) => s.type === "start").length === 1) return graph;
   return { steps: graph.steps.filter((s) => s.id !== id), paths: graph.paths.filter((p) => p.from !== id && p.to !== id) };
+}
+
+/** Which optional fields each type uses; a type change drops the ones the new type doesn't. */
+const USES: Record<StepType, (keyof Step)[]> = {
+  start: [],
+  prompt: ["knowledge_id"],
+  collect: ["field"],
+  knowledge: ["knowledge_id"],
+  transfer: ["outcome"],
+  end: ["outcome"],
+};
+
+export function retypeStep(graph: Graph, id: string, type: StepType): Graph {
+  return {
+    ...graph,
+    steps: graph.steps.map((s) => {
+      if (s.id !== id) return s;
+      const next: Step = { ...s, type };
+      for (const key of ["field", "knowledge_id", "outcome"] as const) if (!USES[type].includes(key)) delete next[key];
+      return next;
+    }),
+  };
 }
 
 export function updateStep(graph: Graph, id: string, patch: Partial<Step>): Graph {

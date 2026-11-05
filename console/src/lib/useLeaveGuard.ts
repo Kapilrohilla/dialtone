@@ -3,8 +3,9 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
-/** While `dirty`, closing the tab asks the browser's question and in-app links ask in a dialog first.
- *  `pending` is the navigation waiting on the answer: run it to leave, clear it to stay. */
+/** Unsaved-changes guard for screens with an explicit Save (knowledge, workflows). While `dirty`, closing the tab
+ *  asks the browser's question and in-app links wait for the person's answer in a dialog. `guarded(action)` does
+ *  the same for the screen's own actions. `pending` is the action waiting: `leave` runs it, `stay` drops it. */
 export function useLeaveGuard(dirty: boolean) {
   const router = useRouter();
   const [pending, setPending] = useState<(() => void) | null>(null);
@@ -36,9 +37,17 @@ export function useLeaveGuard(dirty: boolean) {
     };
   }, [router]);
 
-  return { pending, stay: () => setPending(null), leave: () => {
+  /** Runs `action` now, or once the person agrees to discard unsaved changes. */
+  function guarded(action: () => void) {
+    if (latest.current) setPending(() => action);
+    else action();
+  }
+
+  function leave() {
     const go = pending;
     setPending(null);
     go?.();
-  } };
+  }
+
+  return { pending, guarded, stay: () => setPending(null), leave };
 }

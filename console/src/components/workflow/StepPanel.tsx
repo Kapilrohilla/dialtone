@@ -14,7 +14,8 @@ export type StepPanelProps = {
   readOnly: boolean;
   knowledge: KnowledgeListItem[] | undefined;
   builtins?: Expression[];
-  onChange: (patch: Partial<Step>) => void;
+  onChange: (patch: Partial<Omit<Step, "type">>) => void;
+  onTypeChange: (type: StepType) => void;
   onAddPath: () => void;
   onPathChange: (id: string, patch: Partial<Omit<Path, "id">>) => void;
   onPathRemove: (id: string) => void;
@@ -57,7 +58,7 @@ export function StepPanel(props: StepPanelProps) {
               label="Step type"
               control="select"
               value={step.type}
-              onChange={(e) => props.onChange({ type: e.target.value as StepType })}
+              onChange={(e) => props.onTypeChange(e.target.value as StepType)}
             >
               {(Object.keys(TYPE_LABELS) as StepType[])
                 .filter((t) => t !== "start" || !otherStart)

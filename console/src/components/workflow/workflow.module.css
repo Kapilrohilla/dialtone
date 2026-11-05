@@ -28,7 +28,7 @@
 
 /* Canvas */
 .canvas { position: relative; flex: 1; min-height: 0; background: var(--page); outline: none; }
-.dots { opacity: 0.6; }
+.dots { opacity: 0.35; }
 .canvasTools { display: flex; gap: 4px; padding: 4px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); }
 .toolButton {
   display: inline-flex;
@@ -42,7 +42,7 @@
   color: var(--ink-2);
 }
 .toolButton:hover { background: var(--well); }
-.canvas :global(.react-flow__edge-text) { fill: var(--ink-2); font-size: 13px; font-family: var(--font-sans); }
+.canvas :global(.react-flow__edge-text) { fill: var(--ink-2); font-size: 15px; font-family: var(--font-sans); }
 .canvas :global(.react-flow__edge-textbg) { fill: var(--page); }
 .canvas :global(.react-flow__attribution) { background: none; color: var(--muted); font-size: 13px; }
 .canvas :global(.react-flow__attribution a) { color: var(--muted); }

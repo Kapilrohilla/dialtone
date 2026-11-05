@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Graph } from "@/lib/types";
 import { onboardingGraph } from "@/test/fixtures";
-import { addPath, addStep, edgeTone, removePath, removeStep, stepKind, stepSays, toFlow, updatePath, withPathIds } from "./graph";
+import { addPath, addStep, edgeTone, removePath, removeStep, retypeStep, stepKind, stepSays, toFlow, updatePath, withPathIds } from "./graph";
 
 describe("workflow graph", () => {
   it("colours paths by where they lead", () => {
@@ -27,11 +27,33 @@ describe("workflow graph", () => {
     expect(edges.every((e) => e.type === "smoothstep" && typeof e.label === "string")).toBe(true);
     expect(nodes.find((n) => n.id === "ask_city")?.selected).toBe(true);
     expect(nodes.find((n) => n.id === "greeting")?.selected).toBe(false);
-    expect(nodes[0].position).toEqual({ x: 0, y: 160 });
-    // Left to right in the seed: paths leave the right side; a step below is reached from the bottom.
-    expect(edges[0]).toMatchObject({ sourceHandle: "right", targetHandle: "left" });
-    const below = toFlow({ steps: [{ id: "a", type: "start", name: "A", position: { x: 0, y: 0 } }, { id: "b", type: "end", name: "B", position: { x: 40, y: 220 } }], paths: [{ from: "a", to: "b", label: "Next" }] });
-    expect(below.edges[0]).toMatchObject({ sourceHandle: "bottom", targetHandle: "top" });
+    expect(nodes[0].position).toEqual({ x: 290, y: 0 });
+    // Top to bottom: paths leave the bottom of a card for the top of the next; a card to the right on the same row is reached across.
+    expect(edges.every((e) => e.sourceHandle === "bottom" && e.targetHandle === "top")).toBe(true);
+    const beside = toFlow({ steps: [{ id: "a", type: "start", name: "A", position: { x: 0, y: 0 } }, { id: "b", type: "end", name: "B", position: { x: 300, y: 40 } }], paths: [{ from: "a", to: "b", label: "Next" }] });
+    expect(beside.edges[0]).toMatchObject({ sourceHandle: "right", targetHandle: "left" });
+  });
+
+  it("draws paths into the start step and out of an end step", () => {
+    const g = onboardingGraph();
+    g.paths.push({ from: "end_city", to: "greeting", label: "Start over" }, { from: "schedule_callback", to: "ask_city", label: "Back" });
+    const { edges } = toFlow(g);
+    expect(edges).toHaveLength(10);
+    expect(edges.find((e) => e.target === "greeting")).toMatchObject({ source: "end_city", targetHandle: "top", sourceHandle: "bottom" });
+    expect(edges.find((e) => e.source === "schedule_callback")).toMatchObject({ target: "ask_city" });
+  });
+
+  it("a type change drops the fields the new type doesn't use", () => {
+    const g = onboardingGraph();
+    const collect = retypeStep(g, "ask_licence", "end").steps.find((s) => s.id === "ask_licence")!;
+    expect(collect.type).toBe("end");
+    expect("field" in collect).toBe(false);
+    expect(collect.prompt).toBe(g.steps[2].prompt);
+    const end = retypeStep(g, "end_city", "knowledge").steps.find((s) => s.id === "end_city")!;
+    expect("outcome" in end).toBe(false);
+    const withDoc = retypeStep({ ...g, steps: g.steps.map((s) => (s.id === "ask_city" ? { ...s, knowledge_id: 7 } : s)) }, "ask_city", "knowledge");
+    expect(withDoc.steps.find((s) => s.id === "ask_city")?.knowledge_id).toBe(7);
+    expect(retypeStep(g, "end_interested", "transfer").steps.find((s) => s.id === "end_interested")?.outcome).toBe("INTERESTED");
   });
 
   it("removing a step removes its paths and keeps the only start", () => {
@@ -50,14 +72,14 @@ describe("workflow graph", () => {
     const g = onboardingGraph();
     const near = g.steps.find((s) => s.id === "ask_city")!;
     const a = addStep(g, "collect", near);
-    expect(a.step).toMatchObject({ type: "collect", name: "Collect an answer", prompt: "", position: { x: 280, y: 380 } });
+    expect(a.step).toMatchObject({ type: "collect", name: "Collect an answer", prompt: "", position: { x: 290, y: 400 } });
     expect(a.step.id).toMatch(/^collect-an-answer-[a-z0-9]{4}$/);
     expect(a.graph.steps).toHaveLength(10);
     const b = addStep(a.graph, "collect", near);
     expect(b.step.id).not.toBe(a.step.id);
     // Without a neighbour: below the lowest step.
     const c = addStep(g, "end");
-    expect(c.step).toMatchObject({ type: "end", name: "End the call", position: { x: 1120, y: 540 } });
+    expect(c.step).toMatchObject({ type: "end", name: "End the call", position: { x: -290, y: 940 } });
     expect(addStep({ steps: [], paths: [] }, "prompt").step.position).toEqual({ x: 0, y: 0 });
   });
 

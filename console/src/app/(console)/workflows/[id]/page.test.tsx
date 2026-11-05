@@ -234,7 +234,7 @@ describe("workflow builder", () => {
     const { steps, paths } = patches[0].graph!;
     expect(steps.map((s) => s.id)).not.toContain("ask_licence");
     expect(paths.some((p) => p.from === "ask_licence" || p.to === "ask_licence")).toBe(false);
-    expect(steps.find((s) => s.name === "Collect an answer")).toMatchObject({ type: "collect", position: { x: 280, y: 380 } });
+    expect(steps.find((s) => s.name === "Collect an answer")).toMatchObject({ type: "collect", position: { x: 290, y: 400 } });
   });
 
   it("try it flushes unsaved changes first", async () => {
@@ -322,6 +322,49 @@ describe("workflow builder", () => {
     expect(within(panel()).getByText("Pune or Delhi")).toBeInTheDocument();
     await user.keyboard("{Delete}");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("every card has handles for its saved paths, and new paths can't enter a start or leave an end", async () => {
+    const graph = onboardingGraph();
+    graph.paths.push({ from: "end_city", to: "greeting", label: "Start over" });
+    serve({ graph });
+    open();
+    await screen.findByRole("heading", { level: 1, name: /Driver onboarding/ });
+    const handle = (name: string, id: string) => card(name).querySelector(`.react-flow__handle[data-handleid="${id}"]`);
+    for (const id of ["top", "left", "bottom", "right"]) {
+      expect(handle("Greeting", id)).not.toBeNull();
+      expect(handle("End: not in your city", id)).not.toBeNull();
+    }
+    expect(handle("Greeting", "top")).not.toHaveClass("connectable");
+    expect(handle("Greeting", "bottom")).toHaveClass("connectable");
+    expect(handle("End: not in your city", "right")).not.toHaveClass("connectable");
+    expect(handle("End: not in your city", "left")).toHaveClass("connectable");
+  });
+
+  it("a step named with spaces is still found from the server's error", async () => {
+    const graph = onboardingGraph();
+    graph.steps[1] = { ...graph.steps[1], name: "Ask city " };
+    const error = 'Step "Ask city " has no way out. Add a path or make it an end step.';
+    serve({ graph, errors: [error] });
+    const { user } = open();
+    const problems = await screen.findByRole("region", { name: "Problems with this workflow" });
+    await user.click(within(problems).getByRole("button", { name: error.trim() }));
+    expect(within(panel()).getByRole("textbox", { name: "Step name" })).toHaveValue("Ask city ");
+  });
+
+  it("changing a step's type drops fields it no longer uses", async () => {
+    const { patches } = serve();
+    const { user } = open();
+    await screen.findByRole("heading", { level: 1, name: /Driver onboarding/ });
+    await select("Ask licence and experience");
+    await user.click(within(panel()).getByRole("button", { name: "Advanced" }));
+    await user.selectOptions(within(panel()).getByRole("combobox", { name: "Step type" }), "Say something");
+    expect(within(panel()).queryByRole("textbox", { name: "Save the answer as" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(patches).toHaveLength(1));
+    const step = patches[0].graph!.steps.find((s) => s.id === "ask_licence")!;
+    expect(step.type).toBe("prompt");
+    expect("field" in step).toBe(false);
   });
 
   it("an editor sees the edit controls once the role loads", async () => {

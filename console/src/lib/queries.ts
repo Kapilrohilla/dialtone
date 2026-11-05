@@ -327,7 +327,13 @@ export function useCreateWorkflow() {
   return useMutation({
     mutationFn: async (body: { name: string }) => {
       const created = await apiFetch<Workflow>("/api/workflows", { method: "POST", json: body });
-      return apiFetch<Workflow>(`/api/workflows/${created.id}`, { method: "PATCH", json: { graph: NEW_WORKFLOW_GRAPH } });
+      try {
+        return await apiFetch<Workflow>(`/api/workflows/${created.id}`, { method: "PATCH", json: { graph: NEW_WORKFLOW_GRAPH } });
+      } catch {
+        // The workflow exists without its start step: open it anyway (Add step works there) rather than hide it.
+        toast.show("Created, but the start step could not be added. Add a step to begin.", "bad");
+        return created;
+      }
     },
     onSuccess: (wf) => {
       qc.setQueryData(workflowKey(wf.id), wf);

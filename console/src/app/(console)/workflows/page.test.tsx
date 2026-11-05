@@ -63,6 +63,25 @@ describe("workflows list", () => {
     ]);
   });
 
+  it("still opens a new workflow when its start step can't be saved", async () => {
+    let lists = 0;
+    const created: Workflow = { ...workflow, id: 9, name: "Untitled workflow", current_revision: 0, graph: { steps: [], paths: [] } };
+    server.use(
+      http.get("*/api/workflows", () => {
+        lists += 1;
+        return HttpResponse.json(lists > 1 ? [workflow, created] : [workflow]);
+      }),
+      http.post("*/api/workflows", () => HttpResponse.json(created, { status: 201 })),
+      http.patch("*/api/workflows/9", () => HttpResponse.json({ detail: "Server error." }, { status: 500 })),
+    );
+    renderWithProviders(<WorkflowsPage />, { route: "/workflows" });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "New workflow" }));
+    await vi.waitFor(() => expect(router.push).toHaveBeenCalledWith("/workflows/9"));
+    expect(screen.getByText(/the start step could not be added/)).toBeInTheDocument();
+    await vi.waitFor(() => expect(lists).toBe(2));
+  });
+
   it("shows the empty state, and no New workflow for viewers", async () => {
     server.use(
       http.get("*/api/workflows", () => HttpResponse.json([])),

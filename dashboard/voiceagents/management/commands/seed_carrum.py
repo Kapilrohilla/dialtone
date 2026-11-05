@@ -119,24 +119,26 @@ def _path(src, dst, label):
 
 
 # Screen 5 of the console designs. Every prompt is one plain line the agent says (no prices).
+# Laid out top to bottom like the console's own layout: cards are 260x88, rows 180px apart leave room for the
+# path labels, and the whole flow fits the canvas at a readable zoom.
 ONBOARDING_GRAPH = {
     "steps": [
-        _step("greeting", "start", "Greeting", 0, 160,
+        _step("greeting", "start", "Greeting", 290, 0,
               prompt="नमस्ते, मैं Carrum से बोल रही हूँ। क्या अभी दो मिनट बात कर सकते हैं?"),
-        _step("ask_city", "prompt", "Ask city", 280, 160, prompt="आप अभी किस शहर में रहते हैं?"),
-        _step("ask_licence", "collect", "Ask licence and experience", 560, 80, field="licence",
+        _step("ask_city", "prompt", "Ask city", 290, 180, prompt="आप अभी किस शहर में रहते हैं?"),
+        _step("ask_licence", "collect", "Ask licence and experience", 145, 360, field="licence",
               prompt="क्या आपके पास अपने नाम का चार-पहिया ड्राइविंग लाइसेंस है, और आपने पहले गाड़ी चलाई है?"),
-        _step("explain_plan", "prompt", "Explain the plan", 840, 80,
+        _step("explain_plan", "prompt", "Explain the plan", 0, 540,
               prompt="[[expr:excited]]{{lead.city}} में हमारे plan के बारे में बताऊँ?[[expr:pause:1]]"),
-        _step("end_interested", "end", "End: interested", 1120, 0, outcome="INTERESTED",
+        _step("end_interested", "end", "End: interested", -290, 720, outcome="INTERESTED",
               prompt="बहुत अच्छा, मैं आपकी details हमारी team को भेज रही हूँ।"),
-        _step("schedule_callback", "end", "Schedule a call back", 1120, 160, outcome="CBR",
+        _step("schedule_callback", "end", "Schedule a call back", 0, 720, outcome="CBR",
               prompt="ठीक है, आप बताइए कब फ़ोन करूँ?"),
-        _step("transfer", "transfer", "Transfer to a telecaller", 1120, 320,
+        _step("transfer", "transfer", "Transfer to a telecaller", 290, 720,
               prompt="मैं आपकी बात हमारी team के एक साथी से करवाती हूँ।"),
-        _step("end_city", "end", "End: not in your city", 560, 280, outcome="NE",
+        _step("end_city", "end", "End: not in your city", 435, 360, outcome="NE",
               prompt="अभी हम सिर्फ़ कुछ शहरों में हैं, समय देने के लिए धन्यवाद।"),
-        _step("end_no_licence", "end", "End: not eligible", 840, 280, outcome="NE",
+        _step("end_no_licence", "end", "End: not eligible", 290, 540, outcome="NE",
               prompt="बिना लाइसेंस के हम आगे नहीं बढ़ पाएँगे, धन्यवाद।"),
     ],
     "paths": [
