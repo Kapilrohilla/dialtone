@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Sidebar } from "@/components/shell/Sidebar";
 import type { LiveCall } from "@/lib/types";
 import { dashboard, liveCall, me } from "@/test/fixtures";
-import { renderWithProviders } from "@/test/render";
+import { renderWithProviders, router } from "@/test/render";
 import { server } from "@/test/server";
 import LivePage from "./page";
 
@@ -244,6 +244,37 @@ describe("live calls", () => {
     await advance(2500);
     expect(await screen.findByText("This call has ended.")).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("hang-up then failed poll keeps the ended note and hides actions", async () => {
+    let mode: "both" | "one" | "fail" = "both";
+    server.use(
+      http.get("*/api/live", () =>
+        mode === "fail" ? HttpResponse.json({ detail: "Couldn't reach the call server." }, { status: 502 }) : HttpResponse.json(mode === "both" ? [liveCall, second] : [second]),
+      ),
+    );
+    renderWithProviders(<LivePage />, { route: "/live" });
+    expect(await screen.findByText("हाँ, बोलिए।")).toBeInTheDocument();
+    mode = "one";
+    await advance(2500);
+    expect(await screen.findByText("This call has ended.")).toBeInTheDocument();
+    const frozen = screen.getByLabelText("Call length").textContent;
+    mode = "fail";
+    await advance(2500);
+    await screen.findByText("Open in call history");
+    await waitFor(() => expect(screen.getAllByRole("alert")).not.toHaveLength(0));
+    expect(screen.getByText("This call has ended.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "End call" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Transfer to a telecaller" })).not.toBeInTheDocument();
+    await advance(3000);
+    expect(screen.getByLabelText("Call length").textContent).toBe(frozen);
+  });
+
+  it("replaces a stale ?room= in the URL with the first call", async () => {
+    serveLive(liveCall, second);
+    renderWithProviders(<LivePage />, { route: "/live?room=gone" });
+    await screen.findByText("हाँ, बोलिए।");
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/live?room=call-9b21", { scroll: false }));
   });
 
   it("hides actions for viewers once the role has loaded", async () => {

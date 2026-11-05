@@ -77,14 +77,16 @@ function Live() {
   const firstRoom = calls?.[0]?.room;
   const unknownPick = picked !== null && calls !== undefined && !calls.some((c) => c.room === picked) && !seen[picked];
   useEffect(() => {
-    if (firstRoom && (picked === null || unknownPick)) setPicked(firstRoom);
-  }, [picked, unknownPick, firstRoom]);
+    if (!firstRoom || !(picked === null || unknownPick)) return;
+    setPicked(firstRoom);
+    if (unknownPick) router.replace(`/live?room=${encodeURIComponent(firstRoom)}`, { scroll: false });
+  }, [picked, unknownPick, firstRoom, router]);
 
   const room = picked ?? firstRoom;
   const live = calls?.find((c) => c.room === room);
   const last = room ? seen[room] : undefined;
-  // Only a successful fetch can say a call is over; after a failed one the list is just stale.
-  const ended = !live && calls !== undefined && !isError && last !== undefined;
+  // `calls` is the last successful answer (a failed poll keeps it), so a call absent from it has ended and stays ended.
+  const ended = !live && calls !== undefined && last !== undefined;
   // A ?room= that was never live here (stale link) falls back to the first call.
   const shown = live ?? last?.call ?? (unknownPick ? calls?.[0] : undefined);
 
