@@ -1,4 +1,5 @@
 import asyncio
+import time
 
 import jwt as pyjwt
 import pytest
@@ -129,3 +130,103 @@ async def test_batch_size_capped():
         await server.close()
     assert [len(b["events"]) for b in fake.bodies] == [3, 3, 1]
     assert [e["seq"] for b in fake.bodies for e in b["events"]] == list(range(7))
+
+
+@pytest.mark.parametrize("status", [403, 404, 422])
+async def test_non_retryable_4xx_single_attempt(status):
+    fake = Fake(status=status)
+    server = await serve(fake)
+    try:
+        sink = make(server)
+        sink.add("mood", {"label": "x", "confidence": 1})
+        await sink.close()
+    finally:
+        await server.close()
+    assert len(fake.bodies) == 1 and sink.dropped == 1
+
+
+async def test_2xx_is_success():
+    fake = Fake(status=204)
+    server = await serve(fake)
+    try:
+        sink = make(server)
+        sink.add("mood", {"label": "x", "confidence": 1})
+        await sink.close()
+    finally:
+        await server.close()
+    assert len(fake.bodies) == 1 and sink.dropped == 0
+
+
+async def test_close_bounded_when_server_hangs():
+    release = asyncio.Event()
+
+    async def hang(request):
+        await release.wait()
+        return web.json_response({})
+
+    app = web.Application()
+    app.router.add_post("/api/runtime/events", hang)
+    server = TestServer(app)
+    await server.start_server()
+    try:
+        sink = make(server)
+        sink.add("mood", {"label": "x", "confidence": 1})
+        await asyncio.sleep(0.1)
+        t = time.monotonic()
+        await sink.close(timeout_s=0.3)
+        assert time.monotonic() - t < 0.6
+        assert sink.dropped == 1
+    finally:
+        release.set()
+        await server.close()
+
+
+async def test_close_bounded_during_backoff():
+    fake = Fake(status=500)
+    server = await serve(fake)
+    try:
+        sink = make(server, retry_delays=(5, 5, 5))
+        sink.add("mood", {"label": "x", "confidence": 1})
+        await asyncio.sleep(0.15)
+        t = time.monotonic()
+        await sink.close(timeout_s=0.3)
+        assert time.monotonic() - t < 0.6
+        assert sink.dropped == 1
+    finally:
+        await server.close()
+
+
+async def test_buffer_cap_drops_oldest():
+    sink = EventSink("http://127.0.0.1:9/x", "r", KEY, SECRET, max_buffer=3, retry_delays=(), flush_every_s=30)
+    for i in range(5):
+        sink.add("mood", {"label": str(i), "confidence": 1})
+    assert [e["seq"] for e in sink._buffer] == [2, 3, 4]
+    assert sink.dropped == 2
+    await sink.close()
+
+
+async def test_task_restarts_after_crash(monkeypatch):
+    fake = Fake()
+    server = await serve(fake)
+    try:
+        sink = make(server)
+        real = sink._send
+        calls = {"n": 0}
+
+        async def flaky(batch):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise RuntimeError("boom")
+            await real(batch)
+
+        monkeypatch.setattr(sink, "_send", flaky)
+        sink.add("mood", {"label": "a", "confidence": 1})
+        await asyncio.sleep(0.15)
+        sink._task.cancel()  # simulate the task dying
+        await asyncio.sleep(0)
+        sink.add("mood", {"label": "b", "confidence": 1})
+        assert not sink._task.done()
+        await sink.close()
+    finally:
+        await server.close()
+    assert [e["seq"] for b in fake.bodies for e in b["events"]] == [1]

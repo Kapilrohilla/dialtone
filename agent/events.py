@@ -11,7 +11,11 @@ import console_config
 logger = logging.getLogger("phone-agent")
 
 REQUEST_TIMEOUT_S = 3
-NON_RETRYABLE = {400, 401, 413}
+MAX_BUFFER = 5000
+
+
+def _retryable(status: int) -> bool:
+    return status == 429 or status >= 500
 
 
 class EventSink:
@@ -31,6 +35,7 @@ class EventSink:
         flush_every_s: float = 1.0,
         max_batch: int = 50,
         retry_delays: tuple[float, ...] = (0.5, 1.0, 2.0),
+        max_buffer: int = MAX_BUFFER,
     ):
         self.url = url
         self.room = room
@@ -39,6 +44,7 @@ class EventSink:
         self._flush_every_s = flush_every_s
         self._max_batch = max(1, min(max_batch, 200))
         self._retry_delays = retry_delays
+        self._max_buffer = max_buffer
         self._buffer: list[dict] = []
         self._seq = 0
         self._closing = False
@@ -55,9 +61,12 @@ class EventSink:
         if not self.enabled or self._closing:
             return
         try:
+            if len(self._buffer) >= self._max_buffer:
+                del self._buffer[0]
+                self.dropped += 1
             self._buffer.append({"seq": self._seq, "type": type, "at": time.time(), "payload": payload})
             self._seq += 1
-            if self._task is None:
+            if self._task is None or self._task.done():
                 try:
                     self._task = asyncio.get_running_loop().create_task(self._run())
                 except RuntimeError:
@@ -74,7 +83,12 @@ class EventSink:
             except asyncio.TimeoutError:
                 pass
             self._wakeup.clear()
-            await self._drain()
+            try:
+                await self._drain()
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                logger.warning("event flush loop error", extra={"error": str(e)})
             if self._closing and not self._buffer:
                 return
 
@@ -99,9 +113,9 @@ class EventSink:
                     headers={"Authorization": f"Bearer {token}"},
                 ) as resp:
                     status = resp.status
-                if status == 200:
+                if 200 <= status < 300:
                     return
-                if status in NON_RETRYABLE:
+                if not _retryable(status):
                     logger.warning("console rejected event batch", extra={"status": status})
                     break
                 logger.warning("event batch failed", extra={"status": status, "attempt": attempt + 1})
@@ -111,7 +125,11 @@ class EventSink:
             except Exception as e:
                 logger.warning("event batch error", extra={"error": str(e), "attempt": attempt + 1})
             if attempt < attempts - 1:
-                await asyncio.sleep(self._retry_delays[attempt])
+                try:
+                    await asyncio.sleep(self._retry_delays[attempt])
+                except asyncio.CancelledError:
+                    self.dropped += len(batch)
+                    raise
         self.dropped += len(batch)
         logger.warning("dropped event batch", extra={"events": len(batch), "total_dropped": self.dropped})
 
@@ -121,7 +139,7 @@ class EventSink:
             return
         try:
             self._closing = True
-            task = self._task or asyncio.get_running_loop().create_task(self._run())
+            task = self._task if self._task and not self._task.done() else asyncio.get_running_loop().create_task(self._run())
             self._task = task
             self._wakeup.set()
             try:
