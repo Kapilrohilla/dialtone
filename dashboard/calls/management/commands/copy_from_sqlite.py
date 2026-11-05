@@ -3,7 +3,8 @@
     python manage.py copy_from_sqlite --path /data/dashboard.sqlite3 [--force]
 
 Copies auth groups and users, calls, call reports and turn labels in one
-transaction, keeping primary keys, then resets the id sequences. The SQLite
+transaction, keeping primary keys, then resets the id sequences and assigns
+every call without a workspace (calls.models.resolve_workspace). The SQLite
 file is opened read-only and never modified. Refuses to run when the target
 already has calls, unless --force (rows with the same id are then overwritten).
 """
@@ -20,7 +21,7 @@ from django.core.management.color import no_style
 from django.db import connection, models, transaction
 from django.utils import timezone
 
-from calls.models import Call, CallReport, TurnLabel
+from calls.models import Call, CallReport, TurnLabel, assign_unassigned_calls
 
 MARKER = ".copied-to-postgres"
 logger = logging.getLogger(__name__)
@@ -83,12 +84,16 @@ class Command(BaseCommand):
                     counts[model] = self._copy_model(src, model)
                 self._copy_relations(src)
                 self._reset_sequences()
+                # The source predates workspaces (or its rows were never assigned): calls/0004's data step
+                # ran on the empty target, so assign here with the same rule live calls use.
+                assigned = assign_unassigned_calls()
                 if dry_run:
                     transaction.set_rollback(True)
         finally:
             src.close()
         for model in MODELS:
             self.stdout.write(f"{LABELS[model]}: {counts[model]}")
+        self.stdout.write(f"calls assigned to a workspace: {assigned}")
         if dry_run:
             self.stdout.write("dry run: nothing was written")
         elif if_needed:

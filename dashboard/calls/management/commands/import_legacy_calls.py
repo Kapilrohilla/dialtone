@@ -3,6 +3,7 @@
     python manage.py import_legacy_calls --path /data/calls.db
 
 Safe to re-run: rows are matched on `room`, so a second run creates nothing new.
+Calls without a workspace are then assigned one (calls.models.resolve_workspace).
 """
 
 import sqlite3
@@ -12,7 +13,7 @@ from pathlib import Path
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
-from calls.models import DATETIME_FIELDS, TEXT_FIELDS, Call
+from calls.models import DATETIME_FIELDS, TEXT_FIELDS, Call, assign_unassigned_calls
 
 
 class Command(BaseCommand):
@@ -38,7 +39,9 @@ class Command(BaseCommand):
                 defaults.update({k: row[k] or "" for k in TEXT_FIELDS})
                 _, was_created = Call.objects.update_or_create(room=row["room"], defaults=defaults)
                 created += was_created
+            assigned = assign_unassigned_calls()
         self.stdout.write(f"imported {len(rows)} calls ({created} new, {len(rows) - created} updated)")
+        self.stdout.write(f"calls assigned to a workspace: {assigned}")
 
 
 def _dt(epoch: int | None) -> datetime | None:

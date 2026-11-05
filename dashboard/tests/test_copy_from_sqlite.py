@@ -117,3 +117,54 @@ def test_if_needed_skips_with_warning_when_target_has_calls(legacy_file, capsys,
 def test_if_needed_without_sqlite_file_does_nothing(tmp_path):
     call_command("copy_from_sqlite", path=str(tmp_path / "none.sqlite3"), if_needed=True)
     assert Call.objects.count() == 0
+
+
+# --- the real pre-workspace schema (calls at 0003, no workspaces/voiceagents/knowledge/workflows) -----
+
+BUILD_OLD_SCHEMA = """
+import os
+os.environ["DJANGO_SETTINGS_MODULE"] = "legacy_settings"
+import django
+django.setup()
+from django.core.management import call_command
+from django.db import connection
+
+for app in ("contenttypes", "auth", "sessions", "admin"):
+    call_command("migrate", app, verbosity=0)
+call_command("migrate", "calls", "0003", verbosity=0)
+with connection.cursor() as cur:
+    cur.execute("INSERT INTO calls_call (id, room, caller, called, sip_call_id, end_reason, started_at) "
+                "VALUES (1, 'old-a', '+911', '+918000000000', '', 'done', '2026-10-01 09:30:00')")
+    cur.execute("INSERT INTO calls_call (id, room, caller, called, sip_call_id, end_reason) "
+                "VALUES (2, 'old-b', '+912', '', '', '')")
+    cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
+    tables = {r[0] for r in cur.fetchall()}
+assert "workspaces_workspace" not in tables and "voiceagents_agent" not in tables, tables
+"""
+
+
+@pytest.fixture
+def old_schema_file(tmp_path):
+    path = tmp_path / "dashboard.sqlite3"
+    (tmp_path / "legacy_settings.py").write_text(
+        "from config.settings import *\n"
+        f"DATABASES = {{'default': {{'ENGINE': 'django.db.backends.sqlite3', 'NAME': {str(path)!r}}}}}\n"
+    )
+    env = {**os.environ, "PYTHONPATH": f"{tmp_path}{os.pathsep}{DASHBOARD_DIR}"}
+    subprocess.run([sys.executable, "-c", BUILD_OLD_SCHEMA], cwd=DASHBOARD_DIR, env=env, check=True)
+    return path
+
+
+def test_copy_from_old_schema_assigns_the_workspace(old_schema_file, workspace, member, capsys):
+    call_command("copy_from_sqlite", path=str(old_schema_file))
+
+    assert set(Call.objects.values_list("room", "workspace_id")) == {("old-a", workspace.id), ("old-b", workspace.id)}
+    assert "assigned to a workspace: 2" in capsys.readouterr().out
+    rooms = {r["room"] for r in member("viewer").get("/api/calls").json()["results"]}
+    assert rooms == {"old-a", "old-b"}
+
+
+def test_dry_run_from_old_schema_reports_the_assignment(old_schema_file, workspace, capsys):
+    call_command("copy_from_sqlite", path=str(old_schema_file), dry_run=True)
+    assert "assigned to a workspace: 2" in capsys.readouterr().out
+    assert Call.objects.count() == 0

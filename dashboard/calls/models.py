@@ -27,6 +27,18 @@ def resolve_workspace(called):
     return only[0] if len(only) == 1 else None
 
 
+def assign_unassigned_calls() -> int:
+    """Give every call without a workspace the one `resolve_workspace` picks for its `called` number
+    (used after bulk copies/imports, which bypass `record_first`). Returns how many were assigned."""
+    assigned = 0
+    called_numbers = Call.objects.filter(workspace__isnull=True).values_list("called", flat=True).distinct()
+    for called in list(called_numbers):
+        workspace = resolve_workspace(called)
+        if workspace is not None:
+            assigned += Call.objects.filter(workspace__isnull=True, called=called).update(workspace=workspace)
+    return assigned
+
+
 class Call(models.Model):
     """One LiveKit room, recorded from webhooks."""
 

@@ -57,3 +57,11 @@ def test_import_idempotent(legacy_db):
     call_command("import_legacy_calls", "--path", str(legacy_db))
     call_command("import_legacy_calls", "--path", str(legacy_db))
     assert Call.objects.count() == 2
+
+
+def test_import_assigns_the_workspace(legacy_db, workspace, member, capsys):
+    call_command("import_legacy_calls", "--path", str(legacy_db))
+    assert set(Call.objects.values_list("workspace_id", flat=True)) == {workspace.id}
+    assert "assigned to a workspace: 2" in capsys.readouterr().out
+    rooms = {r["room"] for r in member("viewer").get("/api/calls").json()["results"]}
+    assert rooms == {"room-a", "room-b"}
