@@ -467,3 +467,36 @@ async def test_stopped_workflow_skips_end_step_guard(monkeypatch):
     monkeypatch.setattr(agent, "get_job_context", lambda: SimpleNamespace(delete_room=delete_room))
     assert await a.end_call(SimpleNamespace(wait_for_playout=playout)) is None
     assert deleted == [True]
+
+
+async def test_end_step_outcome_overridden_on_second_identical_disposition(monkeypatch):
+    from types import SimpleNamespace
+
+    a = agent.PhoneAgent(LEAD, agent.GEMINI_LANGUAGE_RULES, console(snapshot({"id": 1, "graph": GRAPH})))
+    await tool_named(a, "go_to_city")({})
+    await tool_named(a, "go_to_wrap_up")({"value": "Pune"})
+    refusal = "This step ends with INTERESTED. Call record_outcome with disposition INTERESTED."
+    assert await a.record_outcome(disposition="NI", reason="r", summary="s") == refusal
+    assert await a.record_outcome(disposition="CBR", reason="r", summary="s") == refusal  # a different one
+    assert a.outcome is None
+    ok = await a.record_outcome(disposition="CBR", reason="later", summary="s")
+    assert ok == "Recorded. Now say your closing line."
+    assert a.outcome["disposition"] == "CBR" and a.outcome["end_step_outcome_overridden"] is True
+
+    async def playout():
+        return None
+
+    async def delete_room():
+        return None
+
+    monkeypatch.setattr(agent, "get_job_context", lambda: SimpleNamespace(delete_room=delete_room))
+    assert await a.end_call(SimpleNamespace(wait_for_playout=playout)) is None
+
+
+async def test_end_step_outcome_matching_step_is_not_overridden():
+    a = agent.PhoneAgent(LEAD, agent.GEMINI_LANGUAGE_RULES, console(snapshot({"id": 1, "graph": GRAPH})))
+    await tool_named(a, "go_to_city")({})
+    await tool_named(a, "go_to_wrap_up")({"value": "Pune"})
+    await a.record_outcome(disposition="NI", reason="r", summary="s")
+    await a.record_outcome(disposition="INTERESTED", reason="r", summary="s")
+    assert "end_step_outcome_overridden" not in a.outcome

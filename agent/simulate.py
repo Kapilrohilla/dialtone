@@ -29,6 +29,7 @@ from prompt import (
     PERSONA_NAME,
     build_instructions,
     capped_outcome,
+    end_step_check,
     end_step_refusal,
     opening_instructions,
 )
@@ -206,7 +207,17 @@ def clean_outcome(raw) -> dict | None:
     out["disposition"] = raw["disposition"]
     if out["interest_strength"] not in INTEREST_STRENGTHS:
         out["interest_strength"] = "none"
+    if raw.get("end_step_outcome_overridden") is True:
+        out["end_step_outcome_overridden"] = True
     return out
+
+
+def clean_refused(raw) -> dict | None:
+    """The end-step refusal kept in the state ({"step_id", "disposition"}), or None."""
+    if (isinstance(raw, dict) and set(raw) == {"step_id", "disposition"}
+            and isinstance(raw["step_id"], str) and raw["disposition"] in DISPOSITIONS):
+        return {"step_id": raw["step_id"], "disposition": raw["disposition"]}
+    return None
 
 
 def parse_body(body) -> tuple[dict, dict, list[dict], dict | None]:
@@ -248,6 +259,8 @@ class Simulation:
         self.run = WorkflowRun.from_state(graph if has_start else {}, state)
         self.has_workflow = has_start
         self.outcome = clean_outcome(state.get("outcome")) if state else None
+        # Like PhoneAgent.end_step_refused: carried between requests in the state.
+        self.end_step_refused = clean_refused(state.get("end_step_refused")) if state else None
         self.ended = False
         self.path_names = {p.name for p in self.run.all_path_tools()} if has_start else set()
 
@@ -275,7 +288,8 @@ class Simulation:
         if name == "end_call":
             if self.outcome is None:
                 return "Call record_outcome first, then end the call."
-            refusal = None if self.run.stopped else end_step_refusal(self.current_step(), self.outcome["disposition"])
+            refusal = (None if self.run.stopped or self.outcome.get("end_step_outcome_overridden")
+                       else end_step_refusal(self.current_step(), self.outcome["disposition"]))
             if refusal is not None:
                 return refusal
             self.ended = True
@@ -302,17 +316,22 @@ class Simulation:
         disposition = args.get("disposition")
         if disposition not in DISPOSITIONS:
             return f"Use one of: {', '.join(DISPOSITIONS)}."
-        refusal = None if self.run.stopped else end_step_refusal(self.current_step(), disposition)
+        refusal, overridden = None, False
+        if not self.run.stopped:
+            refusal, overridden, self.end_step_refused = end_step_check(
+                self.current_step(), disposition, self.end_step_refused
+            )
         if refusal is not None:
             return refusal
-        self.outcome = clean_outcome({**args, "disposition": disposition})
+        # The override flag comes only from the end-step check, never from the model's arguments.
+        self.outcome = clean_outcome({**args, "disposition": disposition, "end_step_outcome_overridden": overridden})
         return "Recorded. Now say your closing line."
 
     def response(self, reply: str) -> dict:
         step = self.run.current
         return {
             "reply": reply,
-            "state": {**self.run.to_state(), "outcome": self.outcome},
+            "state": {**self.run.to_state(), "outcome": self.outcome, "end_step_refused": self.end_step_refused},
             "step": {"id": step.id, "name": step.name} if step is not None else None,
             "outcome": self.outcome,
             "ended": self.ended,

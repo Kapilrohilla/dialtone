@@ -382,6 +382,21 @@ def end_step_refusal(step: dict | None, disposition: str) -> str | None:
     return f"This step ends with {outcome}. Call record_outcome with disposition {outcome}."
 
 
+def end_step_check(step: dict | None, disposition: str, refused: dict | None) -> tuple[str | None, bool, dict | None]:
+    """The end-step rule with its override (ruling P18): a disposition other than the end step's outcome
+    is refused once; recording that same disposition again straight after overrides the step.
+
+    `refused` is the previous refusal ({"step_id", "disposition"}) or None. Returns the refusal text (or
+    None), whether the step's outcome was overridden, and the refusal to remember for the next call."""
+    refusal = end_step_refusal(step, disposition)
+    if refusal is None:
+        return None, False, None
+    key = {"step_id": step.get("id"), "disposition": disposition}
+    if refused == key:
+        return None, True, None
+    return refusal, False, key
+
+
 def capped_outcome() -> dict:
     """Outcome recorded when the workflow loop limit stops the workflow (same fields as record_outcome)."""
     return {

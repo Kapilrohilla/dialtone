@@ -56,7 +56,14 @@ from greeting import GreetingGate, greeting_instructions
 from metrics import LatencyStats
 from mood import MoodReading, MoodTracker
 from prompt import BASE_INSTRUCTIONS, SCRIPT_FALLBACK, SYSTEM_LAYER  # noqa: F401  (layers live in prompt.py)
-from prompt import PERSONA_NAME, build_instructions, builtin_instructions, end_step_refusal, opening_instructions
+from prompt import (
+    PERSONA_NAME,
+    build_instructions,
+    builtin_instructions,
+    end_step_check,
+    end_step_refusal,
+    opening_instructions,
+)
 from prompt import (  # noqa: F401  (re-exported: tests and callers use agent.X)
     DEFAULT_LANGUAGE,
     DISPOSITIONS,
@@ -252,6 +259,8 @@ class PhoneAgent(Agent):
                 path_tools = []
         super().__init__(instructions=self.base_instructions, tools=path_tools)
         self.outcome: dict | None = None
+        # The last outcome refused at an end step; the same one again overrides the step (ruling P18).
+        self.end_step_refused: dict | None = None
         self.caller_identity: str | None = None
 
     @staticmethod
@@ -367,11 +376,15 @@ class PhoneAgent(Agent):
             main_question: The driver's main question or objection.
             do_not_call: True if the driver asked not to be called again.
         """
+        refusal, overridden = None, False
         try:
-            refusal = None if self.workflow_stopped() else end_step_refusal(self.current_step(), disposition)
+            if not self.workflow_stopped():
+                refusal, overridden, self.end_step_refused = end_step_check(
+                    self.current_step(), disposition, self.end_step_refused
+                )
         except Exception:
             logger.exception("end-step check failed")
-            refusal = None
+            refusal, overridden = None, False
         if refusal is not None:
             logger.info("outcome refused at end step", extra={"disposition": disposition})
             return refusal
@@ -390,6 +403,9 @@ class PhoneAgent(Agent):
             "main_question": main_question,
             "do_not_call": do_not_call,
         }
+        if overridden:
+            self.outcome["end_step_outcome_overridden"] = True
+            logger.info("end step outcome overridden", extra={"disposition": disposition})
         logger.info("outcome recorded", extra={"disposition": disposition})
         return "Recorded. Now say your closing line."
 
@@ -399,7 +415,7 @@ class PhoneAgent(Agent):
         if self.outcome is None:
             return "Call record_outcome first, then end the call."
         try:
-            refusal = (None if self.workflow_stopped()
+            refusal = (None if self.workflow_stopped() or self.outcome.get("end_step_outcome_overridden")
                        else end_step_refusal(self.current_step(), self.outcome.get("disposition")))
         except Exception:
             logger.exception("end-step check failed")

@@ -457,3 +457,25 @@ async def test_sim_cap_stops_the_workflow(make_client):
         assert data2["outcome"]["disposition"] == "UNRESOLVED" and data2["ended"] is True
     finally:
         await client.close()
+
+
+async def test_sim_end_step_outcome_override_across_requests(make_client):
+    at_end = {"current_step_id": "s3", "visits": {"s1": 1, "s3": 1}, "transitions": 1, "captured": {},
+              "path": ["Greet", "Not interested"], "outcome": None}
+    first = FakeModel(ModelTurn(tool_calls=[call("record_outcome", disposition="CBR", reason="r", summary="s")]),
+                      ModelTurn(text="Kab call karoon?"))
+    second = FakeModel(ModelTurn(tool_calls=[call("record_outcome", disposition="CBR", reason="later", summary="s"),
+                                             call("end_call")]))
+    c1, c2 = await make_client(first), await make_client(second)
+    try:
+        d1 = await (await post(c1, body([{"role": "caller", "text": "Baad mein"}], at_end))).json()
+        results = [m["output"] for m in first.calls[1]["messages"] if m["role"] == "tool_result"]
+        assert results == ["This step ends with NI. Call record_outcome with disposition NI."]
+        assert d1["outcome"] is None
+        d2 = await (await post(c2, body([{"role": "caller", "text": "Baad mein"}], d1["state"]))).json()
+    finally:
+        await c1.close()
+        await c2.close()
+    assert d2["outcome"]["disposition"] == "CBR" and d2["outcome"]["end_step_outcome_overridden"] is True
+    assert d2["state"]["outcome"]["end_step_outcome_overridden"] is True
+    assert d2["ended"] is True
