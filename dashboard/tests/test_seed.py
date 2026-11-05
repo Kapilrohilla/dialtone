@@ -38,3 +38,18 @@ def test_seed_without_knowledge_file(tmp_path):
     assert "1 agent, 0 knowledge documents" in out
     assert Agent.objects.count() == 1 and KnowledgeDocument.objects.count() == 0
     assert "0 knowledge documents" in _seed()
+
+
+HESITATES = ("[[expr:sad]] मैं आपकी बात समझ सकती हूँ। [[expr:whisper]] "
+             "क्या मैं हमारी telecalling team से आपको call back करवा दूँ?")
+
+
+@pytest.mark.django_db
+def test_seed_hesitates_offers_a_call_back_and_keeps_existing_agents(tmp_path):
+    _seed("--knowledge", str(tmp_path / "missing.md"))
+    agent = Agent.objects.get()
+    assert agent.script[2]["title"] == "If the driver hesitates" and agent.script[2]["body"] == HESITATES
+    agent.script[2]["body"] = "edited by an operator"
+    agent.save()
+    _seed("--knowledge", str(tmp_path / "missing.md"))
+    assert Agent.objects.get().script[2]["body"] == "edited by an operator"

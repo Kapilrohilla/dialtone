@@ -26,7 +26,7 @@ SCRIPT = [
     {
         "id": "driver-hesitates",
         "title": "If the driver hesitates",
-        "body": "[[expr:sad]] मैं आपकी बात समझ सकती हूँ। [[expr:whisper]] क्या मैं WhatsApp पर details भेज दूँ?",
+        "body": "[[expr:sad]] मैं आपकी बात समझ सकती हूँ। [[expr:whisper]] क्या मैं हमारी telecalling team से आपको call back करवा दूँ?",
     },
 ]
 
