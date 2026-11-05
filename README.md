@@ -127,13 +127,23 @@ The dashboard is a Django app (`dashboard/`). Call history lives in PostgreSQL (
 `make deploy` adds a `DJANGO_SECRET_KEY` to the VM's `.env` if it doesn't have one. After the first deploy of the Django dashboard, run these once on the VM (from `~/ai-calling`):
 
 ```bash
-make dashboard-admin            # create your login
-docker compose exec dashboard python manage.py import_legacy_calls --path /data/calls.db   # old call history; run once
+make dashboard-admin            # create your /admin/ login (a Django superuser; it has no console access)
+docker compose exec dashboard python manage.py create_member you@example.com --name "Your Name" --role owner   # first console user
+docker compose cp agent/knowledge.md dashboard:/tmp/knowledge.md   # knowledge.md is not inside the dashboard image
+docker compose exec dashboard python manage.py seed_carrum --knowledge /tmp/knowledge.md
 ```
 
-The import copies the history recorded by the old dashboard. Running it again creates no duplicates. "Calls today" counts from midnight India time (it used to be UTC).
+`make dashboard-admin` only creates a superuser for `/admin/`; the console API needs a workspace member, which `create_member` makes (it prompts for a password). `seed_carrum` creates the draft Carrum agent and adds the approved pricing file as a knowledge document.
 
-**Moving from SQLite to PostgreSQL.** Earlier Django versions of the dashboard kept history in `/data/dashboard.sqlite3`. The cutover is automatic: when the dashboard container starts it runs `migrate`, then `copy_from_sqlite --if-needed`, before the server accepts anything. That copies only if the SQLite file exists, `/data/.copied-to-postgres` does not, and PostgreSQL has no calls; it then writes the marker. If PostgreSQL already has calls and there is no marker it logs a WARNING and skips (it never overwrites). The copy keeps ids and only reads the SQLite file, which stays in the `dashboard-data` volume as a backup.
+Only if you are coming from the old aiohttp dashboard (`/data/calls.db`), also run once:
+
+```bash
+docker compose exec dashboard python manage.py import_legacy_calls --path /data/calls.db
+```
+
+The import copies the history recorded by the old dashboard and assigns every imported call to a workspace (the one whose agent has the called number, else the only workspace). Running it again creates no duplicates. "Calls today" counts from midnight India time (it used to be UTC).
+
+**Moving from SQLite to PostgreSQL.** Earlier Django versions of the dashboard kept history in `/data/dashboard.sqlite3`. The cutover is automatic: when the dashboard container starts it runs `migrate`, then `copy_from_sqlite --if-needed`, before the server accepts anything. That copies only if the SQLite file exists, `/data/.copied-to-postgres` does not, and PostgreSQL has no calls; it then writes the marker. Copied calls are assigned to a workspace the same way as imported ones (the copy prints `calls assigned to a workspace: N`). `make deploy` waits up to 60 s for the dashboard to answer and prints the copy summary, or fails with its last log lines if it does not come up. If PostgreSQL already has calls and there is no marker it logs a WARNING and skips (it never overwrites). The copy keeps ids and only reads the SQLite file, which stays in the `dashboard-data` volume as a backup.
 
 Before the first deploy, make sure the VM's `.env` has `POSTGRES_PASSWORD` (`scripts/init.sh`), and rehearse the copy against a copy of the production file (never the live one):
 
@@ -141,7 +151,7 @@ Before the first deploy, make sure the VM's `.env` has `POSTGRES_PASSWORD` (`scr
 docker compose run --rm --no-deps -v /path/to/copy-dir:/old:ro dashboard python manage.py copy_from_sqlite --path /old/dashboard.sqlite3 --dry-run
 ```
 
-`--dry-run` does the whole copy inside a transaction, prints the counts and rolls back. `scripts/migrate-dashboard-to-postgres.sh` is an optional manual check (`COPY_ARGS=--dry-run` supported) that prints counts from both sides.
+`--dry-run` does the whole copy inside a transaction, prints the counts and rolls back. `scripts/migrate-dashboard-to-postgres.sh` is an optional manual check (`COPY_ARGS=--dry-run` supported) that prints counts from both sides; once `/data/.copied-to-postgres` exists it only prints the counts, and a real copy it makes writes that marker.
 
 **Rollback caveat.** `ROLLBACK=1 make deploy` returns to code that reads SQLite, so calls recorded in PostgreSQL after the deploy are not shown by the old version (the SQLite file only holds history up to the cutover). They are not lost: they stay in the `postgres-data` volume. To recover, deploy the PostgreSQL version again. To bring them into SQLite instead there is no tool; export them from PostgreSQL first (`docker compose exec postgres pg_dump -U dashboard dashboard > backup.sql`).
 
