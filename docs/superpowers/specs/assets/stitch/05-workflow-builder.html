@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Carrum Voice - Workflow builder [Final · Light]</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:ital,wght@0,300..900;1,300..900&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {},
+          borderRadius: {
+            DEFAULT: "0.25rem",
+            lg: "0.5rem",
+            xl: "0.75rem",
+            full: "9999px"
+          },
+          spacing: {},
+          fontFamily: {
+            headline: ["Hanken Grotesk"],
+            display: ["Hanken Grotesk"],
+            body: ["Hanken Grotesk"],
+            label: ["Hanken Grotesk"],
+            mono: ["JetBrains Mono", "monospace"]
+          },
+          fontSize: {}
+        },
+      },
+    }
+  </script>
+<style>
+    body {
+      font-family: 'Hanken Grotesk', sans-serif;
+      background-color: #FBF9F5;
+      color: #1E1A16;
+      -webkit-font-smoothing: antialiased;
+    }
+    .canvas-dots {
+      background-color: #FBF9F5;
+      background-image: radial-gradient(#D5CFC3 1.1px, transparent 1.1px);
+      background-size: 24px 24px;
+    }
+    .custom-scroll::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: #E4DFD6;
+      border-radius: 4px;
+    }
+    .custom-scroll::-webkit-scrollbar-track {
+      background: transparent;
+    }
+  </style>
+</head>
+<body class="h-screen w-screen overflow-hidden flex bg-[#FBF9F5] text-[#1E1A16] select-none">
+<!-- ==================== LEFT SIDEBAR ==================== -->
+<aside class="w-56 h-screen flex flex-col justify-between shrink-0 bg-[#F3F0EA] border-r border-[#E4DFD6] py-5 px-3 z-30">
+<div class="flex flex-col gap-5">
+<!-- Workspace Brand -->
+<div class="px-2 pt-1 flex items-center gap-2.5">
+<div class="w-8 h-8 rounded bg-[#1E1A16] text-[#FBF9F5] flex items-center justify-center font-semibold text-sm">
+          C
+        </div>
+<div class="flex flex-col min-w-0">
+<span class="font-display font-medium text-[15px] leading-tight text-[#1E1A16] truncate">Carrum Mobility</span>
+<span class="text-[12px] text-[#6E675F] truncate leading-tight">Hindi &amp; Hinglish Ops</span>
+</div>
+</div>
+<!-- Navigation Links -->
+<nav class="flex flex-col gap-1">
+<!-- Dashboard -->
+<a class="flex items-center gap-3 px-3 py-2 rounded text-[14px] text-[#4A443D] hover:bg-[#EAE5DC] transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px] text-[#6E675F]">dashboard</span>
+<span>Dashboard</span>
+</a>
+<!-- Agents -->
+<a class="flex items-center gap-3 px-3 py-2 rounded text-[14px] text-[#4A443D] hover:bg-[#EAE5DC] transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px] text-[#6E675F]">smart_toy</span>
+<span>Agents</span>
+</a>
+<!-- Workflows (Active) -->
+<a class="flex items-center gap-3 px-3 py-2 rounded text-[14px] font-medium text-[#1E1A16] bg-[#FFFFFF] shadow-sm border border-[#E4DFD6]" href="#">
+<span class="material-symbols-outlined text-[20px] text-[#9A6200]" style="font-variation-settings: 'FILL' 1;">account_tree</span>
+<span>Workflows</span>
+</a>
+<!-- Knowledge base -->
+<a class="flex items-center gap-3 px-3 py-2 rounded text-[14px] text-[#4A443D] hover:bg-[#EAE5DC] transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px] text-[#6E675F]">menu_book</span>
+<span>Knowledge base</span>
+</a>
+<!-- Live calls -->
+<a class="flex items-center justify-between px-3 py-2 rounded text-[14px] text-[#4A443D] hover:bg-[#EAE5DC] transition-colors duration-150" href="#">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-[20px] text-[#6E675F]">phone_in_talk</span>
+<span>Live calls</span>
+</div>
+<span class="px-1.5 py-0.2 text-[11px] font-medium rounded-full bg-[#E5F3EA] text-[#2E7D4F] border border-[#CDE5D5]">3</span>
+</a>
+<!-- Call history -->
+<a class="flex items-center gap-3 px-3 py-2 rounded text-[14px] text-[#4A443D] hover:bg-[#EAE5DC] transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px] text-[#6E675F]">history</span>
+<span>Call history</span>
+</a>
+<!-- Integrations -->
+<a class="flex items-center justify-between px-3 py-2 rounded text-[14px] text-[#4A443D] hover:bg-[#EAE5DC] transition-colors duration-150" href="#">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-[20px] text-[#6E675F]">extension</span>
+<span>Integrations</span>
+</div>
+<span class="px-1.5 py-0.2 text-[10px] font-normal rounded bg-[#E4DFD6] text-[#6E675F]">Soon</span>
+</a>
+<!-- Settings -->
+<a class="flex items-center gap-3 px-3 py-2 rounded text-[14px] text-[#4A443D] hover:bg-[#EAE5DC] transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px] text-[#6E675F]">settings</span>
+<span>Settings</span>
+</a>
+</nav>
+</div>
+<!-- Sidebar Footer -->
+<div class="border-t border-[#E4DFD6] pt-3 flex flex-col gap-1">
+<div class="flex items-center justify-between px-2 py-1.5 rounded text-[13px] text-[#4A443D]">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[19px] text-[#6E675F]">account_circle</span>
+<span class="truncate font-medium text-[#1E1A16]">Kapil Rohilla</span>
+</div>
+</div>
+<button class="flex items-center justify-between px-2 py-1.5 rounded text-[13px] text-[#6E675F] hover:bg-[#EAE5DC] transition-colors">
+<span class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]">dark_mode</span>
+<span>Dark mode</span>
+</span>
+<span class="w-8 h-4 rounded-full bg-[#E4DFD6] relative flex items-center p-0.5">
+<span class="w-3 h-3 rounded-full bg-white block shadow-sm"></span>
+</span>
+</button>
+</div>
+</aside>
+<!-- ==================== MAIN WORKFLOW STUDIO ==================== -->
+<main class="flex-1 flex flex-col h-screen overflow-hidden">
+<!-- Top Bar -->
+<header class="h-16 shrink-0 bg-[#FFFFFF] border-b border-[#E4DFD6] px-6 flex items-center justify-between z-20">
+<!-- Breadcrumb -->
+<div class="flex items-center gap-3">
+<div class="flex items-center gap-2 text-[15px]">
+<span class="text-[#6E675F] hover:text-[#1E1A16] cursor-pointer">Workflows</span>
+<span class="text-[#CFC8BC]">/</span>
+<span class="font-medium text-[#1E1A16]">Driver onboarding</span>
+</div>
+<span class="px-2 py-0.5 rounded text-[12px] bg-[#F3F0EA] text-[#6E675F] border border-[#E4DFD6]">
+          Draft
+        </span>
+</div>
+<!-- Actions -->
+<div class="flex items-center gap-3">
+<button class="h-10 px-4 rounded border border-[#E4DFD6] bg-white hover:bg-[#F3F0EA] text-[#1E1A16] text-[14px] font-medium flex items-center gap-2 transition-colors">
+<span class="material-symbols-outlined text-[18px] text-[#6E675F]">play_arrow</span>
+<span>Try it</span>
+</button>
+<!-- EXACTLY ONE AMBER PRIMARY BUTTON -->
+<button class="h-10 px-5 rounded bg-[#F2B544] hover:bg-[#e7ac3c] text-[#2A1F0B] text-[14px] font-semibold flex items-center gap-2 transition-colors shadow-sm">
+<span>Publish</span>
+</button>
+</div>
+</header>
+<!-- Canvas and Inspector Area -->
+<div class="flex-1 flex overflow-hidden relative">
+<!-- ==================== FLOW DIAGRAM CANVAS ==================== -->
+<div class="flex-1 h-full overflow-auto canvas-dots custom-scroll relative p-12">
+<div class="relative w-[1380px] h-[920px]">
+<!-- SVG Connectors Layer -->
+<svg class="absolute inset-0 w-full h-full pointer-events-none z-0" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<marker id="arrow-neutral" markerheight="6" markerwidth="6" orient="auto" refx="5" refy="3">
+<path d="M0,0 L6,3 L0,6" fill="none" stroke="#CFC8BC" stroke-width="1.2"></path>
+</marker>
+<marker id="arrow-amber" markerheight="6" markerwidth="6" orient="auto" refx="5" refy="3">
+<path d="M0,0 L6,3 L0,6" fill="none" stroke="#F2B544" stroke-width="1.5"></path>
+</marker>
+<marker id="arrow-green" markerheight="6" markerwidth="6" orient="auto" refx="5" refy="3">
+<path d="M0,0 L6,3 L0,6" fill="none" stroke="#2E7D4F" stroke-width="1.2"></path>
+</marker>
+<marker id="arrow-red" markerheight="6" markerwidth="6" orient="auto" refx="5" refy="3">
+<path d="M0,0 L6,3 L0,6" fill="none" stroke="#B4412F" stroke-width="1.2"></path>
+</marker>
+</defs>
+<!-- Line: Greeting -> Ask city -->
+<path d="M 280 84 L 350 84" fill="none" marker-end="url(#arrow-neutral)" stroke="#CFC8BC" stroke-width="1.5"></path>
+<!-- Line: Ask city -> Ask licence (Branch 1) -->
+<path d="M 610 70 L 680 70" fill="none" marker-end="url(#arrow-neutral)" stroke="#CFC8BC" stroke-width="1.5"></path>
+<!-- Line: Ask city -> End: not in your city (Branch 2) -->
+<path d="M 480 148 L 480 250 L 510 250" fill="none" marker-end="url(#arrow-neutral)" stroke="#CFC8BC" stroke-width="1.5"></path>
+<!-- Line: Ask licence -> Explain the plan (Branch 1) -->
+<path d="M 940 70 L 1020 70 L 1020 230" fill="none" marker-end="url(#arrow-amber)" stroke="#F2B544" stroke-width="1.8"></path>
+<!-- Line: Ask licence -> End: not eligible (Branch 2) -->
+<path d="M 810 148 L 810 250 L 850 250" fill="none" marker-end="url(#arrow-neutral)" stroke="#CFC8BC" stroke-width="1.5"></path>
+<!-- Line: Explain the plan -> End: interested (Green branch) -->
+<path d="M 1020 405 L 1020 490 L 780 490 L 780 560" fill="none" marker-end="url(#arrow-green)" stroke="#2E7D4F" stroke-dasharray="3 3" stroke-width="1.5"></path>
+<!-- Line: Explain the plan -> Schedule a call back (Amber branch) -->
+<path d="M 1050 405 L 1050 560" fill="none" marker-end="url(#arrow-amber)" stroke="#9A6200" stroke-width="1.5"></path>
+<!-- Line: Explain the plan -> Transfer to a telecaller (Red branch) -->
+<path d="M 1080 405 L 1080 490 L 1310 490 L 1310 560" fill="none" marker-end="url(#arrow-red)" stroke="#B4412F" stroke-width="1.5"></path>
+</svg>
+<!-- 1. GREETING CARD -->
+<div class="absolute left-6 top-6 w-[260px] bg-white rounded-lg border border-[#E4DFD6] p-4 shadow-sm hover:border-[#CFC8BC] transition-all">
+<div class="flex items-center justify-between mb-2">
+<span class="text-[15px] font-medium text-[#1E1A16] flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-[#2F6DB5]"></span>
+                Greeting
+              </span>
+<span class="text-[12px] text-[#6E675F]">Start</span>
+</div>
+<p class="text-[14px] text-[#4A443D] leading-relaxed line-clamp-3">
+              नमस्ते! मैं Carrum Mobility से Priya बोल रही हूँ।
+            </p>
+</div>
+<!-- 2. ASK CITY CARD -->
+<div class="absolute left-[350px] top-6 w-[260px] bg-white rounded-lg border border-[#E4DFD6] p-4 shadow-sm hover:border-[#CFC8BC] transition-all">
+<div class="flex items-center justify-between mb-2">
+<span class="text-[15px] font-medium text-[#1E1A16] flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-[#2F6DB5]"></span>
+                Ask city
+              </span>
+<span class="text-[12px] text-[#6E675F]">Question</span>
+</div>
+<p class="text-[14px] text-[#4A443D] leading-relaxed mb-3">
+              क्या आप Pune या Delhi में drive करना चाहते हैं?
+            </p>
+<div class="pt-2 border-t border-[#F3F0EA] flex flex-col gap-1.5">
+<div class="flex items-center justify-between text-[13px]">
+<span class="text-[#2F6DB5] bg-[#E6EEF8] px-2 py-0.5 rounded text-[12px] font-normal">Pune or Delhi</span>
+<span class="text-[#6E675F] text-[12px]">Continue →</span>
+</div>
+<div class="flex items-center justify-between text-[13px]">
+<span class="text-[#6E675F] bg-[#F3F0EA] px-2 py-0.5 rounded text-[12px]">Other city</span>
+<span class="text-[#6E675F] text-[12px]">Exit ↓</span>
+</div>
+</div>
+</div>
+<!-- 4. END: NOT IN YOUR CITY -->
+<div class="absolute left-[510px] top-[220px] w-[240px] bg-[#F8F6F2] rounded-lg border border-[#E4DFD6] p-3.5 shadow-sm">
+<div class="flex items-center justify-between mb-1.5">
+<span class="text-[14px] font-medium text-[#6E675F] flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[16px]">stop_circle</span>
+                End: not in your city
+              </span>
+<span class="text-[11px] text-[#6E675F]">Terminal</span>
+</div>
+<p class="text-[13px] text-[#6E675F] leading-snug">
+              क्षमा करें, हम अभी आपके शहर में उपलब्ध नहीं हैं।
+            </p>
+</div>
+<!-- 3. ASK LICENCE AND EXPERIENCE CARD -->
+<div class="absolute left-[680px] top-6 w-[260px] bg-white rounded-lg border border-[#E4DFD6] p-4 shadow-sm hover:border-[#CFC8BC] transition-all">
+<div class="flex items-center justify-between mb-2">
+<span class="text-[15px] font-medium text-[#1E1A16] flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-[#2F6DB5]"></span>
+                Ask licence and experience
+              </span>
+</div>
+<p class="text-[14px] text-[#4A443D] leading-relaxed mb-3">
+              क्या आपके पास commercial yellow plate licence है?
+            </p>
+<div class="pt-2 border-t border-[#F3F0EA] flex flex-col gap-1.5">
+<div class="flex items-center justify-between text-[13px]">
+<span class="text-[#2F6DB5] bg-[#E6EEF8] px-2 py-0.5 rounded text-[12px]">Has licence</span>
+<span class="text-[#6E675F] text-[12px]">Continue →</span>
+</div>
+<div class="flex items-center justify-between text-[13px]">
+<span class="text-[#6E675F] bg-[#F3F0EA] px-2 py-0.5 rounded text-[12px]">No licence</span>
+<span class="text-[#6E675F] text-[12px]">Exit ↓</span>
+</div>
+</div>
+</div>
+<!-- 5. END: NOT ELIGIBLE -->
+<div class="absolute left-[850px] top-[220px] w-[240px] bg-[#F8F6F2] rounded-lg border border-[#E4DFD6] p-3.5 shadow-sm">
+<div class="flex items-center justify-between mb-1.5">
+<span class="text-[14px] font-medium text-[#6E675F] flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[16px]">cancel</span>
+                End: not eligible
+              </span>
+<span class="text-[11px] text-[#6E675F]">Terminal</span>
+</div>
+<p class="text-[13px] text-[#6E675F] leading-snug">
+              Commercial licence होना आवश्यक है। धन्यवाद!
+            </p>
+</div>
+<!-- 6. EXPLAIN THE PLAN (SELECTED / FOCUSED CARD) -->
+<div class="absolute left-[920px] top-[230px] w-[320px] bg-white rounded-lg border-2 border-[#F2B544] p-4 shadow-md ring-4 ring-[#FBEFD6] transition-all z-10">
+<div class="flex items-center justify-between mb-2">
+<span class="text-[15px] font-semibold text-[#1E1A16] flex items-center gap-2">
+<span class="w-2.5 h-2.5 rounded-full bg-[#F2B544]"></span>
+                Explain the plan
+              </span>
+<span class="text-[11px] font-medium text-[#9A6200] bg-[#FBEFD6] px-2 py-0.5 rounded">Selected</span>
+</div>
+<!-- Script with Expression chips -->
+<div class="bg-[#FBF9F5] p-3 rounded border border-[#E4DFD6] mb-3 text-[14px] leading-relaxed text-[#1E1A16]">
+<span class="inline-block px-1.5 py-0.2 rounded text-[11px] font-mono border border-[#F6B38D] bg-[#FFF2EA] text-[#B04C1C] mr-1">[excited]</span>
+<span class="font-mono text-[13px] text-[#2F6DB5] bg-[#E6EEF8] px-1 rounded mr-1 leading-normal">{{lead.city}}</span>
+<span>में हमारे plan के बारे में बताऊँ?</span>
+<span class="inline-block px-1.5 py-0.2 rounded text-[11px] font-mono border border-[#C5CAD3] bg-[#EFF1F5] text-[#475266] ml-1">[pause 1s]</span>
+</div>
+<!-- Branch labels -->
+<div class="pt-2 border-t border-[#F3F0EA] flex flex-col gap-2">
+<div class="flex items-center justify-between text-[13px]">
+<span class="inline-flex items-center gap-1.5 text-[#2E7D4F] bg-[#E5F3EA] px-2 py-0.5 rounded text-[12px] font-medium">
+<span class="w-1.5 h-1.5 rounded-full bg-[#2E7D4F]"></span>
+                  Interested
+                </span>
+<span class="text-[12px] text-[#6E675F]">End: interested</span>
+</div>
+<div class="flex items-center justify-between text-[13px]">
+<span class="inline-flex items-center gap-1.5 text-[#9A6200] bg-[#FBEFD6] px-2 py-0.5 rounded text-[12px] font-medium">
+<span class="w-1.5 h-1.5 rounded-full bg-[#9A6200]"></span>
+                  Busy
+                </span>
+<span class="text-[12px] text-[#6E675F]">Schedule call back</span>
+</div>
+<div class="flex items-center justify-between text-[13px]">
+<span class="inline-flex items-center gap-1.5 text-[#B4412F] bg-[#F9E4E0] px-2 py-0.5 rounded text-[12px] font-medium">
+<span class="w-1.5 h-1.5 rounded-full bg-[#B4412F]"></span>
+                  Upset
+                </span>
+<span class="text-[12px] text-[#6E675F]">Transfer to human</span>
+</div>
+</div>
+</div>
+<!-- 7. END: INTERESTED CARD -->
+<div class="absolute left-[680px] top-[560px] w-[220px] bg-white rounded-lg border border-[#CDE5D5] p-3.5 shadow-sm">
+<div class="flex items-center justify-between mb-1.5">
+<span class="text-[14px] font-medium text-[#1E1A16] flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-[#2E7D4F]"></span>
+                End: interested
+              </span>
+<span class="text-[11px] text-[#2E7D4F] bg-[#E5F3EA] px-1.5 py-0.5 rounded">Success</span>
+</div>
+<p class="text-[13px] text-[#4A443D] leading-snug">
+              Send WhatsApp link for KYC verification.
+            </p>
+</div>
+<!-- 8. SCHEDULE A CALL BACK CARD -->
+<div class="absolute left-[940px] top-[560px] w-[230px] bg-white rounded-lg border border-[#F2DEB5] p-3.5 shadow-sm">
+<div class="flex items-center justify-between mb-1.5">
+<span class="text-[14px] font-medium text-[#1E1A16] flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-[#9A6200]"></span>
+                Schedule a call back
+              </span>
+<span class="text-[11px] text-[#9A6200] bg-[#FBEFD6] px-1.5 py-0.5 rounded">Retry</span>
+</div>
+<p class="text-[13px] text-[#4A443D] leading-snug">
+              Ask preferred time: evening or tomorrow morning?
+            </p>
+</div>
+<!-- 9. TRANSFER TO A TELECALLER CARD -->
+<div class="absolute left-[1200px] top-[560px] w-[230px] bg-white rounded-lg border border-[#F3C8C1] p-3.5 shadow-sm">
+<div class="flex items-center justify-between mb-1.5">
+<span class="text-[14px] font-medium text-[#1E1A16] flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-[#B4412F]"></span>
+                Transfer to a telecaller
+              </span>
+<span class="text-[11px] text-[#B4412F] bg-[#F9E4E0] px-1.5 py-0.5 rounded">Escalate</span>
+</div>
+<p class="text-[13px] text-[#4A443D] leading-snug">
+              Connecting to human supervisor desk #04.
+            </p>
+</div>
+</div>
+<!-- Bottom Left: Floating Add Step -->
+<div class="fixed bottom-6 left-64 z-30">
+<button class="h-10 px-4 rounded bg-white border border-[#E4DFD6] shadow-sm hover:bg-[#F3F0EA] text-[#1E1A16] text-[14px] font-medium flex items-center gap-2 transition-colors">
+<span class="material-symbols-outlined text-[19px] text-[#9A6200]">add</span>
+<span>Add step</span>
+</button>
+</div>
+<!-- Bottom Right (Canvas): Zoom Controls -->
+<div class="fixed bottom-6 right-[364px] z-30 flex items-center bg-white border border-[#E4DFD6] rounded shadow-sm overflow-hidden text-[13px] text-[#4A443D]">
+<button class="w-9 h-9 flex items-center justify-center hover:bg-[#F3F0EA] transition-colors">
+<span class="material-symbols-outlined text-[18px]">remove</span>
+</button>
+<span class="px-2 font-mono text-[12px] border-x border-[#E4DFD6]">100%</span>
+<button class="w-9 h-9 flex items-center justify-center hover:bg-[#F3F0EA] transition-colors">
+<span class="material-symbols-outlined text-[18px]">add</span>
+</button>
+<button class="px-2.5 h-9 border-l border-[#E4DFD6] hover:bg-[#F3F0EA] transition-colors text-[12px]">
+            Fit
+          </button>
+<button class="w-9 h-9 flex items-center justify-center border-l border-[#E4DFD6] hover:bg-[#F3F0EA] transition-colors text-[#6E675F]">
+<span class="material-symbols-outlined text-[18px]">map</span>
+</button>
+</div>
+</div>
+<!-- ==================== RIGHT SIDE PANEL (STEP INSPECTOR) ==================== -->
+<aside class="w-[340px] h-full shrink-0 bg-white border-l border-[#E4DFD6] flex flex-col justify-between overflow-y-auto custom-scroll z-20">
+<div class="p-5 flex flex-col gap-5">
+<!-- Panel Header -->
+<div class="flex items-center justify-between pb-3 border-b border-[#E4DFD6]">
+<div>
+<span class="text-[12px] text-[#6E675F] block">Step details</span>
+<h2 class="text-[17px] font-medium text-[#1E1A16]">Explain the plan</h2>
+</div>
+<button class="w-8 h-8 rounded hover:bg-[#F3F0EA] flex items-center justify-center text-[#6E675F] transition-colors">
+<span class="material-symbols-outlined text-[20px]">close</span>
+</button>
+</div>
+<!-- Step Name Input -->
+<div class="flex flex-col gap-1.5">
+<label class="text-[13px] font-medium text-[#4A443D]">Step name</label>
+<input class="h-10 px-3 rounded bg-[#F3F0EA] border border-[#E4DFD6] text-[15px] text-[#1E1A16] focus:outline-none focus:border-[#9A6200] transition-colors" type="text" value="Explain the plan"/>
+</div>
+<!-- What the Agent Says -->
+<div class="flex flex-col gap-1.5">
+<div class="flex items-center justify-between">
+<label class="text-[13px] font-medium text-[#4A443D]">What the agent says</label>
+<!-- Expression dropdown button -->
+<button class="text-[12px] text-[#2F6DB5] bg-[#E6EEF8] px-2 py-0.5 rounded hover:bg-[#d9e5f5] flex items-center gap-1 transition-colors">
+<span>Expression</span>
+<span class="text-[10px]">▾</span>
+</button>
+</div>
+<!-- Rich text / script box -->
+<div class="p-3 rounded bg-[#F3F0EA] border border-[#E4DFD6] text-[14px] leading-relaxed flex flex-col gap-2.5">
+<div class="flex flex-wrap items-center gap-1.5">
+<span class="inline-block px-1.5 py-0.5 rounded text-[11px] font-mono border border-[#F6B38D] bg-[#FFF2EA] text-[#B04C1C]">[excited]</span>
+<span class="inline-block px-1.5 py-0.5 rounded text-[11px] font-mono border border-[#B8D3F3] bg-[#E6EEF8] text-[#2F6DB5]">{{lead.city}}</span>
+<span class="text-[#1E1A16] text-[14px]">में हमारे plan के बारे में बताऊँ?</span>
+<span class="inline-block px-1.5 py-0.5 rounded text-[11px] font-mono border border-[#C5CAD3] bg-[#EFF1F5] text-[#475266]">[pause 1s]</span>
+</div>
+<span class="text-[11px] text-[#6E675F] border-t border-[#E4DFD6] pt-1.5">Ops Tip: Hindi accent with warm energetic pitch</span>
+</div>
+</div>
+<!-- Then Go To (Routing Rows) -->
+<div class="flex flex-col gap-2">
+<label class="text-[13px] font-medium text-[#4A443D]">Then go to</label>
+<div class="flex flex-col gap-2">
+<!-- Row 1: Interested -->
+<div class="p-2.5 rounded bg-[#FBF9F5] border border-[#E4DFD6] flex items-center justify-between text-[13px]">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-[#2E7D4F]"></span>
+<span class="font-medium text-[#1E1A16]">Interested</span>
+</div>
+<div class="flex items-center gap-1.5 text-[#4A443D]">
+<span class="text-[#6E675F]">→</span>
+<span class="truncate max-w-[120px] text-[13px]">End: interested</span>
+</div>
+</div>
+<!-- Row 2: Busy -->
+<div class="p-2.5 rounded bg-[#FBF9F5] border border-[#E4DFD6] flex items-center justify-between text-[13px]">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-[#F2B544]"></span>
+<span class="font-medium text-[#1E1A16]">Busy</span>
+</div>
+<div class="flex items-center gap-1.5 text-[#4A443D]">
+<span class="text-[#6E675F]">→</span>
+<span class="truncate max-w-[120px] text-[13px]">Schedule call back</span>
+</div>
+</div>
+<!-- Row 3: Upset -->
+<div class="p-2.5 rounded bg-[#FBF9F5] border border-[#E4DFD6] flex items-center justify-between text-[13px]">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-[#B4412F]"></span>
+<span class="font-medium text-[#1E1A16]">Upset</span>
+</div>
+<div class="flex items-center gap-1.5 text-[#4A443D]">
+<span class="text-[#6E675F]">→</span>
+<span class="truncate max-w-[120px] text-[13px]">Transfer to human</span>
+</div>
+</div>
+</div>
+<button class="mt-1 text-[13px] text-[#9A6200] hover:text-[#7A4E00] flex items-center gap-1 font-medium self-start transition-colors">
+<span class="material-symbols-outlined text-[16px]">add</span>
+<span>Add path</span>
+</button>
+</div>
+<!-- Use Knowledge Dropdown -->
+<div class="flex flex-col gap-1.5">
+<label class="text-[13px] font-medium text-[#4A443D]">Use knowledge</label>
+<div class="relative">
+<select class="w-full h-10 px-3 pr-8 rounded bg-[#F3F0EA] border border-[#E4DFD6] text-[14px] text-[#1E1A16] appearance-none focus:outline-none focus:border-[#9A6200] transition-colors cursor-pointer">
+<option selected="">Pricing and plans — Pune</option>
+<option>Pricing and plans — Delhi NCR</option>
+<option>Driver FAQs &amp; Requirements</option>
+<option>None (General script)</option>
+</select>
+<span class="material-symbols-outlined pointer-events-none absolute right-2.5 top-2.5 text-[18px] text-[#6E675F]">
+                expand_more
+              </span>
+</div>
+</div>
+<!-- Advanced Collapsible Section -->
+<div class="border-t border-[#E4DFD6] pt-3">
+<button class="w-full flex items-center justify-between text-[13px] text-[#6E675F] hover:text-[#1E1A16] transition-colors py-1">
+<span class="font-medium">Advanced</span>
+<span class="material-symbols-outlined text-[18px]">chevron_right</span>
+</button>
+</div>
+</div>
+<!-- Step Actions Bottom Bar -->
+<div class="p-4 border-t border-[#E4DFD6] bg-[#FBF9F5] flex items-center justify-between text-[13px]">
+<button class="text-[#B4412F] hover:text-[#8E2F20] transition-colors font-medium flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">delete</span>
+<span>Delete step</span>
+</button>
+<span class="text-[#6E675F] text-[12px] font-mono">Step #06</span>
+</div>
+</aside>
+</div>
+</main>
+</body></html>

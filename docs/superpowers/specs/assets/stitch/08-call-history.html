@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Carrum Voice - Call history [Final · Light]</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:ital,wght@0,300..800;1,300..800&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            amber: {
+              brand: '#F2B544',
+              dark: '#2A1F0B',
+              text: '#9A6200',
+              tint: '#FBEFD6'
+            },
+            carrum: {
+              page: '#FBF9F5',
+              panel: '#FFFFFF',
+              border: '#E4DFD6',
+              rule: '#CFC8BC',
+              well: '#F3F0EA',
+              ink: '#1E1A16',
+              secondary: '#4A443D',
+              muted: '#6E675F',
+              blue: '#2F6DB5',
+              blueBg: '#E6EEF8',
+              ok: '#2E7D4F',
+              okBg: '#E5F3EA',
+              bad: '#B4412F',
+              badBg: '#F9E4E0'
+            }
+          },
+          borderRadius: {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          fontFamily: {
+            headline: ["Hanken Grotesk", "sans-serif"],
+            display: ["Hanken Grotesk", "sans-serif"],
+            body: ["Hanken Grotesk", "sans-serif"],
+            label: ["Hanken Grotesk", "sans-serif"],
+            mono: ["JetBrains Mono", "monospace"]
+          }
+        },
+      },
+    }
+  </script>
+<style>
+    body {
+      background-color: #FBF9F5;
+      color: #1E1A16;
+      font-family: 'Hanken Grotesk', sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .material-symbols-outlined {
+      font-size: 20px;
+      line-height: 1;
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      display: inline-block;
+      vertical-align: middle;
+    }
+    .mono-num {
+      font-family: 'JetBrains Mono', monospace;
+      letter-spacing: -0.01em;
+    }
+    /* Custom subtle scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #E4DFD6;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #CFC8BC;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex antialiased select-none text-[15px] bg-[#FBF9F5]">
+<!-- SIDEBAR (Shared Component: SideNavBar) -->
+<aside class="w-56 h-screen flex flex-col justify-between shrink-0 bg-[#F3F0EA] border-r border-[#E4DFD6] py-6 px-4 fixed left-0 top-0 z-30">
+<div class="flex flex-col gap-6">
+<!-- Workspace Brand -->
+<div class="px-2">
+<div class="flex items-center gap-2.5">
+<div class="w-7 h-7 rounded bg-[#1E1A16] text-white flex items-center justify-center font-display font-medium text-sm">
+            C
+          </div>
+<div>
+<div class="font-display font-medium text-[15px] text-[#1E1A16] leading-tight">Carrum Mobility</div>
+<div class="text-[13px] text-[#6E675F] leading-tight">Hindi &amp; Hinglish Ops</div>
+</div>
+</div>
+</div>
+<!-- Navigation Links -->
+<nav class="flex flex-col gap-1">
+<!-- 1. Dashboard -->
+<a class="flex items-center gap-3 px-3 py-2 rounded text-[#4A443D] hover:bg-[#EAE5DC] transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[#6E675F]">dashboard</span>
+<span class="font-normal text-[14px]">Dashboard</span>
+</a>
+<!-- 2. Agents -->
+<a class="flex items-center gap-3 px-3 py-2 rounded text-[#4A443D] hover:bg-[#EAE5DC] transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[#6E675F]">smart_toy</span>
+<span class="font-normal text-[14px]">Agents</span>
+</a>
+<!-- 3. Workflows -->
+<a class="flex items-center gap-3 px-3 py-2 rounded text-[#4A443D] hover:bg-[#EAE5DC] transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[#6E675F]">account_tree</span>
+<span class="font-normal text-[14px]">Workflows</span>
+</a>
+<!-- 4. Knowledge base -->
+<a class="flex items-center gap-3 px-3 py-2 rounded text-[#4A443D] hover:bg-[#EAE5DC] transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[#6E675F]">menu_book</span>
+<span class="font-normal text-[14px]">Knowledge base</span>
+</a>
+<!-- 5. Live calls -->
+<a class="flex items-center justify-between px-3 py-2 rounded text-[#4A443D] hover:bg-[#EAE5DC] transition-colors duration-150" href="#">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-[#6E675F]">phone_in_talk</span>
+<span class="font-normal text-[14px]">Live calls</span>
+</div>
+<span class="px-1.5 py-0.5 text-[11px] font-mono font-medium rounded-full bg-[#E6EEF8] text-[#2F6DB5]">3</span>
+</a>
+<!-- 6. Call history (ACTIVE) -->
+<a class="flex items-center gap-3 px-3 py-2 rounded font-medium text-[#1E1A16] bg-[#FFFFFF] shadow-sm border border-[#E4DFD6]/60 transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[#1E1A16]">history</span>
+<span class="text-[14px]">Call history</span>
+</a>
+<!-- 7. Integrations -->
+<a class="flex items-center justify-between px-3 py-2 rounded text-[#4A443D] hover:bg-[#EAE5DC] transition-colors duration-150" href="#">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-[#6E675F]">extension</span>
+<span class="font-normal text-[14px]">Integrations</span>
+</div>
+<span class="px-1.5 py-0.5 text-[10px] text-[#6E675F] bg-[#E4DFD6] rounded">Soon</span>
+</a>
+<!-- 8. Settings -->
+<a class="flex items-center gap-3 px-3 py-2 rounded text-[#4A443D] hover:bg-[#EAE5DC] transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[#6E675F]">settings</span>
+<span class="font-normal text-[14px]">Settings</span>
+</a>
+</nav>
+</div>
+<!-- Bottom User Bar & Dark Toggle -->
+<div class="pt-4 border-t border-[#E4DFD6] flex flex-col gap-2">
+<div class="flex items-center justify-between px-2 py-1.5 rounded">
+<div class="flex items-center gap-2.5">
+<span class="material-symbols-outlined text-[#6E675F]">account_circle</span>
+<span class="font-normal text-[13px] text-[#1E1A16]">Kapil Rohilla</span>
+</div>
+</div>
+<div class="flex items-center justify-between px-2 py-1 text-[13px] text-[#6E675F]">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]">dark_mode</span>
+<span>Dark mode</span>
+</div>
+<!-- Toggle button (Light Mode active) -->
+<button aria-label="Toggle dark mode" class="w-8 h-4 bg-[#E4DFD6] rounded-full p-0.5 transition-colors duration-200 ease-in-out relative" type="button">
+<span class="block w-3 h-3 bg-white rounded-full transition-transform translate-x-0"></span>
+</button>
+</div>
+</div>
+</aside>
+<!-- MAIN CANVAS (Calculated offset: left 224px, right drawer reserved 420px) -->
+<main class="ml-56 mr-[420px] flex-1 flex flex-col min-h-screen bg-[#FBF9F5]">
+<!-- Top Navigation Anchor (Shared Component: TopNavBar adaptation) -->
+<header class="flex justify-between items-center h-16 px-8 border-b border-[#E4DFD6] bg-[#FBF9F5] sticky top-0 z-20">
+<div class="flex items-baseline gap-3">
+<h1 class="font-headline text-2xl font-medium text-[#1E1A16]">Call history</h1>
+<span class="text-[13px] text-[#6E675F]">All Hindi &amp; Hinglish inbound/outbound calls</span>
+</div>
+<!-- Trailing Top Controls -->
+<div class="flex items-center gap-3">
+<button class="h-10 px-3.5 bg-white border border-[#E4DFD6] rounded text-[14px] text-[#1E1A16] hover:bg-[#F3F0EA] transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-[#6E675F] text-[18px]">calendar_today</span>
+<span>Last 7 days</span>
+<span class="material-symbols-outlined text-[#6E675F] text-[16px]">expand_more</span>
+</button>
+<button class="h-10 px-3.5 bg-white border border-[#E4DFD6] rounded text-[14px] text-[#1E1A16] hover:bg-[#F3F0EA] transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-[#6E675F] text-[18px]">download</span>
+<span>Export</span>
+</button>
+</div>
+</header>
+<!-- CONTENT WRAPPER -->
+<div class="p-8 flex flex-col gap-6">
+<!-- FILTER CONTROLS BAR -->
+<section class="flex items-center justify-between gap-4">
+<div class="flex items-center gap-3 flex-1 max-w-2xl">
+<!-- Search Input -->
+<div class="relative flex-1">
+<span class="material-symbols-outlined text-[#6E675F] absolute left-3 top-2.5 text-[18px]">search</span>
+<input class="w-full h-10 pl-9 pr-3 rounded bg-[#F3F0EA] border border-transparent focus:border-[#CFC8BC] focus:bg-white text-[14px] text-[#1E1A16] placeholder-[#6E675F] outline-none transition-colors" placeholder="Search by phone number" type="text"/>
+</div>
+<!-- Outcome Select Filter -->
+<div class="relative">
+<select class="h-10 pl-3 pr-8 rounded bg-[#F3F0EA] border border-transparent focus:border-[#CFC8BC] focus:bg-white text-[14px] text-[#4A443D] outline-none appearance-none cursor-pointer">
+<option>Outcome: All</option>
+<option>Interested</option>
+<option>Call back</option>
+<option>Not interested</option>
+<option>Dropped</option>
+<option>Not reached</option>
+</select>
+<span class="material-symbols-outlined text-[#6E675F] absolute right-2.5 top-3 pointer-events-none text-[16px]">expand_more</span>
+</div>
+<!-- Agent Select Filter -->
+<div class="relative">
+<select class="h-10 pl-3 pr-8 rounded bg-[#F3F0EA] border border-transparent focus:border-[#CFC8BC] focus:bg-white text-[14px] text-[#4A443D] outline-none appearance-none cursor-pointer">
+<option>Agent: All</option>
+<option>Priya (Hindi)</option>
+<option>Aarav (Hinglish)</option>
+</select>
+<span class="material-symbols-outlined text-[#6E675F] absolute right-2.5 top-3 pointer-events-none text-[16px]">expand_more</span>
+</div>
+</div>
+<div>
+<button class="h-10 px-3 bg-transparent border border-[#E4DFD6] hover:bg-[#F3F0EA] text-[14px] text-[#4A443D] rounded flex items-center gap-2 transition-colors">
+<span class="material-symbols-outlined text-[18px]">tune</span>
+<span>More filters</span>
+</button>
+</div>
+</section>
+<!-- DATA TABLE (Horizontal rules only, no outer card) -->
+<section class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="border-b border-[#CFC8BC] text-[13px] font-normal text-[#6E675F]">
+<th class="py-3 px-3 font-normal">When</th>
+<th class="py-3 px-3 font-normal">Caller</th>
+<th class="py-3 px-3 font-normal">Outcome</th>
+<th class="py-3 px-3 font-normal">Mood</th>
+<th class="py-3 px-3 font-normal">Duration</th>
+<th class="py-3 px-3 font-normal">Summary</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-[#E4DFD6]">
+<!-- Row 1 (SELECTED) -->
+<tr class="h-[52px] bg-[#FBEFD6]/60 border-l-2 border-l-[#9A6200] cursor-pointer transition-colors">
+<td class="py-3 px-3 text-[#1E1A16] whitespace-nowrap text-[14px]">Today 14:32</td>
+<td class="py-3 px-3 whitespace-nowrap">
+<div class="mono-num text-[14px] text-[#1E1A16] font-medium">+91 98201 44821</div>
+<div class="text-[12px] text-[#6E675F]">Pune</div>
+</td>
+<td class="py-3 px-3 whitespace-nowrap">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[12px] font-medium bg-[#E5F3EA] text-[#2E7D4F] border border-[#2E7D4F]/20">
+                  Interested
+                </span>
+</td>
+<td class="py-3 px-3 whitespace-nowrap text-[14px] text-[#4A443D]">Positive</td>
+<td class="py-3 px-3 whitespace-nowrap mono-num text-[13px] text-[#4A443D]">02:14</td>
+<td class="py-3 px-3 text-[14px] text-[#4A443D] max-w-xs truncate">Wants commercial yellow plate cab lease in Pune; asked about deposit waiver and Flexi plan.</td>
+</tr>
+<!-- Row 2 -->
+<tr class="h-[52px] hover:bg-[#F3F0EA] cursor-pointer transition-colors">
+<td class="py-3 px-3 text-[#1E1A16] whitespace-nowrap text-[14px]">Today 13:15</td>
+<td class="py-3 px-3 whitespace-nowrap">
+<div class="mono-num text-[14px] text-[#1E1A16]">+91 88002 91043</div>
+<div class="text-[12px] text-[#6E675F]">Delhi</div>
+</td>
+<td class="py-3 px-3 whitespace-nowrap">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[12px] font-medium bg-[#FBEFD6] text-[#9A6200] border border-[#9A6200]/25">
+                  Call back
+                </span>
+</td>
+<td class="py-3 px-3 whitespace-nowrap text-[14px] text-[#4A443D]">Hesitant</td>
+<td class="py-3 px-3 whitespace-nowrap mono-num text-[13px] text-[#4A443D]">01:45</td>
+<td class="py-3 px-3 text-[14px] text-[#4A443D] max-w-xs truncate">Currently on highway; requested follow-up in the evening around 7 PM.</td>
+</tr>
+<!-- Row 3 -->
+<tr class="h-[52px] hover:bg-[#F3F0EA] cursor-pointer transition-colors">
+<td class="py-3 px-3 text-[#1E1A16] whitespace-nowrap text-[14px]">Today 11:48</td>
+<td class="py-3 px-3 whitespace-nowrap">
+<div class="mono-num text-[14px] text-[#1E1A16]">+91 91673 88204</div>
+<div class="text-[12px] text-[#6E675F]">Mumbai</div>
+</td>
+<td class="py-3 px-3 whitespace-nowrap">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[12px] font-medium bg-[#F3F0EA] text-[#6E675F] border border-[#E4DFD6]">
+                  Not interested
+                </span>
+</td>
+<td class="py-3 px-3 whitespace-nowrap text-[14px] text-[#4A443D]">Neutral</td>
+<td class="py-3 px-3 whitespace-nowrap mono-num text-[13px] text-[#4A443D]">00:48</td>
+<td class="py-3 px-3 text-[14px] text-[#4A443D] max-w-xs truncate">Already acquired personal CNG vehicle through dealer.</td>
+</tr>
+<!-- Row 4 -->
+<tr class="h-[52px] hover:bg-[#F3F0EA] cursor-pointer transition-colors">
+<td class="py-3 px-3 text-[#1E1A16] whitespace-nowrap text-[14px]">Today 10:20</td>
+<td class="py-3 px-3 whitespace-nowrap">
+<div class="mono-num text-[14px] text-[#1E1A16]">+91 99304 12095</div>
+<div class="text-[12px] text-[#6E675F]">Mumbai</div>
+</td>
+<td class="py-3 px-3 whitespace-nowrap">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[12px] font-medium bg-[#E5F3EA] text-[#2E7D4F] border border-[#2E7D4F]/20">
+                  Interested
+                </span>
+</td>
+<td class="py-3 px-3 whitespace-nowrap text-[14px] text-[#4A443D]">Curious</td>
+<td class="py-3 px-3 whitespace-nowrap mono-num text-[13px] text-[#4A443D]">03:32</td>
+<td class="py-3 px-3 text-[14px] text-[#4A443D] max-w-xs truncate">Asked regarding EV charging reimbursement and daily shift limits in Mumbai suburbs.</td>
+</tr>
+<!-- Row 5 -->
+<tr class="h-[52px] hover:bg-[#F3F0EA] cursor-pointer transition-colors">
+<td class="py-3 px-3 text-[#1E1A16] whitespace-nowrap text-[14px]">Yesterday 18:20</td>
+<td class="py-3 px-3 whitespace-nowrap">
+<div class="mono-num text-[14px] text-[#1E1A16]">+91 98110 54109</div>
+<div class="text-[12px] text-[#6E675F]">Delhi</div>
+</td>
+<td class="py-3 px-3 whitespace-nowrap">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[12px] font-medium bg-[#F9E4E0] text-[#B4412F] border border-[#B4412F]/20">
+                  Dropped
+                </span>
+</td>
+<td class="py-3 px-3 whitespace-nowrap text-[14px] text-[#4A443D]">Frustrated</td>
+<td class="py-3 px-3 whitespace-nowrap mono-num text-[13px] text-[#4A443D]">00:19</td>
+<td class="py-3 px-3 text-[14px] text-[#4A443D] max-w-xs truncate">Call disconnected immediately after intro greeting due to poor signal.</td>
+</tr>
+<!-- Row 6 -->
+<tr class="h-[52px] hover:bg-[#F3F0EA] cursor-pointer transition-colors">
+<td class="py-3 px-3 text-[#1E1A16] whitespace-nowrap text-[14px]">Yesterday 17:04</td>
+<td class="py-3 px-3 whitespace-nowrap">
+<div class="mono-num text-[14px] text-[#1E1A16]">+91 97654 32180</div>
+<div class="text-[12px] text-[#6E675F]">Pune</div>
+</td>
+<td class="py-3 px-3 whitespace-nowrap">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[12px] font-medium bg-[#E5F3EA] text-[#2E7D4F] border border-[#2E7D4F]/20">
+                  Interested
+                </span>
+</td>
+<td class="py-3 px-3 whitespace-nowrap text-[14px] text-[#4A443D]">Positive</td>
+<td class="py-3 px-3 whitespace-nowrap mono-num text-[13px] text-[#4A443D]">02:40</td>
+<td class="py-3 px-3 text-[14px] text-[#4A443D] max-w-xs truncate">Wants Pune airport zone deployment; has valid commercial badge.</td>
+</tr>
+<!-- Row 7 -->
+<tr class="h-[52px] hover:bg-[#F3F0EA] cursor-pointer transition-colors">
+<td class="py-3 px-3 text-[#1E1A16] whitespace-nowrap text-[14px]">Yesterday 15:42</td>
+<td class="py-3 px-3 whitespace-nowrap">
+<div class="mono-num text-[14px] text-[#1E1A16]">+91 98920 11984</div>
+<div class="text-[12px] text-[#6E675F]">Mumbai</div>
+</td>
+<td class="py-3 px-3 whitespace-nowrap">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[12px] font-medium bg-[#F3F0EA] text-[#6E675F] border border-[#E4DFD6]">
+                  Not reached
+                </span>
+</td>
+<td class="py-3 px-3 whitespace-nowrap text-[14px] text-[#4A443D]">Neutral</td>
+<td class="py-3 px-3 whitespace-nowrap mono-num text-[13px] text-[#4A443D]">00:15</td>
+<td class="py-3 px-3 text-[14px] text-[#4A443D] max-w-xs truncate">Ringing tone timed out after 5 attempts. Auto-scheduled retry.</td>
+</tr>
+<!-- Row 8 -->
+<tr class="h-[52px] hover:bg-[#F3F0EA] cursor-pointer transition-colors">
+<td class="py-3 px-3 text-[#1E1A16] whitespace-nowrap text-[14px]">Yesterday 14:10</td>
+<td class="py-3 px-3 whitespace-nowrap">
+<div class="mono-num text-[14px] text-[#1E1A16]">+91 94220 87311</div>
+<div class="text-[12px] text-[#6E675F]">Pune</div>
+</td>
+<td class="py-3 px-3 whitespace-nowrap">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[12px] font-medium bg-[#FBEFD6] text-[#9A6200] border border-[#9A6200]/25">
+                  Call back
+                </span>
+</td>
+<td class="py-3 px-3 whitespace-nowrap text-[14px] text-[#4A443D]">Hesitant</td>
+<td class="py-3 px-3 whitespace-nowrap mono-num text-[13px] text-[#4A443D]">01:12</td>
+<td class="py-3 px-3 text-[14px] text-[#4A443D] max-w-xs truncate">Wife was admitted in clinic; asked operator to call back Saturday morning.</td>
+</tr>
+<!-- Row 9 -->
+<tr class="h-[52px] hover:bg-[#F3F0EA] cursor-pointer transition-colors">
+<td class="py-3 px-3 text-[#1E1A16] whitespace-nowrap text-[14px]">Yesterday 12:25</td>
+<td class="py-3 px-3 whitespace-nowrap">
+<div class="mono-num text-[14px] text-[#1E1A16]">+91 98101 23456</div>
+<div class="text-[12px] text-[#6E675F]">Delhi</div>
+</td>
+<td class="py-3 px-3 whitespace-nowrap">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[12px] font-medium bg-[#E5F3EA] text-[#2E7D4F] border border-[#2E7D4F]/20">
+                  Interested
+                </span>
+</td>
+<td class="py-3 px-3 whitespace-nowrap text-[14px] text-[#4A443D]">Positive</td>
+<td class="py-3 px-3 whitespace-nowrap mono-num text-[13px] text-[#4A443D]">03:10</td>
+<td class="py-3 px-3 text-[14px] text-[#4A443D] max-w-xs truncate">Confirmed all KYC docs ready on DigiLocker; wants onboarding link.</td>
+</tr>
+<!-- Row 10 -->
+<tr class="h-[52px] hover:bg-[#F3F0EA] cursor-pointer transition-colors">
+<td class="py-3 px-3 text-[#1E1A16] whitespace-nowrap text-[14px]">Yesterday 11:05</td>
+<td class="py-3 px-3 whitespace-nowrap">
+<div class="mono-num text-[14px] text-[#1E1A16]">+91 93245 77610</div>
+<div class="text-[12px] text-[#6E675F]">Mumbai</div>
+</td>
+<td class="py-3 px-3 whitespace-nowrap">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[12px] font-medium bg-[#F3F0EA] text-[#6E675F] border border-[#E4DFD6]">
+                  Not interested
+                </span>
+</td>
+<td class="py-3 px-3 whitespace-nowrap text-[14px] text-[#4A443D]">Neutral</td>
+<td class="py-3 px-3 whitespace-nowrap mono-num text-[13px] text-[#4A443D]">00:54</td>
+<td class="py-3 px-3 text-[14px] text-[#4A443D] max-w-xs truncate">Only looking for bike delivery partnerships, no car driving experience.</td>
+</tr>
+</tbody>
+</table>
+</section>
+<!-- PAGINATION CONTROLS -->
+<footer class="flex items-center justify-between pt-4 border-t border-[#E4DFD6]">
+<div class="text-[13px] text-[#6E675F]">
+          Showing <span class="mono-num font-medium text-[#1E1A16]">1–10</span> of <span class="mono-num font-medium text-[#1E1A16]">428</span> calls
+        </div>
+<div class="flex items-center gap-2">
+<button class="h-8 px-2.5 rounded border border-[#E4DFD6] bg-white text-[13px] text-[#6E675F] hover:bg-[#F3F0EA] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1" disabled="">
+<span class="material-symbols-outlined text-[16px]">chevron_left</span>
+<span>Previous</span>
+</button>
+<div class="flex items-center gap-1 text-[13px] font-medium">
+<span class="w-8 h-8 rounded bg-[#1E1A16] text-white flex items-center justify-center mono-num">1</span>
+<button class="w-8 h-8 rounded border border-transparent hover:border-[#E4DFD6] text-[#4A443D] flex items-center justify-center mono-num">2</button>
+<button class="w-8 h-8 rounded border border-transparent hover:border-[#E4DFD6] text-[#4A443D] flex items-center justify-center mono-num">3</button>
+<span class="px-1 text-[#6E675F]">…</span>
+<button class="w-8 h-8 rounded border border-transparent hover:border-[#E4DFD6] text-[#4A443D] flex items-center justify-center mono-num">43</button>
+</div>
+<button class="h-8 px-2.5 rounded border border-[#E4DFD6] bg-white text-[13px] text-[#1E1A16] hover:bg-[#F3F0EA] flex items-center gap-1">
+<span>Next</span>
+<span class="material-symbols-outlined text-[16px]">chevron_right</span>
+</button>
+</div>
+</footer>
+</div>
+</main>
+<!-- RIGHT SLIDE-OVER DRAWER (420px docked on right) -->
+<aside class="w-[420px] h-screen bg-white border-l border-[#E4DFD6] fixed right-0 top-0 z-40 flex flex-col justify-between overflow-hidden">
+<!-- DRAWER HEADER -->
+<div class="p-6 border-b border-[#E4DFD6] bg-[#FFFFFF]">
+<div class="flex items-start justify-between">
+<div>
+<div class="flex items-center gap-2.5 mb-1.5">
+<h2 class="mono-num text-[18px] font-semibold text-[#1E1A16] tracking-tight">+91 98201 44821</h2>
+<span class="text-[12px] px-2 py-0.5 rounded bg-[#F3F0EA] text-[#4A443D] font-normal">Pune</span>
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-[#E5F3EA] text-[#2E7D4F] border border-[#2E7D4F]/20">
+              Interested
+            </span>
+</div>
+<div class="text-[13px] text-[#6E675F] leading-relaxed">
+            Agent: Priya · Hindi Commercial Onboarding · Today, <span class="mono-num">14:32</span> · <span class="mono-num">02:14</span>
+</div>
+</div>
+<button class="w-8 h-8 rounded hover:bg-[#F3F0EA] text-[#6E675F] flex items-center justify-center transition-colors" title="Close drawer">
+<span class="material-symbols-outlined text-[20px]">close</span>
+</button>
+</div>
+<!-- AUDIO PLAYER CONTROL (Calm, clean ops bar) -->
+<div class="mt-4 p-3 rounded bg-[#F3F0EA] border border-[#E4DFD6]/60 flex flex-col gap-2">
+<div class="flex items-center justify-between gap-3">
+<button class="w-8 h-8 rounded-full bg-[#1E1A16] text-white flex items-center justify-center hover:opacity-90 transition-opacity shrink-0">
+<span class="material-symbols-outlined text-[18px]" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
+</button>
+<!-- Scrubber Timeline Bar -->
+<div class="flex-1 flex flex-col gap-1">
+<div class="w-full bg-[#E4DFD6] h-1.5 rounded-full overflow-hidden relative cursor-pointer">
+<div class="bg-[#F2B544] h-full w-[32%] rounded-full"></div>
+</div>
+<div class="flex justify-between text-[11px] mono-num text-[#6E675F]">
+<span>00:42</span>
+<span>02:14</span>
+</div>
+</div>
+<button class="px-2 py-1 bg-white border border-[#E4DFD6] rounded text-[11px] font-mono text-[#4A443D] hover:bg-[#F3F0EA]">
+            1.0x
+          </button>
+</div>
+</div>
+</div>
+<!-- DRAWER SCROLLABLE BODY -->
+<div class="flex-1 overflow-y-auto p-6 space-y-6">
+<!-- What happened -->
+<div>
+<h3 class="text-[13px] font-medium text-[#6E675F] tracking-wider mb-2">What happened</h3>
+<p class="text-[14px] leading-relaxed text-[#1E1A16] bg-[#FBF9F5] p-3.5 rounded border border-[#E4DFD6]">
+          Driver enquired about electric cab rental schemes for Pune central. Confirmed commercial yellow plate licence (3+ years experience). Expressed keen interest in the Flexi plan and asked for deposit breakdown over WhatsApp.
+        </p>
+</div>
+<!-- Answers -->
+<div>
+<h3 class="text-[13px] font-medium text-[#6E675F] tracking-wider mb-2">Answers</h3>
+<div class="divide-y divide-[#E4DFD6] border border-[#E4DFD6] rounded bg-[#FFFFFF] text-[14px]">
+<div class="flex justify-between py-2.5 px-3.5">
+<span class="text-[#6E675F]">City</span>
+<span class="font-medium text-[#1E1A16]">Pune</span>
+</div>
+<div class="flex justify-between py-2.5 px-3.5">
+<span class="text-[#6E675F]">Licence</span>
+<span class="font-medium text-[#1E1A16]">Yes (Commercial yellow plate)</span>
+</div>
+<div class="flex justify-between py-2.5 px-3.5">
+<span class="text-[#6E675F]">Experience</span>
+<span class="font-medium text-[#1E1A16] mono-num">3 years</span>
+</div>
+<div class="flex justify-between py-2.5 px-3.5">
+<span class="text-[#6E675F]">Current platform</span>
+<span class="font-medium text-[#1E1A16]">Ola / Uber</span>
+</div>
+<div class="flex justify-between py-2.5 px-3.5">
+<span class="text-[#6E675F]">Preferred plan</span>
+<span class="font-medium text-[#1E1A16]">Flexi 24/7</span>
+</div>
+</div>
+</div>
+<!-- Transcript with Expression Chips -->
+<div>
+<div class="flex items-center justify-between mb-3">
+<h3 class="text-[13px] font-medium text-[#6E675F] tracking-wider">Transcript</h3>
+<span class="text-[12px] text-[#6E675F]">Hindi dialog</span>
+</div>
+<div class="space-y-3">
+<!-- Turn 1: Caller -->
+<div class="p-3 rounded bg-[#FBEFD6]/50 border-l-2 border-l-[#9A6200] text-[14px]">
+<div class="flex items-center justify-between mb-1">
+<span class="text-[12px] font-medium text-[#9A6200]">Caller</span>
+<span class="mono-num text-[11px] text-[#6E675F]">00:18</span>
+</div>
+<p class="text-[#1E1A16] leading-relaxed">
+              "हाँजी, मैं पुणे में कमर्शियल गाड़ी चलाना चाहता हूँ। लाइसेंस तो है मेरे पास।"
+            </p>
+</div>
+<!-- Turn 2: Agent (Priya) with expression chips -->
+<div class="p-3 rounded bg-[#E6EEF8]/40 border-l-2 border-l-[#2F6DB5] text-[14px]">
+<div class="flex items-center justify-between mb-1">
+<div class="flex items-center gap-1.5">
+<span class="text-[12px] font-medium text-[#2F6DB5]">Agent (Priya)</span>
+<!-- Expression chips -->
+<span class="px-1.5 py-0.2 rounded text-[11px] bg-[#FEF3C7] text-[#B45309] border border-[#FDE68A]">happy</span>
+<span class="px-1.5 py-0.2 rounded text-[11px] bg-[#F1F5F9] text-[#475569] border border-[#CBD5E1]">pause 0.8s</span>
+</div>
+<span class="mono-num text-[11px] text-[#6E675F]">00:27</span>
+</div>
+<p class="text-[#1E1A16] leading-relaxed">
+              "नमस्ते जी! क्या आपके पास येलो प्लेट कमर्शियल लाइसेंस है और कितने साल का अनुभव है?"
+            </p>
+</div>
+<!-- Turn 3: Caller -->
+<div class="p-3 rounded bg-[#FBEFD6]/50 border-l-2 border-l-[#9A6200] text-[14px]">
+<div class="flex items-center justify-between mb-1">
+<span class="text-[12px] font-medium text-[#9A6200]">Caller</span>
+<span class="mono-num text-[11px] text-[#6E675F]">01:02</span>
+</div>
+<p class="text-[#1E1A16] leading-relaxed">
+              "हाँ 3 साल से ओला चला रहा हूँ, अभी मुझे नई गाड़ी लीज़ पर लेनी है।"
+            </p>
+</div>
+<!-- Turn 4: Agent (Priya) -->
+<div class="p-3 rounded bg-[#E6EEF8]/40 border-l-2 border-l-[#2F6DB5] text-[14px]">
+<div class="flex items-center justify-between mb-1">
+<div class="flex items-center gap-1.5">
+<span class="text-[12px] font-medium text-[#2F6DB5]">Agent (Priya)</span>
+<span class="px-1.5 py-0.2 rounded text-[11px] bg-[#FEF3C7] text-[#B45309] border border-[#FDE68A]">happy</span>
+</div>
+<span class="mono-num text-[11px] text-[#6E675F]">01:45</span>
+</div>
+<p class="text-[#1E1A16] leading-relaxed">
+              "बहुत बढ़िया! क्या आप दिन में 8 से 10 घंटे ड्राइव करने के लिए तैयार हैं?"
+            </p>
+</div>
+</div>
+</div>
+</div>
+<!-- DRAWER STICKY FOOTER (ONE Amber Primary Button mandate) -->
+<div class="p-4 border-t border-[#E4DFD6] bg-white flex items-center justify-end gap-3 shrink-0">
+<button class="h-10 px-4 rounded border border-[#E4DFD6] bg-white text-[#1E1A16] hover:bg-[#F3F0EA] text-[14px] flex items-center gap-2 transition-colors">
+<span class="material-symbols-outlined text-[18px]">phone</span>
+<span>Call again</span>
+</button>
+<!-- The EXACT ONE amber primary button on screen -->
+<button class="h-10 px-4 rounded bg-[#F2B544] text-[#2A1F0B] font-medium hover:brightness-95 text-[14px] flex items-center gap-2 transition-all shadow-none">
+<span class="material-symbols-outlined text-[18px]">send</span>
+<span>Send WhatsApp details</span>
+</button>
+</div>
+</aside>
+</body></html>

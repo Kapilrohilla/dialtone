@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Carrum Voice — Integrations</title>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Google Fonts: Hanken Grotesk & JetBrains Mono -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {},
+          borderRadius: {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          fontFamily: {
+            headline: ["Hanken Grotesk", "sans-serif"],
+            display: ["Hanken Grotesk", "sans-serif"],
+            body: ["Hanken Grotesk", "sans-serif"],
+            label: ["Hanken Grotesk", "sans-serif"],
+            mono: ["JetBrains Mono", "monospace"]
+          }
+        },
+      },
+    }
+  </script>
+<style>
+    body {
+      background-color: #FBF9F5;
+      color: #1E1A16;
+      font-family: 'Hanken Grotesk', sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 350, 'GRAD' 0, 'opsz' 20;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex antialiased select-none text-[15px]">
+<!-- LEFT SIDEBAR (Matches Shared Component JSON & Design System) -->
+<aside class="w-56 h-screen flex flex-col justify-between shrink-0 py-6 px-4 bg-[#F3F0EA] border-r border-[#CFC8BC] fixed left-0 top-0 z-20">
+<!-- Top Workspace / Nav Cluster -->
+<div class="flex flex-col gap-6">
+<!-- Workspace Brand Anchor -->
+<div class="px-2 flex items-center gap-3">
+<div class="w-8 h-8 rounded-lg bg-[#E4DFD6] flex items-center justify-center font-medium text-[13px] text-[#1E1A16] border border-[#CFC8BC]">
+          CM
+        </div>
+<div class="flex flex-col min-w-0">
+<span class="font-display font-medium text-[15px] leading-tight text-[#1E1A16] truncate">Carrum Mobility</span>
+<span class="text-[13px] text-[#6E675F] leading-snug">Hindi &amp; Hinglish Ops</span>
+</div>
+</div>
+<!-- Navigation Links -->
+<nav class="flex flex-col gap-1 font-body text-[14px]">
+<!-- Dashboard -->
+<a class="flex items-center gap-3 px-3 py-2 rounded text-[#4A443D] hover:bg-[#EAE6DE] transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px] text-[#6E675F]">dashboard</span>
+<span>Dashboard</span>
+</a>
+<!-- Agents -->
+<a class="flex items-center gap-3 px-3 py-2 rounded text-[#4A443D] hover:bg-[#EAE6DE] transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px] text-[#6E675F]">smart_toy</span>
+<span>Agents</span>
+</a>
+<!-- Workflows -->
+<a class="flex items-center gap-3 px-3 py-2 rounded text-[#4A443D] hover:bg-[#EAE6DE] transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px] text-[#6E675F]">account_tree</span>
+<span>Workflows</span>
+</a>
+<!-- Knowledge base -->
+<a class="flex items-center gap-3 px-3 py-2 rounded text-[#4A443D] hover:bg-[#EAE6DE] transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px] text-[#6E675F]">menu_book</span>
+<span>Knowledge base</span>
+</a>
+<!-- Live calls with badge -->
+<a class="flex items-center justify-between px-3 py-2 rounded text-[#4A443D] hover:bg-[#EAE6DE] transition-colors duration-150" href="#">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-[20px] text-[#6E675F]">phone_in_talk</span>
+<span>Live calls</span>
+</div>
+<span class="font-mono text-[12px] bg-[#E6EEF8] text-[#2F6DB5] font-medium px-1.5 py-0.5 rounded">3</span>
+</a>
+<!-- Call history -->
+<a class="flex items-center gap-3 px-3 py-2 rounded text-[#4A443D] hover:bg-[#EAE6DE] transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px] text-[#6E675F]">history</span>
+<span>Call history</span>
+</a>
+<!-- Integrations: ACTIVE -->
+<a class="flex items-center justify-between px-3 py-2 rounded font-medium text-[#1E1A16] bg-[#E7E2D8] transition-colors duration-150" href="#">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-[20px] text-[#1E1A16]">extension</span>
+<span>Integrations</span>
+</div>
+<span class="text-[11px] bg-[#DCD5C9] text-[#6E675F] px-1.5 py-0.5 rounded leading-none font-normal">Soon</span>
+</a>
+<!-- Settings -->
+<a class="flex items-center gap-3 px-3 py-2 rounded text-[#4A443D] hover:bg-[#EAE6DE] transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px] text-[#6E675F]">settings</span>
+<span>Settings</span>
+</a>
+</nav>
+</div>
+<!-- Footer Profile & Controls -->
+<div class="flex flex-col gap-3 pt-4 border-t border-[#CFC8BC]/70">
+<!-- Dark mode switch -->
+<div class="flex items-center justify-between px-3 py-1.5 text-[13px] text-[#4A443D]">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px] text-[#6E675F]">dark_mode</span>
+<span>Dark mode</span>
+</div>
+<!-- Light Mode Toggle (Off state) -->
+<button aria-label="Toggle dark mode" class="w-8 h-4 rounded-full bg-[#DCD5C9] p-0.5 flex items-center transition-colors duration-200" type="button">
+<span class="w-3 h-3 rounded-full bg-white shadow-none block transform translate-x-0 transition-transform"></span>
+</button>
+</div>
+<!-- User Profile -->
+<div class="flex items-center gap-2.5 px-3 py-2 rounded text-[#1E1A16] hover:bg-[#EAE6DE] transition-colors duration-150">
+<span class="material-symbols-outlined text-[22px] text-[#6E675F]">account_circle</span>
+<span class="font-normal text-[14px] truncate">Kapil Rohilla</span>
+</div>
+</div>
+</aside>
+<!-- MAIN CANVAS (Main column + generous layout) -->
+<main class="ml-56 flex-1 min-h-screen flex flex-col bg-[#FBF9F5]">
+<!-- TOP HEADER -->
+<header class="h-20 px-8 flex items-center justify-between border-b border-[#E4DFD6]">
+<div class="flex flex-col">
+<h1 class="font-headline font-medium text-[23px] text-[#1E1A16] tracking-tight">Integrations</h1>
+<p class="text-[14px] text-[#6E675F] mt-0.5">Connect your agents to the tools your team already uses. These are coming soon.</p>
+</div>
+<!-- Exactly ONE Amber Primary Button (#F2B544, text #2A1F0B) -->
+<button class="h-10 px-4 rounded bg-[#F2B544] hover:bg-[#eab03e] active:bg-[#e0a430] text-[#2A1F0B] font-medium text-[14px] flex items-center gap-2 transition-colors duration-150">
+<span class="material-symbols-outlined text-[18px]">add</span>
+<span>Request an integration</span>
+</button>
+</header>
+<!-- CONTENT AREA: Clean, calm table with 3 roomy columns, horizontal rules only, no outer card -->
+<div class="px-8 py-7 max-w-5xl">
+<div class="w-full">
+<!-- Table Header -->
+<div class="grid grid-cols-12 pb-3.5 border-b border-[#CFC8BC] text-[13px] text-[#6E675F] font-normal">
+<div class="col-span-4">Integration</div>
+<div class="col-span-6">What it will do</div>
+<div class="col-span-2 text-right pr-2">Status</div>
+</div>
+<!-- Table Body Rows -->
+<div class="divide-y divide-[#E4DFD6]">
+<!-- Row 1: Google Sheets -->
+<div class="grid grid-cols-12 items-center py-4.5 hover:bg-[#F3F0EA]/50 transition-colors duration-100 rounded-sm">
+<div class="col-span-4 flex items-center gap-3.5 pr-4">
+<span class="material-symbols-outlined text-[20px] text-[#6E675F]">table_chart</span>
+<span class="font-medium text-[#1E1A16] text-[15px]">Google Sheets</span>
+</div>
+<div class="col-span-6 text-[#4A443D] text-[15px]">
+              Add each call as a row
+            </div>
+<div class="col-span-2 flex justify-end pr-2">
+<span class="text-[13px] px-2.5 py-1 rounded bg-[#F3F0EA] text-[#6E675F] border border-[#E4DFD6]">
+                Coming soon
+              </span>
+</div>
+</div>
+<!-- Row 2: Webhooks -->
+<div class="grid grid-cols-12 items-center py-4.5 hover:bg-[#F3F0EA]/50 transition-colors duration-100 rounded-sm">
+<div class="col-span-4 flex items-center gap-3.5 pr-4">
+<span class="material-symbols-outlined text-[20px] text-[#6E675F]">webhook</span>
+<span class="font-medium text-[#1E1A16] text-[15px]">Webhooks</span>
+</div>
+<div class="col-span-6 text-[#4A443D] text-[15px]">
+              Send an event when a call ends
+            </div>
+<div class="col-span-2 flex justify-end pr-2">
+<span class="text-[13px] px-2.5 py-1 rounded bg-[#F3F0EA] text-[#6E675F] border border-[#E4DFD6]">
+                Coming soon
+              </span>
+</div>
+</div>
+<!-- Row 3: WhatsApp Business -->
+<div class="grid grid-cols-12 items-center py-4.5 hover:bg-[#F3F0EA]/50 transition-colors duration-100 rounded-sm">
+<div class="col-span-4 flex items-center gap-3.5 pr-4">
+<span class="material-symbols-outlined text-[20px] text-[#6E675F]">chat</span>
+<span class="font-medium text-[#1E1A16] text-[15px]">WhatsApp Business</span>
+</div>
+<div class="col-span-6 text-[#4A443D] text-[15px]">
+              Send details after a call
+            </div>
+<div class="col-span-2 flex justify-end pr-2">
+<span class="text-[13px] px-2.5 py-1 rounded bg-[#F3F0EA] text-[#6E675F] border border-[#E4DFD6]">
+                Coming soon
+              </span>
+</div>
+</div>
+<!-- Row 4: Salesforce -->
+<div class="grid grid-cols-12 items-center py-4.5 hover:bg-[#F3F0EA]/50 transition-colors duration-100 rounded-sm">
+<div class="col-span-4 flex items-center gap-3.5 pr-4">
+<span class="material-symbols-outlined text-[20px] text-[#6E675F]">cloud</span>
+<span class="font-medium text-[#1E1A16] text-[15px]">Salesforce</span>
+</div>
+<div class="col-span-6 text-[#4A443D] text-[15px]">
+              Update the lead with the outcome
+            </div>
+<div class="col-span-2 flex justify-end pr-2">
+<span class="text-[13px] px-2.5 py-1 rounded bg-[#F3F0EA] text-[#6E675F] border border-[#E4DFD6]">
+                Coming soon
+              </span>
+</div>
+</div>
+<!-- Row 5: HubSpot -->
+<div class="grid grid-cols-12 items-center py-4.5 hover:bg-[#F3F0EA]/50 transition-colors duration-100 rounded-sm">
+<div class="col-span-4 flex items-center gap-3.5 pr-4">
+<span class="material-symbols-outlined text-[20px] text-[#6E675F]">share</span>
+<span class="font-medium text-[#1E1A16] text-[15px]">HubSpot</span>
+</div>
+<div class="col-span-6 text-[#4A443D] text-[15px]">
+              Sync contacts and outcomes
+            </div>
+<div class="col-span-2 flex justify-end pr-2">
+<span class="text-[13px] px-2.5 py-1 rounded bg-[#F3F0EA] text-[#6E675F] border border-[#E4DFD6]">
+                Coming soon
+              </span>
+</div>
+</div>
+<!-- Row 6: LeadSquared -->
+<div class="grid grid-cols-12 items-center py-4.5 hover:bg-[#F3F0EA]/50 transition-colors duration-100 rounded-sm">
+<div class="col-span-4 flex items-center gap-3.5 pr-4">
+<span class="material-symbols-outlined text-[20px] text-[#6E675F]">trending_up</span>
+<span class="font-medium text-[#1E1A16] text-[15px]">LeadSquared</span>
+</div>
+<div class="col-span-6 text-[#4A443D] text-[15px]">
+              Update leads
+            </div>
+<div class="col-span-2 flex justify-end pr-2">
+<span class="text-[13px] px-2.5 py-1 rounded bg-[#F3F0EA] text-[#6E675F] border border-[#E4DFD6]">
+                Coming soon
+              </span>
+</div>
+</div>
+<!-- Row 7: Slack -->
+<div class="grid grid-cols-12 items-center py-4.5 hover:bg-[#F3F0EA]/50 transition-colors duration-100 rounded-sm">
+<div class="col-span-4 flex items-center gap-3.5 pr-4">
+<span class="material-symbols-outlined text-[20px] text-[#6E675F]">alternate_email</span>
+<span class="font-medium text-[#1E1A16] text-[15px]">Slack</span>
+</div>
+<div class="col-span-6 text-[#4A443D] text-[15px]">
+              Alert a channel when a call needs a person
+            </div>
+<div class="col-span-2 flex justify-end pr-2">
+<span class="text-[13px] px-2.5 py-1 rounded bg-[#F3F0EA] text-[#6E675F] border border-[#E4DFD6]">
+                Coming soon
+              </span>
+</div>
+</div>
+<!-- Row 8: Your own phone number (SIP) -->
+<div class="grid grid-cols-12 items-center py-4.5 hover:bg-[#F3F0EA]/50 transition-colors duration-100 rounded-sm">
+<div class="col-span-4 flex items-center gap-3.5 pr-4">
+<span class="material-symbols-outlined text-[20px] text-[#6E675F]">call</span>
+<span class="font-medium text-[#1E1A16] text-[15px]">Your own phone number (SIP)</span>
+</div>
+<div class="col-span-6 text-[#4A443D] text-[15px]">
+              Bring your existing number
+            </div>
+<div class="col-span-2 flex justify-end pr-2">
+<span class="text-[13px] px-2.5 py-1 rounded bg-[#F3F0EA] text-[#6E675F] border border-[#E4DFD6]">
+                Coming soon
+              </span>
+</div>
+</div>
+</div>
+</div>
+<!-- Calm footnote notice -->
+<div class="mt-10 pt-5 border-t border-[#E4DFD6] flex items-center justify-between text-[13px] text-[#6E675F]">
+<span>Need a direct webhook or custom CRM integration right now?</span>
+<button class="text-[#1E1A16] hover:underline font-medium">Contact support</button>
+</div>
+</div>
+</main>
+</body></html>

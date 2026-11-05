@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Carrum Voice - Knowledge base [Final · Light]</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:ital,wght@0,300..900;1,300..900&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              amber: "#F2B544",
+              amberDark: "#2A1F0B",
+              amberText: "#9A6200",
+              amberTint: "#FBEFD6",
+              blue: "#2F6DB5",
+              blueTint: "#E6EEF8",
+              page: "#FBF9F5",
+              panel: "#FFFFFF",
+              sidebar: "#F3F0EA",
+              border: "#E4DFD6",
+              rule: "#CFC8BC",
+              ink: "#1E1A16",
+              secondaryInk: "#4A443D",
+              muted: "#6E675F"
+            }
+          },
+          borderRadius: {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          fontFamily: {
+            headline: ["Hanken Grotesk", "sans-serif"],
+            display: ["Hanken Grotesk", "sans-serif"],
+            body: ["Hanken Grotesk", "sans-serif"],
+            label: ["Hanken Grotesk", "sans-serif"],
+            mono: ["JetBrains Mono", "monospace"]
+          }
+        },
+      },
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 350, 'GRAD' 0, 'opsz' 20;
+      line-height: 1;
+      display: inline-block;
+      vertical-align: middle;
+    }
+    body {
+      background-color: #FBF9F5;
+      color: #1E1A16;
+      font-family: 'Hanken Grotesk', sans-serif;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #E4DFD6;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body class="bg-brand-page text-brand-ink antialiased h-screen overflow-hidden flex flex-row">
+<!-- Main Left Sidebar Shell -->
+<aside class="w-56 h-screen flex flex-col justify-between shrink-0 bg-brand-sidebar border-r border-brand-border py-6 px-4 select-none z-20">
+<div class="flex flex-col gap-6">
+<!-- Workspace Brand Header -->
+<div class="flex items-center gap-3 px-2">
+<div class="w-8 h-8 rounded bg-brand-ink text-brand-page flex items-center justify-center font-display font-medium text-sm">
+          CM
+        </div>
+<div class="flex flex-col min-w-0">
+<span class="font-display font-medium text-sm text-brand-ink truncate leading-tight">Carrum Mobility</span>
+<span class="font-body text-xs text-brand-muted truncate">Hindi &amp; Hinglish Ops</span>
+</div>
+</div>
+<!-- Navigation Links -->
+<nav class="flex flex-col gap-1 text-sm font-body">
+<a class="flex items-center gap-3 px-3 py-2 rounded text-brand-secondaryInk hover:bg-[#EBE7E0] transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-lg">dashboard</span>
+<span>Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded text-brand-secondaryInk hover:bg-[#EBE7E0] transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-lg">smart_toy</span>
+<span>Agents</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded text-brand-secondaryInk hover:bg-[#EBE7E0] transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-lg">account_tree</span>
+<span>Workflows</span>
+</a>
+<!-- Active Tab: Knowledge base -->
+<a class="flex items-center gap-3 px-3 py-2 rounded font-medium text-brand-ink bg-[#E6E1D7] transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-lg text-brand-ink">menu_book</span>
+<span class="font-medium">Knowledge base</span>
+</a>
+<a class="flex items-center justify-between px-3 py-2 rounded text-brand-secondaryInk hover:bg-[#EBE7E0] transition-colors duration-150 group" href="#">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-lg">phone_in_talk</span>
+<span>Live calls</span>
+</div>
+<span class="bg-[#FBEFD6] text-[#9A6200] text-xs font-mono px-1.5 py-0.2 rounded font-medium">3</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded text-brand-secondaryInk hover:bg-[#EBE7E0] transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-lg">history</span>
+<span>Call history</span>
+</a>
+<a class="flex items-center justify-between px-3 py-2 rounded text-brand-secondaryInk hover:bg-[#EBE7E0] transition-colors duration-150" href="#">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-lg">extension</span>
+<span>Integrations</span>
+</div>
+<span class="bg-brand-panel text-brand-muted text-[11px] px-1.5 py-0.5 rounded border border-brand-border">Soon</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded text-brand-secondaryInk hover:bg-[#EBE7E0] transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-lg">settings</span>
+<span>Settings</span>
+</a>
+</nav>
+</div>
+<!-- Sidebar Footer -->
+<div class="flex flex-col gap-1 border-t border-brand-border pt-4 text-sm font-body">
+<div class="flex items-center gap-3 px-3 py-2 rounded text-brand-secondaryInk">
+<span class="material-symbols-outlined text-lg text-brand-muted">account_circle</span>
+<span class="truncate">Kapil Rohilla</span>
+</div>
+<button class="flex items-center justify-between w-full px-3 py-2 rounded text-brand-secondaryInk hover:bg-[#EBE7E0] transition-colors duration-150 text-left" type="button">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-lg text-brand-muted">dark_mode</span>
+<span>Dark mode</span>
+</div>
+<span class="w-8 h-4 bg-brand-border rounded-full flex items-center p-0.5">
+<span class="w-3 h-3 bg-white rounded-full shadow-sm"></span>
+</span>
+</button>
+</div>
+</aside>
+<!-- Main View Area (Top Bar + 2-Column Workspace) -->
+<main class="flex-1 flex flex-col h-screen overflow-hidden">
+<!-- Top Bar -->
+<header class="h-16 px-6 bg-brand-panel border-b border-brand-border flex items-center justify-between shrink-0">
+<div class="flex items-center gap-2">
+<h1 class="font-headline text-2xl font-medium text-brand-ink tracking-tight">Knowledge base</h1>
+</div>
+<div class="flex items-center gap-3">
+<button class="h-10 px-4 inline-flex items-center justify-center gap-2 rounded border border-brand-border bg-brand-panel hover:bg-brand-sidebar text-brand-ink text-sm font-medium transition-colors" type="button">
+<span class="material-symbols-outlined text-base">upload_file</span>
+<span>Upload .md</span>
+</button>
+<!-- The EXACT ONE Amber primary button mandated on this screen -->
+<button class="h-10 px-5 inline-flex items-center justify-center gap-1.5 rounded bg-brand-amber text-brand-amberDark text-sm font-medium hover:brightness-95 transition-all" type="button">
+<span class="material-symbols-outlined text-base">save</span>
+<span>Save</span>
+</button>
+</div>
+</header>
+<!-- Two-Column Body Layout (No right rail) -->
+<div class="flex-1 flex overflow-hidden">
+<!-- Column 1: Inner Left Pane Document Navigation (260px) -->
+<section class="w-[260px] bg-brand-page border-r border-brand-border flex flex-col shrink-0 h-full overflow-hidden">
+<!-- New Document CTA -->
+<div class="p-3 border-b border-brand-border">
+<button class="w-full h-10 px-3 flex items-center gap-2 rounded border border-dashed border-brand-rule bg-brand-panel text-brand-secondaryInk text-sm font-medium hover:border-brand-ink hover:text-brand-ink transition-colors" type="button">
+<span class="material-symbols-outlined text-base">add</span>
+<span>New document</span>
+</button>
+</div>
+<!-- Document List -->
+<div class="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
+<!-- Selected Document Item -->
+<div class="group relative flex flex-col p-3 rounded bg-brand-panel border border-brand-border shadow-none cursor-pointer">
+<span class="absolute left-0 top-2 bottom-2 w-1 bg-brand-amber rounded-r"></span>
+<span class="text-sm font-medium text-brand-ink pl-1 truncate">Pricing and plans — Pune</span>
+<span class="text-xs text-brand-muted pl-1 mt-1 font-normal">Used by 2 agents</span>
+</div>
+<!-- Document Item -->
+<div class="group relative flex flex-col p-3 rounded hover:bg-brand-sidebar cursor-pointer transition-colors">
+<span class="text-sm text-brand-secondaryInk group-hover:text-brand-ink truncate">Pricing and plans — Delhi</span>
+<span class="text-xs text-brand-muted mt-1 font-normal">Used by 2 agents</span>
+</div>
+<!-- Document Item -->
+<div class="group relative flex flex-col p-3 rounded hover:bg-brand-sidebar cursor-pointer transition-colors">
+<span class="text-sm text-brand-secondaryInk group-hover:text-brand-ink truncate">Uber Black rules</span>
+<span class="text-xs text-brand-muted mt-1 font-normal">Used by 1 agent</span>
+</div>
+<!-- Document Item -->
+<div class="group relative flex flex-col p-3 rounded hover:bg-brand-sidebar cursor-pointer transition-colors">
+<span class="text-sm text-brand-secondaryInk group-hover:text-brand-ink truncate">VDC and WTHINK rules</span>
+<span class="text-xs text-brand-muted mt-1 font-normal">Used by 1 agent</span>
+</div>
+<!-- Document Item -->
+<div class="group relative flex flex-col p-3 rounded hover:bg-brand-sidebar cursor-pointer transition-colors">
+<span class="text-sm text-brand-secondaryInk group-hover:text-brand-ink truncate">Deposits and refunds FAQ</span>
+<span class="text-xs text-brand-muted mt-1 font-normal">Used by 3 agents</span>
+</div>
+</div>
+<!-- Inner Pane Summary Footer -->
+<div class="px-4 py-3 border-t border-brand-border text-xs text-brand-muted flex items-center justify-between">
+<span>5 documents active</span>
+<span class="font-mono text-xs">Pune fleet</span>
+</div>
+</section>
+<!-- Column 2: Main Editor Area -->
+<section class="flex-1 bg-brand-panel overflow-y-auto custom-scrollbar">
+<div class="max-w-[760px] mx-auto py-8 px-6 flex flex-col gap-6">
+<!-- Editor Header Control Bar -->
+<div class="flex items-center justify-between pb-4 border-b border-brand-border">
+<!-- Format toolbar -->
+<div class="flex items-center gap-1">
+<button class="h-8 px-2 rounded hover:bg-brand-sidebar text-brand-secondaryInk flex items-center gap-1 text-xs font-medium" title="Heading" type="button">
+<span class="material-symbols-outlined text-base">format_size</span>
+<span>Heading</span>
+</button>
+<div class="w-[1px] h-4 bg-brand-border mx-1"></div>
+<button class="w-8 h-8 rounded hover:bg-brand-sidebar text-brand-secondaryInk flex items-center justify-center text-xs font-semibold" title="Bold" type="button">
+<span class="material-symbols-outlined text-base">format_bold</span>
+</button>
+<button class="w-8 h-8 rounded hover:bg-brand-sidebar text-brand-secondaryInk flex items-center justify-center" title="Bullet List" type="button">
+<span class="material-symbols-outlined text-base">format_list_bulleted</span>
+</button>
+<button class="w-8 h-8 rounded hover:bg-brand-sidebar text-brand-secondaryInk flex items-center justify-center" title="Numbered List" type="button">
+<span class="material-symbols-outlined text-base">format_list_numbered</span>
+</button>
+<button class="w-8 h-8 rounded hover:bg-brand-sidebar text-brand-secondaryInk flex items-center justify-center" title="Table" type="button">
+<span class="material-symbols-outlined text-base">table_chart</span>
+</button>
+<div class="w-[1px] h-4 bg-brand-border mx-1"></div>
+<button class="h-8 px-2 rounded hover:bg-brand-sidebar text-brand-secondaryInk flex items-center gap-1 text-xs font-mono" title="Insert Variable" type="button">
+<span>{var}</span>
+</button>
+<button class="h-8 px-2 rounded hover:bg-brand-sidebar text-brand-secondaryInk flex items-center gap-1 text-xs" title="Expression" type="button">
+<span class="material-symbols-outlined text-base">mood</span>
+<span>Expression</span>
+</button>
+</div>
+<!-- Segmented Switch: Rich text | Markdown -->
+<div class="flex items-center bg-brand-sidebar p-0.5 rounded border border-brand-border text-xs">
+<button class="px-3 py-1 font-medium bg-brand-panel text-brand-ink rounded shadow-none" type="button">
+                Rich text
+              </button>
+<button class="px-3 py-1 font-normal text-brand-muted hover:text-brand-ink transition-colors" type="button">
+                Markdown
+              </button>
+</div>
+</div>
+<!-- Strict Warning / Info Banner -->
+<div class="p-3.5 bg-brand-amberTint border border-[#E9C775] rounded text-sm text-[#784D00] flex items-start gap-3">
+<span class="material-symbols-outlined text-lg shrink-0 mt-0.5 text-[#9A6200]">info</span>
+<div class="leading-relaxed">
+<span class="font-medium text-brand-amberDark">The agent only quotes what is written here.</span>
+<span class="text-xs text-[#8A5A00] block mt-0.5">Any omissions will prompt the Hindi agent to gracefully fallback to manual tele-operator intervention.</span>
+</div>
+</div>
+<!-- Document Title Input -->
+<div class="flex flex-col gap-1">
+<input class="font-headline font-medium text-2xl text-brand-ink border-0 p-0 focus:ring-0 focus:outline-none placeholder-brand-muted w-full bg-transparent" placeholder="Document title" type="text" value="Pricing and plans — Pune"/>
+<span class="text-xs text-brand-muted">Applies to incoming enquiries for Pune City West and Central zones.</span>
+</div>
+<!-- Document Body Content -->
+<div class="flex flex-col gap-6 text-[15px] leading-relaxed text-brand-ink">
+<!-- Section 1: Uber Go rental -->
+<div class="flex flex-col gap-3">
+<div class="flex items-center justify-between">
+<h2 class="text-lg font-medium text-brand-ink">Uber Go rental</h2>
+<span class="text-xs text-brand-muted italic">Fill these from approved pricing</span>
+</div>
+<!-- Clean 6-Column Max Table (Horizontal rules only, no outer card) -->
+<div class="w-full overflow-x-auto">
+<table class="w-full text-left border-collapse text-sm">
+<thead>
+<tr class="border-b border-brand-border text-brand-secondaryInk">
+<th class="py-2.5 font-medium w-1/3">Plan</th>
+<th class="py-2.5 font-medium w-1/3">Deposit</th>
+<th class="py-2.5 font-medium w-1/3">Weekly fee</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-brand-border font-normal">
+<tr class="hover:bg-brand-page transition-colors">
+<td class="py-3 pr-4 font-medium text-brand-ink">Standard 6-day</td>
+<td class="py-3 pr-4 font-mono text-brand-secondaryInk">₹5,000</td>
+<td class="py-3 font-mono text-brand-secondaryInk">₹3,400 / wk</td>
+</tr>
+<tr class="hover:bg-brand-page transition-colors">
+<td class="py-3 pr-4 font-medium text-brand-ink">Flexi 24/7</td>
+<td class="py-3 pr-4 font-mono text-brand-secondaryInk">₹7,500</td>
+<td class="py-3 font-mono text-brand-secondaryInk">₹4,200 / wk</td>
+</tr>
+<tr class="hover:bg-brand-page transition-colors">
+<td class="py-3 pr-4 font-medium text-brand-ink">EV Special</td>
+<td class="py-3 pr-4 font-mono text-brand-secondaryInk">₹4,000</td>
+<td class="py-3 font-mono text-brand-secondaryInk">₹3,100 / wk</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- Section 2: Approved Script Expression Example -->
+<div class="p-3 bg-brand-sidebar rounded border border-brand-border flex flex-col gap-2">
+<div class="text-xs font-medium text-brand-secondaryInk flex items-center justify-between">
+<span>Spoken agent script line (Pune Hindi greeting)</span>
+<span class="text-[11px] text-brand-muted font-normal">Auto-generated prompt snippet</span>
+</div>
+<div class="text-sm text-brand-ink leading-relaxed font-normal">
+                "Namaste driver partner! Pune fleet mein aapka swagat hai."
+                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-[#FFF1E0] border border-[#FAD7B2] text-[#B85700] mx-0.5 font-normal">[happy]</span>
+                "Uber Go ke 3 approved plans uplabdh hain."
+                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-[#ECEEF2] border border-[#D5D9E2] text-[#475569] mx-0.5 font-mono">[pause 1.2s]</span>
+                "Aap standard ya flexible plan janna chahte hain?"
+              </div>
+</div>
+<!-- Section 3: Offers -->
+<div class="flex flex-col gap-2">
+<h2 class="text-lg font-medium text-brand-ink">Offers</h2>
+<p class="text-xs text-brand-muted">Add this week's approved offers:</p>
+<ul class="list-disc pl-5 space-y-2 text-sm text-brand-secondaryInk marker:text-brand-rule">
+<li class="pl-1">
+<span class="font-mono text-brand-ink">₹500</span> joining cashback on first 30 trips completed in 7 days
+                </li>
+<li class="pl-1">
+                  Zero commission on first weekend across Hinjewadi and Baner pickups
+                </li>
+<li class="pl-1 text-brand-muted">
+<span class="font-mono">₹—</span> special vehicle charging subsidy for electric vehicle tier drivers
+                </li>
+</ul>
+</div>
+</div>
+<!-- Document Bottom Footer Metadata -->
+<footer class="mt-8 pt-4 border-t border-brand-border flex items-center justify-between text-xs text-brand-muted">
+<div class="flex items-center gap-2">
+<span>Last edited by <strong class="font-medium text-[#9A6200]">Kapil Rohilla</strong>, today <span class="font-mono">12:41</span></span>
+<span class="text-brand-rule">|</span>
+<a class="text-brand-secondaryInk hover:text-brand-ink underline underline-offset-2" href="#">Version history</a>
+</div>
+<div class="flex items-center gap-3">
+<button class="text-brand-muted hover:text-brand-ink flex items-center gap-1" type="button">
+<span class="material-symbols-outlined text-sm">tune</span>
+<span>Advanced</span>
+</button>
+<button class="text-brand-muted hover:text-brand-ink" title="More options" type="button">
+<span class="material-symbols-outlined text-base">more_horiz</span>
+</button>
+</div>
+</footer>
+</div>
+</section>
+</div>
+</main>
+</body></html>

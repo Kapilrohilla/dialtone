@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Carrum Voice - Agents [Final · Light]</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:ital,wght@0,300..900;1,300..900&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            page: "#FBF9F5",
+            panel: "#FFFFFF",
+            sidebar: "#F3F0EA",
+            well: "#F3F0EA",
+            border: "#E4DFD6",
+            "border-strong": "#CFC8BC",
+            ink: "#1E1A16",
+            "ink-secondary": "#4A443D",
+            muted: "#6E675F",
+            amber: {
+              DEFAULT: "#F2B544",
+              text: "#9A6200",
+              tint: "#FBEFD6",
+              dark: "#2A1F0B"
+            },
+            coolblue: {
+              DEFAULT: "#2F6DB5",
+              tint: "#E6EEF8"
+            },
+            ok: {
+              DEFAULT: "#2E7D4F",
+              tint: "#E5F3EA"
+            },
+            bad: {
+              DEFAULT: "#B4412F",
+              tint: "#F9E4E0"
+            }
+          },
+          borderRadius: {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          fontFamily: {
+            headline: ["Hanken Grotesk", "sans-serif"],
+            display: ["Hanken Grotesk", "sans-serif"],
+            body: ["Hanken Grotesk", "sans-serif"],
+            label: ["Hanken Grotesk", "sans-serif"],
+            mono: ["JetBrains Mono", "monospace"]
+          }
+        },
+      },
+    }
+  </script>
+<style>
+    body {
+      font-family: 'Hanken Grotesk', sans-serif;
+      background-color: #FBF9F5;
+      color: #1E1A16;
+      -webkit-font-smoothing: antialiased;
+    }
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 20;
+      font-size: 20px;
+    }
+  </style>
+</head>
+<body class="bg-page text-ink min-h-screen flex antialiased select-none">
+<!-- Side Navigation Bar (Anchored from JSON & Design System) -->
+<aside class="w-56 h-screen flex flex-col justify-between py-6 px-4 bg-sidebar border-r border-border shrink-0 sticky top-0">
+<div class="flex flex-col gap-6">
+<!-- Workspace Brand Header -->
+<div class="px-2">
+<div class="font-display font-medium text-lg text-ink leading-tight">Carrum Mobility</div>
+<div class="text-xs text-muted mt-0.5 font-normal">Hindi &amp; Hinglish Ops</div>
+</div>
+<!-- Navigation Links -->
+<nav class="flex flex-col gap-1">
+<!-- Dashboard -->
+<a class="flex items-center gap-3 px-3 py-2 rounded text-ink-secondary hover:bg-well transition-colors duration-150 text-[15px] font-normal" href="#">
+<span class="material-symbols-outlined text-muted" data-icon="dashboard">dashboard</span>
+<span>Dashboard</span>
+</a>
+<!-- Agents (ACTIVE) -->
+<a class="flex items-center gap-3 px-3 py-2 rounded font-medium text-ink bg-panel border border-border/80 transition-colors duration-150 text-[15px]" href="#">
+<span class="material-symbols-outlined text-ink" data-icon="smart_toy">smart_toy</span>
+<span>Agents</span>
+</a>
+<!-- Workflows -->
+<a class="flex items-center gap-3 px-3 py-2 rounded text-ink-secondary hover:bg-well transition-colors duration-150 text-[15px] font-normal" href="#">
+<span class="material-symbols-outlined text-muted" data-icon="account_tree">account_tree</span>
+<span>Workflows</span>
+</a>
+<!-- Knowledge base -->
+<a class="flex items-center gap-3 px-3 py-2 rounded text-ink-secondary hover:bg-well transition-colors duration-150 text-[15px] font-normal" href="#">
+<span class="material-symbols-outlined text-muted" data-icon="menu_book">menu_book</span>
+<span>Knowledge base</span>
+</a>
+<!-- Live calls with badge '3' -->
+<a class="flex items-center justify-between px-3 py-2 rounded text-ink-secondary hover:bg-well transition-colors duration-150 text-[15px] font-normal" href="#">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-muted" data-icon="phone_in_talk">phone_in_talk</span>
+<span>Live calls</span>
+</div>
+<span class="text-xs font-mono px-1.5 py-0.5 rounded bg-coolblue-tint text-coolblue font-medium">3</span>
+</a>
+<!-- Call history -->
+<a class="flex items-center gap-3 px-3 py-2 rounded text-ink-secondary hover:bg-well transition-colors duration-150 text-[15px] font-normal" href="#">
+<span class="material-symbols-outlined text-muted" data-icon="history">history</span>
+<span>Call history</span>
+</a>
+<!-- Integrations with 'Soon' chip -->
+<a class="flex items-center justify-between px-3 py-2 rounded text-ink-secondary hover:bg-well transition-colors duration-150 text-[15px] font-normal" href="#">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-muted" data-icon="extension">extension</span>
+<span>Integrations</span>
+</div>
+<span class="text-[11px] font-normal px-1.5 py-0.5 rounded bg-well text-muted">Soon</span>
+</a>
+<!-- Settings -->
+<a class="flex items-center gap-3 px-3 py-2 rounded text-ink-secondary hover:bg-well transition-colors duration-150 text-[15px] font-normal" href="#">
+<span class="material-symbols-outlined text-muted" data-icon="settings">settings</span>
+<span>Settings</span>
+</a>
+</nav>
+</div>
+<!-- Footer Profile & Dark Mode Toggle -->
+<div class="flex flex-col gap-2 pt-4 border-t border-border">
+<div class="flex items-center gap-3 px-3 py-2 text-ink-secondary rounded text-[15px]">
+<span class="material-symbols-outlined text-muted" data-icon="account_circle">account_circle</span>
+<span class="truncate">Kapil Rohilla</span>
+</div>
+<div class="flex items-center justify-between px-3 py-1.5 text-muted text-[13px]">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-muted text-[18px]" data-icon="dark_mode">dark_mode</span>
+<span>Dark mode</span>
+</div>
+<!-- Light mode active toggle -->
+<button aria-label="Toggle theme" class="w-8 h-4 rounded-full bg-border p-0.5 relative transition-colors focus:outline-none" type="button">
+<div class="w-3 h-3 rounded-full bg-panel shadow-sm"></div>
+</button>
+</div>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="flex-1 flex flex-col min-w-0 bg-page">
+<!-- Top Header -->
+<header class="flex justify-between items-center h-16 px-8 border-b border-border w-full bg-page">
+<h1 class="font-headline text-2xl font-medium text-ink">Agents</h1>
+<!-- ONE Amber primary button on the entire screen -->
+<button class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded bg-amber text-amber-dark font-medium text-[15px] hover:opacity-90 transition-opacity focus:outline-none">
+<span class="material-symbols-outlined text-[18px]" data-icon="add">add</span>
+<span>New agent</span>
+</button>
+</header>
+<!-- Content Workspace Gutter (24px padding/gap standard) -->
+<div class="p-8 max-w-6xl w-full flex flex-col gap-6">
+<!-- Featured Live Card: "Answering calls now" -->
+<section class="bg-panel border border-border rounded-lg p-5 flex flex-col gap-3">
+<div class="text-xs text-muted uppercase tracking-wider font-medium">Answering calls now</div>
+<div class="flex items-center justify-between flex-wrap gap-4 pt-0.5">
+<div class="flex items-center gap-4 flex-wrap">
+<h2 class="text-[22px] font-medium text-ink">Driver lead qualifier</h2>
+<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-ok-tint text-ok text-[13px] font-medium">
+<span class="w-1.5 h-1.5 rounded-full bg-ok"></span>
+              Live
+            </span>
+<span class="font-mono text-[14px] text-muted ml-1">+91 80 4718 2290</span>
+<span class="text-[14px] text-ink-secondary ml-3">
+              Calls today: <span class="font-mono font-medium text-ink">214</span>
+</span>
+</div>
+<div class="flex items-center gap-3">
+<button class="h-9 px-3.5 rounded border border-border bg-panel text-ink-secondary hover:bg-well transition-colors text-[14px] font-normal">
+              Unpublish
+            </button>
+<a class="text-[14px] text-ink-secondary hover:text-ink font-medium flex items-center gap-1 pl-1" href="#">
+              Open <span class="text-muted">→</span>
+</a>
+</div>
+</div>
+</section>
+<!-- Filter Tabs & Main Content Table -->
+<div class="flex flex-col gap-4 mt-2">
+<!-- Horizontal Tab Bar -->
+<div class="flex items-center gap-6 border-b border-border pb-px">
+<button class="pb-2.5 text-[15px] font-medium text-ink border-b-2 border-ink -mb-px">
+            All
+          </button>
+<button class="pb-2.5 text-[15px] font-normal text-muted hover:text-ink transition-colors">
+            Live
+          </button>
+<button class="pb-2.5 text-[15px] font-normal text-muted hover:text-ink transition-colors">
+            Drafts
+          </button>
+<button class="pb-2.5 text-[15px] font-normal text-muted hover:text-ink transition-colors">
+            Archived
+          </button>
+</div>
+<!-- Clean Agent Table (Horizontal rules only, no outer card) -->
+<div class="w-full overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="border-b border-border text-[13px] text-muted font-normal h-10">
+<th class="py-2.5 font-normal">Agent</th>
+<th class="py-2.5 font-normal w-32">Status</th>
+<th class="py-2.5 font-normal w-60">Last edited</th>
+<th class="py-2.5 font-normal w-36 text-right pr-6">Calls this week</th>
+<th class="py-2.5 font-normal w-36 text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-border text-[15px]">
+<!-- Row 1: Driver lead qualifier -->
+<tr class="h-16 hover:bg-well/50 transition-colors">
+<td class="py-3 pr-4">
+<div class="font-medium text-ink leading-snug">Driver lead qualifier</div>
+<div class="text-[13px] text-muted leading-tight mt-0.5">Hindi qualification flow for inbound cab driver leads</div>
+</td>
+<td class="py-3">
+<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-ok-tint text-ok text-[13px] font-medium">
+<span class="w-1.5 h-1.5 rounded-full bg-ok"></span>
+                    Live
+                  </span>
+</td>
+<td class="py-3 text-[14px] text-muted">
+                  2 hours ago · <span class="text-amber-text font-normal">Kapil Rohilla</span>
+</td>
+<td class="py-3 text-right pr-6 font-mono text-[14px] text-ink">
+                  542
+                </td>
+<td class="py-3 text-right">
+<button class="w-8 h-8 inline-flex items-center justify-center rounded hover:bg-well text-muted hover:text-ink transition-colors" title="More options">
+<span class="material-symbols-outlined text-[18px]" data-icon="more_horiz">more_horiz</span>
+</button>
+</td>
+</tr>
+<!-- Row 2: Callback follow-up -->
+<tr class="h-16 hover:bg-well/50 transition-colors">
+<td class="py-3 pr-4">
+<div class="font-medium text-ink leading-snug">Callback follow-up</div>
+<div class="text-[13px] text-muted leading-tight mt-0.5">Hinglish outbound scheduler for dropped applications</div>
+</td>
+<td class="py-3">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full bg-well text-muted text-[13px] font-normal border border-border">
+                    Draft
+                  </span>
+</td>
+<td class="py-3 text-[14px] text-muted">
+                  Yesterday · <span class="text-amber-text font-normal">Kapil Rohilla</span>
+</td>
+<td class="py-3 text-right pr-6 font-mono text-[14px] text-muted">
+                  —
+                </td>
+<td class="py-3 text-right">
+<div class="inline-flex items-center gap-2">
+<button class="h-8 px-3 rounded border border-border bg-panel text-ink hover:bg-well text-[13px] font-medium transition-colors">
+                      Publish
+                    </button>
+<button class="w-8 h-8 inline-flex items-center justify-center rounded hover:bg-well text-muted hover:text-ink transition-colors" title="More options">
+<span class="material-symbols-outlined text-[18px]" data-icon="more_horiz">more_horiz</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 3: Uber Black recruiter -->
+<tr class="h-16 hover:bg-well/50 transition-colors">
+<td class="py-3 pr-4">
+<div class="font-medium text-ink leading-snug">Uber Black recruiter</div>
+<div class="text-[13px] text-muted leading-tight mt-0.5">Premium fleet driver acquisition in Delhi NCR</div>
+</td>
+<td class="py-3">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full bg-well text-muted text-[13px] font-normal border border-border">
+                    Draft
+                  </span>
+</td>
+<td class="py-3 text-[14px] text-muted">
+                  3 days ago · <span class="text-amber-text font-normal">Kapil Rohilla</span>
+</td>
+<td class="py-3 text-right pr-6 font-mono text-[14px] text-muted">
+                  —
+                </td>
+<td class="py-3 text-right">
+<div class="inline-flex items-center gap-2">
+<button class="h-8 px-3 rounded border border-border bg-panel text-ink hover:bg-well text-[13px] font-medium transition-colors">
+                      Publish
+                    </button>
+<button class="w-8 h-8 inline-flex items-center justify-center rounded hover:bg-well text-muted hover:text-ink transition-colors" title="More options">
+<span class="material-symbols-outlined text-[18px]" data-icon="more_horiz">more_horiz</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 4: Document reminder -->
+<tr class="h-16 hover:bg-well/50 transition-colors">
+<td class="py-3 pr-4">
+<div class="font-medium text-ink leading-snug">Document reminder</div>
+<div class="text-[13px] text-muted leading-tight mt-0.5">Aadhaar &amp; commercial license upload follow-ups</div>
+</td>
+<td class="py-3">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full bg-well text-muted text-[13px] font-normal border border-border">
+                    Draft
+                  </span>
+</td>
+<td class="py-3 text-[14px] text-muted">
+                  5 days ago · <span class="text-amber-text font-normal">Kapil Rohilla</span>
+</td>
+<td class="py-3 text-right pr-6 font-mono text-[14px] text-muted">
+                  —
+                </td>
+<td class="py-3 text-right">
+<div class="inline-flex items-center gap-2">
+<button class="h-8 px-3 rounded border border-border bg-panel text-ink hover:bg-well text-[13px] font-medium transition-colors">
+                      Publish
+                    </button>
+<button class="w-8 h-8 inline-flex items-center justify-center rounded hover:bg-well text-muted hover:text-ink transition-colors" title="More options">
+<span class="material-symbols-outlined text-[18px]" data-icon="more_horiz">more_horiz</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 5: Old Pune pitch -->
+<tr class="h-16 hover:bg-well/50 transition-colors">
+<td class="py-3 pr-4">
+<div class="font-medium text-ink leading-snug">Old Pune pitch</div>
+<div class="text-[13px] text-muted leading-tight mt-0.5">Deprecated Marathi/Hindi pilot campaign</div>
+</td>
+<td class="py-3">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full bg-well text-muted text-[13px] font-normal">
+                    Archived
+                  </span>
+</td>
+<td class="py-3 text-[14px] text-muted">
+                  2 weeks ago · <span class="text-amber-text font-normal">Kapil Rohilla</span>
+</td>
+<td class="py-3 text-right pr-6 font-mono text-[14px] text-ink">
+                  128
+                </td>
+<td class="py-3 text-right">
+<button class="w-8 h-8 inline-flex items-center justify-center rounded hover:bg-well text-muted hover:text-ink transition-colors" title="More options">
+<span class="material-symbols-outlined text-[18px]" data-icon="more_horiz">more_horiz</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</main>
+</body></html>
