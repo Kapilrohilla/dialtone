@@ -80,12 +80,25 @@ def test_dead_air_config_from_settings_and_defaults():
     assert agent.dead_air_enabled({"dead_air": {"enabled": "no"}}) is agent.DEAD_AIR_ENABLED
 
 
-def test_mood_enabled_override():
-    assert agent.mood_enabled(None) is agent.MOOD_ENABLED
-    assert agent.mood_enabled({}) is agent.MOOD_ENABLED
-    assert agent.mood_enabled({"mood_adaptation": True}) is True
+def test_mood_enabled_needs_env_and_setting(monkeypatch):
+    monkeypatch.setattr(agent, "MOOD_ENABLED", False)
+    assert agent.mood_enabled({"mood_adaptation": True}) is False
+    assert agent.mood_enabled(None) is False
+    monkeypatch.setattr(agent, "MOOD_ENABLED", True)
     assert agent.mood_enabled({"mood_adaptation": False}) is False
-    assert agent.mood_enabled({"mood_adaptation": "yes"}) is agent.MOOD_ENABLED
+    assert agent.mood_enabled({"mood_adaptation": True}) is True
+    # Setting absent (or not a bool): defaults to on, so the env decides.
+    assert agent.mood_enabled(None) is True
+    assert agent.mood_enabled({}) is True
+    assert agent.mood_enabled({"mood_adaptation": "no"}) is True
+
+
+def test_events_url_whenever_console_configured(monkeypatch):
+    monkeypatch.setenv("DASHBOARD_URL", "http://127.0.0.1:8787/")
+    assert agent.events_url() == "http://127.0.0.1:8787/api/runtime/events"
+    monkeypatch.setenv("DASHBOARD_URL", "")
+    monkeypatch.delenv("DASHBOARD_REPORT_URL", raising=False)
+    assert agent.events_url() == ""
 
 
 def test_opening_line_consent_only_when_recording():
@@ -126,12 +139,24 @@ def test_snapshot_workflow_starts_and_registers_path_tools():
     assert a.workflow is not None and a.workflow.current.name == "Greet"
     assert "Current step: Greet" in a.instructions and "Greet Ramesh." in a.instructions
     assert "- Driver is happy to talk: call go_to_city" in a.instructions
-    assert {t.id for t in a.tools} == {"record_outcome", "end_call", "transfer_to_telecaller", "go_to_city"}
+    # Every path tool of the graph is registered up front.
+    assert {t.id for t in a.tools} == {
+        "record_outcome", "end_call", "transfer_to_telecaller", "go_to_city", "go_to_wrap_up"
+    }
+    # ...but the prompt only offers the current step's paths.
+    assert "go_to_wrap_up" not in a.instructions
+
+
+def test_all_path_tools_registered_once():
+    a = agent.PhoneAgent(LEAD, agent.GEMINI_LANGUAGE_RULES, console(snapshot({"id": 1, "graph": GRAPH})))
+    names = [t.id for t in a.tools]
+    for tool in a.workflow.all_path_tools():
+        assert names.count(tool.name) == 1
 
 
 def test_sarvam_agent_keeps_switch_language_with_path_tools():
     a = agent.SarvamPhoneAgent(LEAD, console(snapshot({"id": 1, "graph": GRAPH})))
-    assert {"switch_language", "go_to_city", "record_outcome"} <= {t.id for t in a.tools}
+    assert {"switch_language", "go_to_city", "go_to_wrap_up", "record_outcome"} <= {t.id for t in a.tools}
 
 
 def test_bad_snapshot_falls_back_to_builtin(monkeypatch):
@@ -157,8 +182,9 @@ async def test_path_tool_moves_step_and_emits_events():
     assert "Current step: City" in a.base_instructions
     assert a.instructions == a.base_instructions + "\n\nCaller sounds annoyed."  # mood note kept
     assert events == [("step_entered", {"step_id": "s2", "step_name": "City"})]
-    assert {t.id for t in a.tools} >= {"go_to_wrap_up", "record_outcome", "end_call"}
-    assert "go_to_city" not in {t.id for t in a.tools}
+    # A path not valid from the current step is refused by the engine.
+    assert await tool({}) == "That path isn't available from City."
+    assert a.workflow.current.name == "City"
 
     collect = next(t for t in a.tools if t.id == "go_to_wrap_up")
     assert await collect({}) == "Say what the driver answered in `value`."
@@ -169,6 +195,23 @@ async def test_path_tool_moves_step_and_emits_events():
         ("field_captured", {"field": "city", "value": "Pune"}),
     ]
     assert a.workflow.path == ["Greet", "City", "Wrap up"]
+
+
+async def test_transition_updates_instructions_not_tools(monkeypatch):
+    a = agent.PhoneAgent(LEAD, agent.GEMINI_LANGUAGE_RULES, console(snapshot({"id": 1, "graph": GRAPH})))
+    calls = []
+
+    async def update_instructions(text):
+        calls.append(("instructions", text))
+
+    async def update_tools(tools):
+        calls.append(("tools", tools))
+
+    monkeypatch.setattr(a, "update_instructions", update_instructions)
+    monkeypatch.setattr(a, "update_tools", update_tools)
+    assert await next(t for t in a.tools if t.id == "go_to_city")({}) == "Now at step City."
+    assert [kind for kind, _ in calls] == ["instructions"]
+    assert calls[0][1] == a.base_instructions
 
 
 async def test_path_tool_never_raises(monkeypatch):
@@ -202,3 +245,41 @@ async def test_record_outcome_unguarded_without_workflow():
 
 def test_recording_default_follows_env():
     assert prompt.RECORDING_ENABLED is False  # tests run without RECORDING_ENABLED
+
+
+async def test_shutdown_report_before_caller_joins(monkeypatch):
+    """The shutdown callback is registered before the participant wait and copes with no config yet."""
+    import asyncio
+    from types import SimpleNamespace
+
+    callbacks, sent = [], []
+
+    class Ctx:
+        room = SimpleNamespace(name="call-early")
+        job = SimpleNamespace(metadata="")
+        proc = SimpleNamespace(userdata={})
+        log_context_fields: dict = {}
+
+        def add_shutdown_callback(self, cb):
+            callbacks.append(cb)
+
+        async def wait_for_participant(self, **_kw):
+            raise asyncio.CancelledError  # the job ends before anyone joins
+
+    async def fake_send(url, report, key, secret):
+        sent.append(report)
+        return True
+
+    monkeypatch.setattr(agent, "DASHBOARD_REPORT_URL", "http://127.0.0.1:9/api/report")
+    monkeypatch.setattr(agent, "send_report", fake_send)
+    monkeypatch.setenv("DASHBOARD_URL", "")
+    monkeypatch.setenv("LIVEKIT_API_KEY", "k")
+    monkeypatch.setenv("LIVEKIT_API_SECRET", "s")
+    try:
+        await agent.entrypoint(Ctx())
+    except asyncio.CancelledError:
+        pass
+    assert len(callbacks) == 1
+    await callbacks[0]()
+    assert sent[0]["disposition"] == "NOT_CONNECTED"
+    assert "agent_version_id" not in sent[0] and "step_path" not in sent[0]

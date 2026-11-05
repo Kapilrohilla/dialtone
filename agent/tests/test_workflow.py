@@ -227,3 +227,23 @@ def test_duplicate_paths_same_target_single_tool():
     run.start()
     ps = run.paths_from_current()
     assert len(ps) == 1 and ps[0].description == "next"
+
+
+def test_all_path_tools_every_target_once_in_graph_order():
+    g = driver_graph()
+    g["paths"].append(path("p9", "s4", "s2", "ask the city again"))  # second way into s2, from a prompt step
+    g["paths"].append(path("p10", "e1", "s1", "from an end step"))  # ignored: end steps have no paths
+    tools = WorkflowRun(g).all_path_tools()
+    run = WorkflowRun(g)
+    names = [t.name for t in tools]
+    assert names == [run._names[s] for s in ("s2", "s3", "e1", "s4", "e2", "e3", "e4", "t1")]
+    assert len(set(names)) == len(names)
+    by = {t.to: t for t in tools}
+    assert by["s2"].description == "next" and by["s2"].takes_value is False
+    assert by["s3"].takes_value is True and by["e1"].takes_value is True  # from collect step s2
+    assert by["e3"].takes_value is False
+
+
+def test_all_path_tools_empty_graph():
+    assert WorkflowRun(None).all_path_tools() == []
+    assert WorkflowRun({"steps": "x"}).all_path_tools() == []

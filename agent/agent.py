@@ -184,8 +184,15 @@ def dead_air_enabled(settings: dict | None) -> bool:
 
 
 def mood_enabled(settings: dict | None) -> bool:
+    """Mood adaptation needs the worker's MOOD_ENABLED and the agent's mood_adaptation (default on)."""
     enabled = settings.get("mood_adaptation") if isinstance(settings, dict) else None
-    return enabled if isinstance(enabled, bool) else MOOD_ENABLED
+    return MOOD_ENABLED and (enabled if isinstance(enabled, bool) else True)
+
+
+def events_url() -> str:
+    """Console events endpoint, or "" (sink off) when no console is configured."""
+    base = dashboard_url()
+    return f"{base}/api/runtime/events" if base else ""
 
 
 def path_tool_schema(tool: PathTool) -> dict:
@@ -242,7 +249,9 @@ class PhoneAgent(Agent):
                 self.snapshot, self.persona_name = snapshot, persona
                 self.base_instructions = self._snapshot_instructions(step, paths)
                 self.opening = opening_line(lead, persona)
-                path_tools = [self._path_tool(p) for p in paths]
+                # Every path tool of the graph, registered once: tools never change mid-call (on Gemini
+                # Live a tool update reconnects the session). The engine refuses paths not valid here.
+                path_tools = [self._path_tool(p) for p in workflow.all_path_tools()] if workflow else []
                 self.workflow = workflow
             except Exception:
                 # A call must never fail because of console data: run today's built-in agent instead.
@@ -252,8 +261,6 @@ class PhoneAgent(Agent):
                 self.opening = opening_line(lead)
                 path_tools = []
         super().__init__(instructions=self.base_instructions, tools=path_tools)
-        # record_outcome, end_call, transfer_to_telecaller (+ switch_language): kept on every step.
-        self._base_tools = [t for t in self.tools if all(t is not p for p in path_tools)]
         self.outcome: dict | None = None
         self.caller_identity: str | None = None
 
@@ -308,7 +315,6 @@ class PhoneAgent(Agent):
                 self.base_instructions = self._snapshot_instructions(step, paths)
                 note = f"\n\n{self.mood_note}" if self.mood_note else ""
                 await self.update_instructions(self.base_instructions + note)
-            await self.update_tools(self._base_tools + [self._path_tool(p) for p in paths])
             return f"Now at step {step.name}."
         except Exception:
             logger.exception("workflow step change failed", extra={"tool": tool_name})
@@ -565,6 +571,76 @@ async def entrypoint(ctx: JobContext) -> None:
     if PIPELINE not in ("sarvam", "elevenlabs", "gemini-live"):
         raise ValueError(f"unknown AGENT_PIPELINE {PIPELINE!r}")
 
+    # Live call events for the console, whenever it is configured (any config source).
+    sink = EventSink(
+        events_url(),
+        ctx.room.name,
+        os.environ.get("LIVEKIT_API_KEY", ""),
+        os.environ.get("LIVEKIT_API_SECRET", ""),
+    )
+    # Set once the caller has joined; the shutdown callback below may run before that.
+    session: AgentSession | None = None
+    agent: PhoneAgent | None = None
+    cfg = BUILTIN_CONFIG
+    mood_on = False
+    watcher: DeadAirWatcher | None = None
+    latency = LatencyStats()
+    tracker = MoodTracker()
+    behavior = BehaviorTracker()
+    call_start_wall = time.time()
+
+    def final_outcome() -> dict:
+        # Hung up before the agent recorded anything: dropped if the driver spoke, else never connected.
+        if agent is not None and agent.outcome:
+            return agent.outcome
+        spoke = session is not None and driver_spoke(session)
+        return {
+            "disposition": "CDRP" if spoke else "NOT_CONNECTED",
+            "reason": "call ended before an outcome was recorded",
+        }
+
+    def step_path() -> list[str] | None:
+        return list(agent.workflow.path) if agent is not None and agent.workflow is not None else None
+
+    async def send_call_report() -> None:
+        # Shutdown callbacks are awaited, so the report goes out before the job process exits.
+        # Registered before the caller joins, so it copes with no config, session or agent yet.
+        # Flush the last events first (bounded), then the report.
+        try:
+            await sink.close(timeout_s=1.0)
+        except Exception:
+            logger.warning("event sink close failed", exc_info=True)
+        if not DASHBOARD_REPORT_URL:
+            return
+        turns = None
+        if MOOD_EVAL_CAPTURE:
+            turns = [
+                {
+                    "role": item.role,
+                    "text": item.text_content,
+                    "at_s": round(max(0.0, getattr(item, "created_at", call_start_wall) - call_start_wall), 2),
+                }
+                for item in (session.history.items if session is not None else [])
+                if getattr(item, "role", None) in ("user", "assistant") and getattr(item, "text_content", None)
+            ]
+        report = build_report(
+            room=ctx.room.name,
+            outcome=final_outcome(),
+            mood=tracker.summary() if mood_on else None,
+            timeline=tracker.timeline,
+            dead_air=watcher.events if watcher is not None else [],
+            latency=latency.summary(),
+            behavior=behavior.features() if mood_on else None,
+            turns=turns,
+            agent_version_id=cfg.version_id,
+            step_path=step_path(),
+        )
+        await send_report(
+            DASHBOARD_REPORT_URL, report, os.environ["LIVEKIT_API_KEY"], os.environ["LIVEKIT_API_SECRET"]
+        )
+
+    ctx.add_shutdown_callback(send_call_report)
+
     # The called number picks the published agent; the fetch fits in the greeting gate's listening window.
     caller = await ctx.wait_for_participant(
         kind=[rtc.ParticipantKind.PARTICIPANT_KIND_SIP, rtc.ParticipantKind.PARTICIPANT_KIND_STANDARD]
@@ -592,15 +668,6 @@ async def entrypoint(ctx: JobContext) -> None:
     else:
         session, agent = gemini_live_session(lead, cfg, mood_on)
     agent.caller_identity = caller.identity
-
-    # Live call events for the console; only for calls running a console agent (fresh or cached).
-    events_base = dashboard_url() if cfg.source != "builtin" else ""
-    sink = EventSink(
-        f"{events_base}/api/runtime/events" if events_base else "",
-        ctx.room.name,
-        os.environ.get("LIVEKIT_API_KEY", ""),
-        os.environ.get("LIVEKIT_API_SECRET", ""),
-    )
     agent.emit = sink.add
     if agent.workflow is not None and agent.workflow.current is not None:
         sink.add("step_entered", {"step_id": agent.workflow.current.id, "step_name": agent.workflow.current.name})
@@ -609,13 +676,9 @@ async def entrypoint(ctx: JobContext) -> None:
     gate = GreetingGate()
     background_tasks: set[asyncio.Task] = set()
     agent_state = "initializing"
-    latency = LatencyStats()
-    tracker = MoodTracker()
     classifier = make_classifier(PIPELINE) if mood_on else None
     call_start = time.monotonic()
-    call_start_wall = time.time()
     last_agent_line = ""
-    behavior = BehaviorTracker()
     listening_at: float | None = None  # when the agent last started waiting for the caller
     reply_latency: float | None = None  # how long the caller took to start their current reply
 
@@ -725,13 +788,6 @@ async def entrypoint(ctx: JobContext) -> None:
             elif ev.item.role == "assistant":
                 last_agent_line = text
 
-    def final_outcome() -> dict:
-        # Hung up before the agent recorded anything: dropped if the driver spoke, else never connected.
-        return agent.outcome or {
-            "disposition": "CDRP" if driver_spoke(session) else "NOT_CONNECTED",
-            "reason": "call ended before an outcome was recorded",
-        }
-
     @session.on("close")
     def _on_close(_ev) -> None:
         for task in list(background_tasks):
@@ -750,47 +806,10 @@ async def entrypoint(ctx: JobContext) -> None:
                 "usage": str(session.usage),
                 "config": cfg.source,
                 "version_id": cfg.version_id,
-                "step_path": agent.workflow.path if agent.workflow is not None else None,
+                "step_path": step_path(),
             },
         )
 
-    async def send_call_report() -> None:
-        # Shutdown callbacks are awaited, so the report goes out before the job process exits.
-        # Flush the last events first (bounded), then the report.
-        try:
-            await sink.close(timeout_s=1.0)
-        except Exception:
-            logger.warning("event sink close failed", exc_info=True)
-        if not DASHBOARD_REPORT_URL:
-            return
-        turns = None
-        if MOOD_EVAL_CAPTURE:
-            turns = [
-                {
-                    "role": item.role,
-                    "text": item.text_content,
-                    "at_s": round(max(0.0, getattr(item, "created_at", call_start_wall) - call_start_wall), 2),
-                }
-                for item in session.history.items
-                if getattr(item, "role", None) in ("user", "assistant") and getattr(item, "text_content", None)
-            ]
-        report = build_report(
-            room=ctx.room.name,
-            outcome=final_outcome(),
-            mood=tracker.summary() if mood_on else None,
-            timeline=tracker.timeline,
-            dead_air=watcher.events,
-            latency=latency.summary(),
-            behavior=behavior.features() if mood_on else None,
-            turns=turns,
-            agent_version_id=cfg.version_id,
-            step_path=list(agent.workflow.path) if agent.workflow is not None else None,
-        )
-        await send_report(
-            DASHBOARD_REPORT_URL, report, os.environ["LIVEKIT_API_KEY"], os.environ["LIVEKIT_API_SECRET"]
-        )
-
-    ctx.add_shutdown_callback(send_call_report)
 
     await session.start(agent=agent, room=ctx.room)
 

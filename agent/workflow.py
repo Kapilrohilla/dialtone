@@ -57,6 +57,7 @@ class WorkflowRun:
         self._steps: dict[str, Step] = {}
         self._out: dict[str, list[dict]] = {}
         self._names: dict[str, str] = {}
+        self._edges: list[tuple[str, str, str]] = []  # (from, to, label) in graph order
         self.current: Step | None = None
         self.path: list[str] = []
         self.captured: dict[str, str] = {}
@@ -86,6 +87,7 @@ class WorkflowRun:
                 continue
             self._out.setdefault(p["from"], []).append(
                 {"to": p["to"], "label": _str(p.get("label"))})
+            self._edges.append((p["from"], p["to"], _str(p.get("label"))))
         used: set[str] = set()
         for sid, st in self._steps.items():
             slug = _slug(st.name) or "step_" + (_slug(sid) or "x")
@@ -157,6 +159,25 @@ class WorkflowRun:
             name = self._names[p["to"]]
             if name not in tools:
                 tools[name] = PathTool(name, p["label"], p["to"], takes)
+        return list(tools.values())
+
+    def all_path_tools(self) -> list[PathTool]:
+        """Every path tool of the graph, one per target step, in graph order (registered once per call).
+
+        A tool takes a value when any step leading to it is a collect step; the first path's label
+        describes it. Paths out of end steps are ignored, as in paths_from_current.
+        """
+        tools: dict[str, PathTool] = {}
+        for src, to, label in self._edges:
+            if self._steps[src].type == "end":
+                continue
+            name = self._names[to]
+            takes = self._steps[src].type == "collect"
+            if name not in tools:
+                tools[name] = PathTool(name, label, to, takes)
+            elif takes and not tools[name].takes_value:
+                t = tools[name]
+                tools[name] = PathTool(t.name, t.description, t.to, True)
         return list(tools.values())
 
     def take(self, tool_name: str, value: str | None = None) -> Transition:
