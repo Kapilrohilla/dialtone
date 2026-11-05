@@ -188,3 +188,41 @@ def test_from_state_none_starts_fresh():
     run = WorkflowRun.from_state(driver_graph(), None)
     assert run.current.name == "Greeting" and run.path == ["Greeting"]
     assert run.to_state()["visits"] == {"s1": 1} and run.to_state()["transitions"] == 0
+
+
+def test_unhashable_path_endpoints_never_raise():
+    g = driver_graph()
+    g["paths"] += [{"from": [], "to": "s1", "label": "x"}, {"from": "s1", "to": {}, "label": "y"},
+                   {"from": {}, "to": [], "label": "z"}]
+    run = WorkflowRun(g)
+    run.start()
+    assert [p.name for p in run.paths_from_current()] == ["go_to_ask_city"]
+
+
+def test_tampered_state_never_raises():
+    for bad_id in [[], {}, 5, None, "nope"]:
+        run = WorkflowRun.from_state(driver_graph(), {"current_step_id": bad_id})
+        assert run.current.name == "Greeting"
+    for bad in ["x", 5, [], {"current_step_id": "s1", "visits": [1], "transitions": "9", "captured": [1],
+                             "path": "abc"}]:
+        run = WorkflowRun.from_state(driver_graph(), bad)
+        assert run.current is not None and run.take("go_to_ask_city").ok
+    run = WorkflowRun.from_state(loop_graph(), {
+        "current_step_id": "a", "visits": {"a": -50, "b": True, 3: 1}, "transitions": -10,
+        "captured": {"k": 1}, "path": ["A"] + [7] * 5 + ["B"] * 100})
+    assert run.visits == {"a": 0, "b": 0} and run.transitions == 0 and run.captured == {}
+    assert len(run.path) <= 26 and all(isinstance(x, str) for x in run.path)
+    for tool in ["go_to_b", "go_to_a", "go_to_b", "go_to_a", "go_to_b"]:
+        assert run.take(tool).ok
+    assert run.take("go_to_a").capped
+    run = WorkflowRun.from_state(loop_graph(), {"current_step_id": "a", "transitions": True}, max_transitions=2)
+    assert run.transitions == 0
+
+
+def test_duplicate_paths_same_target_single_tool():
+    g = driver_graph()
+    g["paths"].append(path("p9", "s1", "s2", "again"))
+    run = WorkflowRun(g)
+    run.start()
+    ps = run.paths_from_current()
+    assert len(ps) == 1 and ps[0].description == "next"

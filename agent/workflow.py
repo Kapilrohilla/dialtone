@@ -80,7 +80,9 @@ class WorkflowRun:
                 outcome=s.get("outcome") if isinstance(s.get("outcome"), str) else None,
             )
         for p in paths if isinstance(paths, list) else []:
-            if not isinstance(p, dict) or p.get("from") not in self._steps or p.get("to") not in self._steps:
+            if (not isinstance(p, dict) or not isinstance(p.get("from"), str)
+                    or not isinstance(p.get("to"), str)
+                    or p["from"] not in self._steps or p["to"] not in self._steps):
                 continue
             self._out.setdefault(p["from"], []).append(
                 {"to": p["to"], "label": _str(p.get("label"))})
@@ -124,20 +126,25 @@ class WorkflowRun:
         if not isinstance(state, dict):
             run.start()
             return run
-        cur = run._steps.get(state.get("current_step_id"))
+        sid = state.get("current_step_id")
+        cur = run._steps.get(sid) if isinstance(sid, str) else None
         if cur is None:
             run.start()
             return run
+
+        def count(n) -> int:
+            return n if isinstance(n, int) and not isinstance(n, bool) and n >= 0 else 0
+
         run.current = cur
         v = state.get("visits")
-        run.visits = {k: n for k, n in v.items() if isinstance(k, str) and isinstance(n, int)} \
-            if isinstance(v, dict) else {}
-        t = state.get("transitions")
-        run.transitions = t if isinstance(t, int) else 0
+        run.visits = {k: count(n) for k, n in v.items() if isinstance(k, str)} if isinstance(v, dict) else {}
+        run.transitions = count(state.get("transitions"))
         c = state.get("captured")
-        run.captured = {str(k): str(x) for k, x in c.items()} if isinstance(c, dict) else {}
+        run.captured = dict(c) if isinstance(c, dict) and all(
+            isinstance(k, str) and isinstance(x, str) for k, x in c.items()) else {}
         p = state.get("path")
-        run.path = [x for x in p if isinstance(x, str)] if isinstance(p, list) else [cur.name]
+        names = [x for x in p if isinstance(x, str)] if isinstance(p, list) else []
+        run.path = (names or [cur.name])[-(max_transitions + 1):]
         return run
 
     # -- tools -----------------------------------------------------------
@@ -145,8 +152,12 @@ class WorkflowRun:
         if self.current is None or self.current.type == "end":
             return []
         takes = self.current.type == "collect"
-        return [PathTool(self._names[p["to"]], p["label"], p["to"], takes)
-                for p in self._out.get(self.current.id, [])]
+        tools: dict[str, PathTool] = {}
+        for p in self._out.get(self.current.id, []):
+            name = self._names[p["to"]]
+            if name not in tools:
+                tools[name] = PathTool(name, p["label"], p["to"], takes)
+        return list(tools.values())
 
     def take(self, tool_name: str, value: str | None = None) -> Transition:
         cur = self.current
