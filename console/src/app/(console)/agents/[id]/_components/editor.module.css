@@ -1,0 +1,130 @@
+.page { padding: var(--gutter); }
+
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; align-items: start; min-height: calc(100vh - 72px); }
+.main { min-width: 0; padding: var(--gutter) 40px 48px; }
+
+.banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  padding: 12px var(--gutter);
+  background: var(--amber-tint);
+  color: var(--ink);
+  border-bottom: 1px solid var(--border);
+  font-size: 15px;
+}
+
+.nameButton {
+  padding: 2px 4px;
+  margin: 0 -4px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  cursor: text;
+}
+.nameButton:hover { background: var(--well); }
+.nameInput {
+  height: 32px;
+  width: 16rem;
+  padding: 0 8px;
+  background: var(--well);
+  color: var(--ink);
+  border: 1px solid var(--rule-strong);
+  border-radius: 6px;
+  font: inherit;
+}
+
+/* The script: one document, sections separated by thin rules. */
+.document { max-width: 52rem; display: flex; flex-direction: column; }
+.section { display: flex; flex-direction: column; gap: 8px; padding: 24px 0; border-bottom: 1px solid var(--border); }
+.section:first-child { padding-top: 0; }
+.sectionHead { display: flex; align-items: center; gap: 8px; }
+.heading { margin: 0; font-size: 18px; font-weight: 500; }
+.headingInput {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  padding: 0 6px;
+  margin-left: -6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 18px;
+  font-weight: 500;
+}
+.headingInput:hover { border-color: var(--border); }
+.headingInput:focus { border-color: var(--rule-strong); background: var(--well); }
+.body { font-size: 16px; }
+.addSection {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: var(--control-h);
+  margin-top: 24px;
+  border: 1px dashed var(--rule-strong);
+  border-radius: var(--radius);
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 15px;
+}
+.addSection:hover { background: var(--well); }
+.dialogText { margin: 0; color: var(--ink-2); font-size: 15px; }
+
+/* The settings column. */
+.side { border-left: 1px solid var(--border); padding: 0 var(--gutter); min-height: 100%; }
+.panelSection { display: flex; flex-direction: column; gap: 12px; padding: 20px 0; border-bottom: 1px solid var(--border); }
+.panelSection:last-child { border-bottom: 0; }
+.panelHead { display: flex; align-items: center; justify-content: space-between; }
+.panelTitle { margin: 0; font-size: 15px; font-weight: 600; }
+.panelNote { margin: 0; color: var(--muted); font-size: 13px; }
+.preview { align-self: flex-start; }
+.textButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--blue);
+  font: inherit;
+  font-size: 14px;
+}
+.textButton:hover { background: var(--well); }
+.link { color: var(--blue); font-size: 14px; text-decoration: underline; text-underline-offset: 3px; }
+.docList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.docRow { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 40px; border-bottom: 1px solid var(--border); font-size: 14px; }
+.docRow:last-child { border-bottom: 0; }
+.docTitle { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+}
+.iconButton:hover { background: var(--well); color: var(--ink); }
+.checkList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.check { display: flex; align-items: center; gap: 10px; min-height: 40px; font-size: 15px; }
+.check input { width: 18px; height: 18px; accent-color: var(--blue); }
+
+.advanced { display: flex; flex-direction: column; gap: var(--row-gap); padding-top: 12px; }
+.monoField input { font-family: var(--font-mono); font-size: 14px; }
+.timings { display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 0; border: 0; min-width: 0; }
+.legend { padding: 0; margin-bottom: 4px; font-size: 14px; font-weight: 500; color: var(--ink-2); }
+.fieldError { margin: 0; color: var(--bad); font-size: 13px; }
+.readOnlyField { display: flex; flex-direction: column; gap: 6px; font-size: 15px; }
+.readOnlyLabel { font-size: 14px; font-weight: 500; color: var(--ink-2); }

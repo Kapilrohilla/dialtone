@@ -39,8 +39,14 @@ async function csrfToken(): Promise<string | undefined> {
   return readCookie(CSRF_COOKIE);
 }
 
-const asStrings = (v: unknown): string[] =>
-  (Array.isArray(v) ? v : [v]).filter((x): x is string => typeof x === "string" && x !== "");
+/** Every non-empty string in a DRF error value, depth first: nested serializers give
+ *  `{"settings": {"dead_air": {"non_field_errors": ["…"]}}}` and list fields `{"script": [{}, {"body": ["…"]}]}`. */
+function asStrings(v: unknown): string[] {
+  if (typeof v === "string") return v ? [v] : [];
+  if (Array.isArray(v)) return v.flatMap(asStrings);
+  if (v && typeof v === "object") return Object.values(v).flatMap(asStrings);
+  return [];
+}
 
 function parseError(status: number, body: unknown): ApiError {
   const fields: Record<string, string[]> = {};
@@ -67,8 +73,14 @@ function goToSignIn() {
   globalThis.location.assign("/sign-in?next=" + encodeURIComponent(pathname + search));
 }
 
-export async function apiFetch<T>(path: string, init: RequestInit & { json?: unknown } = {}): Promise<T> {
-  const { json, headers: extra, ...rest } = init;
+export type ApiInit = RequestInit & {
+  json?: unknown;
+  /** false: a signed-out 403 is only thrown (as a 401 ApiError), for screens that keep unsaved work on the page. */
+  signInRedirect?: boolean;
+};
+
+export async function apiFetch<T>(path: string, init: ApiInit = {}): Promise<T> {
+  const { json, headers: extra, signInRedirect = true, ...rest } = init;
   const method = (rest.method ?? "GET").toUpperCase();
   const headers = new Headers(extra);
   if (json !== undefined) headers.set("Content-Type", "application/json");
@@ -93,7 +105,7 @@ export async function apiFetch<T>(path: string, init: RequestInit & { json?: unk
   if (!res.ok) {
     const err = parseError(res.status, body);
     if (res.status === 403 && err.detail === SIGNED_OUT_DETAIL) {
-      goToSignIn();
+      if (signInRedirect) goToSignIn();
       throw new ApiError(401, err.detail, err.fields);
     }
     throw err;

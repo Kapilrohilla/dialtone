@@ -69,6 +69,36 @@ describe("apiFetch", () => {
     expect(e.fields.errors[0]).toBe('End step "X" needs an outcome.');
   });
 
+  it("finds the first string in nested field errors", async () => {
+    server.use(
+      http.patch("*/api/agents/3", () =>
+        HttpResponse.json(
+          { settings: { dead_air: { non_field_errors: ["Dead-air timings must increase: first check-in, then second check-in, then hang up."] } } },
+          { status: 400 },
+        ),
+      ),
+      http.patch("*/api/agents/4", () => HttpResponse.json({ script: [{}, { body: ["Too long."] }] }, { status: 400 })),
+    );
+    document.cookie = "csrftoken=abc; path=/";
+    const e = await caught(apiFetch("/api/agents/3", { method: "PATCH", json: {} }));
+    expect(e.detail).toBe("Dead-air timings must increase: first check-in, then second check-in, then hang up.");
+    expect(e.fields.settings).toEqual(["Dead-air timings must increase: first check-in, then second check-in, then hang up."]);
+    const s = await caught(apiFetch("/api/agents/4", { method: "PATCH", json: {} }));
+    expect(s.detail).toBe("Too long.");
+    expect(s.fields.script).toEqual(["Too long."]);
+  });
+
+  it("can leave a signed-out 403 to the caller instead of redirecting", async () => {
+    const assign = vi.fn();
+    vi.stubGlobal("location", { pathname: "/agents/3", search: "", origin: "http://localhost:3000", href: "http://localhost:3000/agents/3", assign });
+    server.use(
+      http.get("*/api/me", () => HttpResponse.json({ detail: "Authentication credentials were not provided." }, { status: 403 })),
+    );
+    const e = await caught(apiFetch("/api/me", { signInRedirect: false }));
+    expect(isSignedOut(e)).toBe(true);
+    expect(assign).not.toHaveBeenCalled();
+  });
+
   it("falls back to a plain message when the body is not JSON", async () => {
     server.use(http.get("*/api/z", () => new HttpResponse("<html>boom</html>", { status: 502 })));
     const e = await caught(apiFetch("/api/z"));

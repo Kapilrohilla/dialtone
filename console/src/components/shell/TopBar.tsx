@@ -3,7 +3,8 @@ import { ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 import styles from "./TopBar.module.css";
 
-export type Crumb = { label: string; href?: string };
+/** `node` replaces the crumb's text, e.g. an inline rename button; `label` still names it. */
+export type Crumb = { label: string; href?: string; node?: ReactNode };
 
 export type TopBarProps = {
   /** A plain page title. Use `breadcrumb` instead on detail pages; the last crumb becomes the heading. */
@@ -30,7 +31,7 @@ export function TopBar({ title, breadcrumb, chip, status, secondary, primary }: 
           <nav aria-label="Breadcrumb" className={styles.crumbs}>
             {parents.map((c) => (
               <span key={c.label} className={styles.crumb}>
-                {c.href ? <Link href={c.href}>{c.label}</Link> : c.label}
+                {c.node ?? (c.href ? <Link href={c.href}>{c.label}</Link> : c.label)}
                 <ChevronRight size={16} strokeWidth={1.75} aria-hidden="true" />
               </span>
             ))}

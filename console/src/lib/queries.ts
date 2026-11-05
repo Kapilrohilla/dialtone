@@ -4,7 +4,19 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui";
 import { ApiError, apiFetch } from "@/lib/api";
-import type { Agent, AgentListItem, Dashboard, Expression, LiveCall, Me, Preferences, VoicesResponse } from "@/lib/types";
+import type {
+  Agent,
+  AgentListItem,
+  Dashboard,
+  Expression,
+  KnowledgeListItem,
+  LiveCall,
+  Me,
+  Preferences,
+  SimResponse,
+  VoicesResponse,
+  WorkflowListItem,
+} from "@/lib/types";
 
 // Query keys and hooks live here, one commented section per area. Later tasks add their own sections below.
 
@@ -117,13 +129,20 @@ export function useCreateAgent() {
   });
 }
 
-/** PATCH only the fields that changed. */
-export function useUpdateAgent(id: number) {
+export type AgentUpdate = Partial<
+  Pick<Agent, "name" | "description" | "language" | "persona_name" | "voice_id" | "script" | "custom_expressions" | "knowledge" | "workflow" | "phone_number">
+> & {
+  /** Deep-merged over the saved settings by the server, so send only what changed. */
+  settings?: { mood_adaptation?: boolean; dead_air?: Partial<Agent["settings"]["dead_air"]> };
+};
+
+/** PATCH only the fields that changed. `signInRedirect: false` leaves a signed-out error to the screen
+ *  (the script editor keeps the unsaved text on the page). */
+export function useUpdateAgent(id: number, { signInRedirect = true }: { signInRedirect?: boolean } = {}) {
   const qc = useQueryClient();
   const invalidate = useInvalidateAgents();
   return useMutation({
-    mutationFn: (body: Partial<Pick<Agent, "name" | "description" | "language" | "persona_name" | "voice_id" | "settings" | "script" | "custom_expressions" | "knowledge" | "workflow" | "phone_number">>) =>
-      apiFetch<Agent>(`/api/agents/${id}`, { method: "PATCH", json: body }),
+    mutationFn: (body: AgentUpdate) => apiFetch<Agent>(`/api/agents/${id}`, { method: "PATCH", json: body, signInRedirect }),
     onSuccess: (agent) => {
       qc.setQueryData(agentKey(id), agent);
       return invalidate(id);
@@ -180,4 +199,31 @@ export function useExpressions() {
 
 export function useVoices() {
   return useQuery({ queryKey: voicesKey, queryFn: () => apiFetch<VoicesResponse>("/api/voices"), staleTime: 300_000 });
+}
+
+// ---- knowledge ----
+
+export const knowledgeListKey = ["knowledge"] as const;
+
+export function useKnowledgeList() {
+  return useQuery({ queryKey: knowledgeListKey, queryFn: () => apiFetch<KnowledgeListItem[]>("/api/knowledge") });
+}
+
+// ---- workflows ----
+
+export const workflowsKey = ["workflows"] as const;
+
+export function useWorkflows() {
+  return useQuery({ queryKey: workflowsKey, queryFn: () => apiFetch<WorkflowListItem[]>("/api/workflows") });
+}
+
+// ---- sim ----
+
+export type SimMessage = { role: "caller" | "agent"; text: string };
+export type SimRequest = { messages: SimMessage[]; state: Record<string, unknown> | null };
+
+/** One turn of the text simulator ("Test call" for an agent's draft, "Try it" for a workflow). Nothing is saved. */
+export function useSimulate(kind: "agent" | "workflow", id: number) {
+  const path = `/api/${kind === "agent" ? "agents" : "workflows"}/${id}/simulate`;
+  return useMutation({ mutationFn: (body: SimRequest) => apiFetch<SimResponse>(path, { method: "POST", json: body }) });
 }

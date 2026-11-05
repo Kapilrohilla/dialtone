@@ -52,6 +52,9 @@ export function TokenEditor({
   const customRef = useRef(customExpressions);
   /** The `value` the content was last loaded from or reported as, to tell outside changes from echoes. */
   const lastValue = useRef(value);
+  /** Values reported since the parent last caught up. A parent re-rendering with one of them is a late echo
+   *  of an earlier keystroke (fast typing), not an outside change, and must not reset the content. */
+  const echoes = useRef<string[]>([]);
   /** The serialized text of the content as it stands, before any user edit since the last report. */
   const baseline = useRef<string | null>(null);
   const wrapper = useRef<HTMLDivElement>(null);
@@ -102,6 +105,7 @@ export function TokenEditor({
         if (next === baseline.current) return;
         baseline.current = next;
         lastValue.current = next;
+        echoes.current.push(next);
         onChangeRef.current(next);
       },
     },
@@ -110,7 +114,13 @@ export function TokenEditor({
 
   // A new value from outside (another revision, a reset) replaces the content without reporting a change.
   useEffect(() => {
-    if (!editor || editor.isDestroyed || value === lastValue.current) return;
+    if (!editor || editor.isDestroyed) return;
+    if (value === lastValue.current) {
+      echoes.current = [];
+      return;
+    }
+    if (echoes.current.includes(value)) return;
+    echoes.current = [];
     lastValue.current = value;
     editor.commands.setContent(toEditorContent(value, mode), { emitUpdate: false });
     baseline.current = fromEditor(editor);

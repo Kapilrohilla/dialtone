@@ -268,4 +268,24 @@ describe("TokenEditor", () => {
     expect(box).toHaveAttribute("contenteditable", "false");
     expect(screen.queryByRole("button", { name: "Expression" })).not.toBeInTheDocument();
   });
+
+  it("ignores a parent's late echo of an earlier edit but takes a real outside change", async () => {
+    const onChange = vi.fn<(value: string) => void>();
+    const user = userEvent.setup();
+    const props = { onChange, mode: "script" as const, "aria-label": "Script" };
+    const { rerender } = render(<TokenEditor value="पूछिए" {...props} />);
+    const box = await screen.findByRole("textbox", { name: "Script" });
+    await user.click(box);
+    await user.keyboard("ab");
+    const [first, second] = onChange.mock.calls.map((c) => c[0]);
+    expect(second).toContain("ab");
+    // The parent re-renders with the first keystroke's text after the second was typed.
+    rerender(<TokenEditor value={first} {...props} />);
+    expect(serializedFrom(box)).toBe(second);
+    rerender(<TokenEditor value={second} {...props} />);
+    expect(serializedFrom(box)).toBe(second);
+    rerender(<TokenEditor value="नया पाठ" {...props} />);
+    expect(serializedFrom(box)).toBe("नया पाठ");
+    expect(onChange).toHaveBeenCalledTimes(2);
+  });
 });

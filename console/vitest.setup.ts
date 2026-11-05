@@ -41,6 +41,8 @@ afterEach(() => {
     document.cookie = `${c.split("=")[0].trim()}=; max-age=0; path=/`;
   });
   document.documentElement.removeAttribute("data-theme");
+  sessionStorage.clear();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 afterAll(() => server.close());
