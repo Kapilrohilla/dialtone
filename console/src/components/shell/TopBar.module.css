@@ -1,0 +1,16 @@
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--row-gap);
+  min-height: 72px;
+  padding: 16px var(--gutter);
+  border-bottom: 1px solid var(--border);
+}
+.left { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.title { font-size: 22px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.crumbs { display: flex; align-items: center; color: var(--muted); font-size: 15px; }
+.crumb { display: inline-flex; align-items: center; gap: 4px; margin-right: 4px; }
+.crumb a { color: var(--ink-2); }
+.right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.status { color: var(--muted); font-size: 14px; }
