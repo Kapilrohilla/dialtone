@@ -28,3 +28,8 @@ Built on branch feature/agent-runtime: config fetch with cache and built-in fall
 - Live calls on both pipelines. Needs a staging test call through several workflow steps, especially on Gemini Live.
 - The simulator against real Gemini (needs `GOOGLE_API_KEY`).
 - Greeting delay after the config fetch (1.5 s budget).
+
+### Carry forward from plan 2
+
+- Plan 3: voice selection per pipeline (validated list) — P19.
+- Gemini start-step block stays in the system prompt; consider wording it as "later steps arrive as tool results".

@@ -174,9 +174,11 @@ When a call starts, the agent asks the console for the published agent of the nu
 2. Console down or slow: the last saved copy for that number (`/cache`, the `agent-cache` volume).
 3. No published agent, or it was unpublished: today's built-in script and `knowledge.md`.
 
-A publish reaches the agent within about 15 seconds; calls already running are not changed. During a call the agent streams turns, step changes, mood and captured fields to `/api/runtime/events` for the live calls screen.
+A publish takes effect on the next call; calls already running are not changed. During a call the agent streams turns, step changes, mood and captured fields to `/api/runtime/events` for the live calls screen.
 
-Dead-air and mood settings come from the published agent. Mood also needs `MOOD_ENABLED=true` on the worker.
+Dead-air and mood settings come from the published agent. Mood also needs `MOOD_ENABLED=true` on the worker. The voice chosen in the console is not applied yet (it arrives with plan 3); the voice still comes from the worker's env (`GEMINI_VOICE`, `TTS_SPEAKER`, `ELEVENLABS_VOICE_ID`).
+
+On a VM that runs only the agent (no dashboard), set `DASHBOARD_URL=` (empty) in `.env`. The `.env.example` value `http://127.0.0.1:8787` points at a dashboard that isn't there, so every call's config fetch and live events would fail; empty turns both off and calls use the built-in agent.
 
 `RECORDING_ENABLED=true` makes the agent speak the recording consent line after its opening. It does not record anything; recording arrives with the recording plan.
 
