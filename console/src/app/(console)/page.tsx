@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { StateBlock, useToast } from "@/components/ui";
+import { StateBlock } from "@/components/ui";
 import { TopBar } from "@/components/shell/TopBar";
 import { ApiError } from "@/lib/api";
 import { useDashboard, useMarkHandled, useMe } from "@/lib/queries";
@@ -16,18 +16,6 @@ export default function DashboardPage() {
   const { data, isError, error, refetch } = useDashboard();
   const { data: me } = useMe();
   const markHandled = useMarkHandled();
-  const toast = useToast();
-
-  const callBack = (room: string) => {
-    markHandled.mutate(
-      { room, handled: true },
-      {
-        onSuccess: () =>
-          toast.show("Marked as handled.", "ok", { label: "Undo", onClick: () => markHandled.mutate({ room, handled: false }) }),
-        onError: (e) => toast.show(e instanceof ApiError ? e.detail : "Could not mark as handled.", "bad"),
-      },
-    );
-  };
 
   return (
     <>
@@ -39,7 +27,7 @@ export default function DashboardPage() {
           <>
             <Readings data={data} />
             <div className={styles.columns}>
-              <NeedsPerson rows={data?.needs_person} canCallBack={canEdit(me?.role)} timeZone={me?.preferences.time_zone ?? "Asia/Kolkata"} onCallBack={callBack} />
+              <NeedsPerson rows={data?.needs_person} canCallBack={canEdit(me?.role)} timeZone={me?.preferences.time_zone ?? "Asia/Kolkata"} onCallBack={(room) => markHandled.mutate({ room, handled: true })} />
               <OutcomesWeek rows={data?.outcomes_week} />
             </div>
             <LiveAgentLine loading={!data} agent={data?.live_agent} />

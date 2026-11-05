@@ -2,7 +2,8 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { apiFetch } from "@/lib/api";
+import { useToast } from "@/components/ui";
+import { ApiError, apiFetch } from "@/lib/api";
 import type { Dashboard, LiveCall, Me, Preferences } from "@/lib/types";
 
 // Query keys and hooks live here, one commented section per area. Later tasks add their own sections below.
@@ -57,7 +58,8 @@ export function useDashboard() {
 /** Marks a call back request handled (or, with `handled: false`, puts it back). The row leaves the list at once. */
 export function useMarkHandled() {
   const qc = useQueryClient();
-  return useMutation({
+  const toast = useToast();
+  const mutation = useMutation({
     mutationFn: ({ room, handled }: { room: string; handled: boolean }) =>
       apiFetch<unknown>(`/api/calls/${encodeURIComponent(room)}/needs-person`, { method: "POST", json: { handled } }),
     onMutate: async ({ room, handled }) => {
@@ -67,9 +69,14 @@ export function useMarkHandled() {
       if (previous) qc.setQueryData<Dashboard>(dashboardKey, { ...previous, needs_person: previous.needs_person.filter((n) => n.room !== room) });
       return { previous };
     },
-    onError: (_e, _v, ctx) => {
+    onSuccess: (_d, { room, handled }) => {
+      if (handled) toast.show("Marked as handled.", "ok", { label: "Undo", onClick: () => mutation.mutate({ room, handled: false }) });
+    },
+    onError: (e, { handled }, ctx) => {
       if (ctx?.previous) qc.setQueryData(dashboardKey, ctx.previous);
+      toast.show(e instanceof ApiError ? e.detail : handled ? "Could not mark as handled." : "Could not undo.", "bad");
     },
     onSettled: () => qc.invalidateQueries({ queryKey: dashboardKey }),
   });
+  return mutation;
 }

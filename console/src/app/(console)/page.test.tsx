@@ -58,9 +58,27 @@ describe("dashboard", () => {
 
   it("hides call back for viewers", async () => {
     server.use(http.get("*/api/me", () => HttpResponse.json({ ...me, role: "viewer" })));
-    renderWithProviders(<DashboardPage />);
+    const view = renderWithProviders(<DashboardPage />);
     expect(await screen.findByText("Asked to talk to a person.")).toBeInTheDocument();
-    await waitFor(() => expect(screen.queryByRole("button", { name: "Call back" })).not.toBeInTheDocument());
+    await waitFor(() => expect(view.queryClient.getQueryState(["me"])?.status).toBe("success"));
+    expect(screen.queryByRole("button", { name: "Call back" })).not.toBeInTheDocument();
+  });
+
+  it("toasts each call back and an error when undo fails", async () => {
+    server.use(
+      http.get("*/api/dashboard", () => HttpResponse.json({ ...dashboard, needs_person: [dashboard.needs_person[0], { ...dashboard.needs_person[0], room: "call-2" }] })),
+      http.post("*/api/calls/:room/needs-person", async ({ request }) => {
+        const { handled } = (await request.json()) as { handled: boolean };
+        return handled ? HttpResponse.json({ detail: "ok" }) : HttpResponse.json({ detail: "Could not undo that." }, { status: 500 });
+      }),
+    );
+    const user = userEvent.setup();
+    renderWithProviders(<DashboardPage />);
+    await user.click((await screen.findAllByRole("button", { name: "Call back" }))[0]);
+    await user.click((await screen.findAllByRole("button", { name: "Call back" }))[0]);
+    await waitFor(() => expect(screen.getAllByText("Marked as handled.")).toHaveLength(2));
+    await user.click(screen.getAllByRole("button", { name: "Undo" })[0]);
+    expect(await screen.findByText("Could not undo that.")).toBeInTheDocument();
   });
 
   it("shows the empty states", async () => {

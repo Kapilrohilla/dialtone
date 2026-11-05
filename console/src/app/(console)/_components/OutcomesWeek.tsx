@@ -22,7 +22,7 @@ export function OutcomesWeek({ rows }: { rows?: Dashboard["outcomes_week"] }) {
                 <span
                   className={styles.fill}
                   data-outcome={r.outcome}
-                  style={{ width: `${(r.count / max) * 100}%`, background: r.outcome === "Interested" ? "var(--blue)" : "var(--rule-strong)" }}
+                  style={{ minWidth: r.count === 0 ? 0 : undefined, width: `${(r.count / max) * 100}%`, background: r.outcome === "Interested" ? "var(--blue)" : "var(--rule-strong)" }}
                 />
               </span>
               <span className={styles.mono}>{r.count}</span>
