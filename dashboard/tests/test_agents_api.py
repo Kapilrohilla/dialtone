@@ -51,13 +51,13 @@ def test_patch_fields_and_links(member, workspace):
     wf = make_workflow(workspace)
     r = c.patch(f"/api/agents/{pk}", {
         "name": "Renamed", "knowledge": [doc.id], "workflow": wf.id,
-        "settings": {"dead_air": {"nudge_s": 5}}, "voice_id": "v-1",
+        "settings": {"dead_air": {"nudge_s": 5}}, "voice_id": "Puck",
     }, format="json")
     assert r.status_code == 200, r.content
     body = r.json()
     assert body["name"] == "Renamed" and body["knowledge"] == [doc.id] and body["workflow"] == wf.id
     assert body["settings"]["dead_air"] == {"enabled": True, "nudge_s": 5, "second_nudge_s": 9, "hang_up_s": 15}
-    assert body["settings"]["mood_adaptation"] is True and body["voice_id"] == "v-1"
+    assert body["settings"]["mood_adaptation"] is True and body["voice_id"] == "Puck"
     assert c.get(f"/api/agents/{pk}").json() == body
     r = c.patch(f"/api/agents/{pk}", {"workflow": None, "knowledge": []}, format="json")
     assert r.json()["workflow"] is None and r.json()["knowledge"] == []

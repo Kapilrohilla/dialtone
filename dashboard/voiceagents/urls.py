@@ -13,5 +13,6 @@ urlpatterns = [
     path("agents/<int:pk>/versions", api.AgentVersionsView.as_view()),
     path("agents/<int:pk>/simulate", simulate.AgentSimulateView.as_view()),
     path("workflows/<int:pk>/simulate", simulate.WorkflowSimulateView.as_view()),
+    path("voices", api.VoicesView.as_view()),
     path("expressions", api.ExpressionsView.as_view()),
 ]

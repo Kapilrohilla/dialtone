@@ -73,6 +73,7 @@ from prompt import (  # noqa: F401  (re-exported: tests and callers use agent.X)
     opening_line,
     step_block,
 )
+import voices
 from report import build_report, send_report
 from sentiment import make_classifier
 from tone import mood_message, tone_guide
@@ -492,13 +493,13 @@ class SarvamPhoneAgent(PhoneAgent):
 
 
 def gemini_live_session(
-    lead: dict, cfg: Config = BUILTIN_CONFIG, mood_on: bool = MOOD_ENABLED
+    lead: dict, cfg: Config = BUILTIN_CONFIG, mood_on: bool = MOOD_ENABLED, voice: str | None = None
 ) -> tuple[AgentSession, PhoneAgent]:
     from livekit.plugins import google
 
     llm = google.realtime.RealtimeModel(
         model=os.getenv("GEMINI_LIVE_MODEL", "gemini-3.8-live"),
-        voice=os.getenv("GEMINI_VOICE", "Kore"),
+        voice=voice or os.getenv("GEMINI_VOICE", "Kore"),
         # A bit of variety keeps replies from sounding scripted.
         temperature=0.8,
         # Tone follows the caller's emotion. Uses Gemini's v1alpha API; off by default.
@@ -512,22 +513,22 @@ def gemini_live_session(
     return AgentSession(llm=llm), PhoneAgent(lead, language_rules=rules, cfg=cfg, pipeline="gemini-live")
 
 
-def sarvam_tts():
+def sarvam_tts(voice: str | None = None):
     from livekit.plugins import sarvam
 
     return sarvam.TTS(
         target_language_code=DEFAULT_LANGUAGE,
         model="bulbul:v3",
-        speaker=os.getenv("TTS_SPEAKER", "priya"),
+        speaker=voice or os.getenv("TTS_SPEAKER", "priya"),
     )
 
 
-def elevenlabs_tts():
+def elevenlabs_tts(voice: str | None = None):
     from livekit.plugins import elevenlabs
 
     return elevenlabs.TTS(
         # Default: Sarah, a premade voice (free plans can't use library voices over the API).
-        voice_id=os.getenv("ELEVENLABS_VOICE_ID", "EXAVITQu4vr4xnSDxMaL"),
+        voice_id=voice or os.getenv("ELEVENLABS_VOICE_ID", "EXAVITQu4vr4xnSDxMaL"),
         # Flash is the lowest-latency model and speaks Hindi; eleven_multilingual_v2 sounds richer but lags.
         model=os.getenv("ELEVENLABS_MODEL", "eleven_flash_v2_5"),
         language=DEFAULT_LANGUAGE.split("-")[0],
@@ -703,12 +704,16 @@ async def entrypoint(ctx: JobContext) -> None:
     settings = _settings(cfg.snapshot)
     mood_on = mood_enabled(settings)
 
+    chosen = cfg.snapshot.get("voice_id") if isinstance(cfg.snapshot, dict) else None
     if PIPELINE == "sarvam":
-        session, agent = cascaded_session(ctx.proc, lead, sarvam_tts(), cfg)
+        voice = voices.resolve(PIPELINE, chosen, os.getenv("TTS_SPEAKER", "priya"))
+        session, agent = cascaded_session(ctx.proc, lead, sarvam_tts(voice), cfg)
     elif PIPELINE == "elevenlabs":
-        session, agent = cascaded_session(ctx.proc, lead, elevenlabs_tts(), cfg)
+        voice = voices.resolve(PIPELINE, chosen, os.getenv("ELEVENLABS_VOICE_ID", "EXAVITQu4vr4xnSDxMaL"))
+        session, agent = cascaded_session(ctx.proc, lead, elevenlabs_tts(voice), cfg)
     else:
-        session, agent = gemini_live_session(lead, cfg, mood_on)
+        voice = voices.resolve(PIPELINE, chosen, os.getenv("GEMINI_VOICE", "Kore"))
+        session, agent = gemini_live_session(lead, cfg, mood_on, voice)
     agent.caller_identity = caller.identity
     agent.emit = sink.add
     used, settings = call_settings(cfg, agent)

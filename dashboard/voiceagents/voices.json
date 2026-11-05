@@ -1,0 +1,15 @@
+{"gemini-live": [
+   {"id": "Kore", "name": "Kore", "description": "Female, firm", "sample": "/voices/kore.wav"},
+   {"id": "Aoede", "name": "Aoede", "description": "Female, light", "sample": "/voices/aoede.wav"},
+   {"id": "Leda", "name": "Leda", "description": "Female, youthful", "sample": "/voices/leda.wav"},
+   {"id": "Charon", "name": "Charon", "description": "Male, informative", "sample": "/voices/charon.wav"},
+   {"id": "Orus", "name": "Orus", "description": "Male, firm", "sample": "/voices/orus.wav"},
+   {"id": "Puck", "name": "Puck", "description": "Male, upbeat", "sample": "/voices/puck.wav"}],
+ "sarvam": [{"id": "priya", "name": "Priya", "description": "Female, Hindi", "sample": null}],
+ "elevenlabs": [
+   {"id": "EXAVITQu4vr4xnSDxMaL", "name": "Sarah", "description": "Female, soft", "sample": "/voices/sarah.mp3"},
+   {"id": "Xb7hH8MSUJpSbSDYk0k2", "name": "Alice", "description": "Female, clear", "sample": "/voices/alice.mp3"},
+   {"id": "cgSgspJ2msm6clMCkdW9", "name": "Jessica", "description": "Female, expressive", "sample": "/voices/jessica.mp3"},
+   {"id": "FGY2WhTYpPnrIDTdsKH5", "name": "Laura", "description": "Female, upbeat", "sample": "/voices/laura.mp3"},
+   {"id": "pFZP5JQG7iQjIQuC4Bku", "name": "Lily", "description": "Female, warm", "sample": "/voices/lily.mp3"},
+   {"id": "XrExE9yKIg1WjnMxR4Ji", "name": "Matilda", "description": "Female, friendly", "sample": "/voices/matilda.mp3"}]}
