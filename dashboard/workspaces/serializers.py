@@ -86,3 +86,8 @@ class InviteSerializer(serializers.Serializer):
 
 class RoleSerializer(serializers.Serializer):
     role = serializers.ChoiceField(choices=[r for r, _ in Membership.ROLES])
+
+
+class IntegrationRequestSerializer(serializers.Serializer):
+    tool = serializers.CharField(max_length=100)
+    note = serializers.CharField(max_length=2000, required=False, allow_blank=True, default="")

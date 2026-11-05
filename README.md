@@ -145,6 +145,13 @@ docker compose run --rm --no-deps -v /path/to/copy-dir:/old:ro dashboard python 
 
 **Rollback caveat.** `ROLLBACK=1 make deploy` returns to code that reads SQLite, so calls recorded in PostgreSQL after the deploy are not shown by the old version (the SQLite file only holds history up to the cutover). They are not lost: they stay in the `postgres-data` volume. To recover, deploy the PostgreSQL version again. To bring them into SQLite instead there is no tool; export them from PostgreSQL first (`docker compose exec postgres pg_dump -U dashboard dashboard > backup.sql`).
 
+**Console API.** The dashboard also serves the console's JSON API under `/api/`: auth and team, agents, knowledge, workflows, calls and live calls, the dashboard summary, settings and integration requests, plus runtime endpoints the agent calls. Management commands (run with `docker compose exec dashboard python manage.py ...`):
+
+- `create_member EMAIL [--name N] [--role editor] [--workspace carrum]` creates a console user (prompts for a password).
+- `seed_carrum [--knowledge PATH]` creates the Carrum workspace and a draft "Driver lead qualifier" agent; if `PATH` (default `../agent/knowledge.md`) exists it also adds that file as the "Approved pricing and rules" knowledge document. Safe to repeat; it never publishes.
+- `purge_old_call_data [--days 90] [--dry-run]` deletes transcripts older than 90 days (turn events, labelled turns, report `turns`); outcomes, summaries, answers and metrics stay. Nothing schedules it yet; plan 4 adds a daily run.
+- `copy_from_sqlite` is the SQLite to PostgreSQL copy described above.
+
 Run the tests locally with `make test` (needs `dashboard/.venv` with `dashboard/requirements-dev.txt`). The dashboard tests run on PostgreSQL: `make test-db` starts a disposable container on `127.0.0.1:55432` (needs Docker; `make test` does it for you). To use another server set `TEST_POSTGRES_HOST`, `TEST_POSTGRES_PORT`, `TEST_POSTGRES_USER` and `TEST_POSTGRES_PASSWORD`.
 
 The agent POSTs its report to `/api/report` when a call ends, if `DASHBOARD_REPORT_URL` is set (on the VM: `http://127.0.0.1:8787/api/report`). The request carries a LiveKit-signed token with identity `agent-report` instead of a login. A report may arrive before LiveKit's `room_finished` webhook, and a later report for the same room replaces the earlier one. `/admin/` filters calls by final mood and outcome and shows each full report.

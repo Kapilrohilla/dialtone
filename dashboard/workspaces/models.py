@@ -34,3 +34,18 @@ class UserPreference(models.Model):
     notify_daily_summary = models.BooleanField(default=False)
     time_zone = models.CharField(max_length=64, default="Asia/Kolkata")
     phone = models.CharField(max_length=32, blank=True)
+
+
+class IntegrationRequest(models.Model):
+    """A member asking for a tool integration the console doesn't offer yet."""
+
+    workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE, related_name="integration_requests")
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="integration_requests"
+    )
+    tool = models.CharField(max_length=100)
+    note = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]

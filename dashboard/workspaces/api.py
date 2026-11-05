@@ -14,7 +14,7 @@ from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from . import serializers as s
-from .models import Membership, UserPreference
+from .models import IntegrationRequest, Membership, UserPreference
 from .permissions import CanManageTeam, IsMember, _membership, workspace_for
 
 User = get_user_model()
@@ -171,3 +171,18 @@ class TeamMemberView(APIView):
             membership.role = role
             membership.save(update_fields=["role"])
         return Response(s.TeamMemberSerializer(membership).data)
+
+
+class IntegrationRequestView(APIView):
+    permission_classes = [IsMember]
+
+    def post(self, request):
+        data = s.IntegrationRequestSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        row = IntegrationRequest.objects.create(
+            workspace=workspace_for(request), user=request.user, **data.validated_data
+        )
+        return Response(
+            {"id": row.id, "tool": row.tool, "note": row.note, "created_at": row.created_at},
+            status=status.HTTP_201_CREATED,
+        )
