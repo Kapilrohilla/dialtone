@@ -1,6 +1,7 @@
 .sidebar {
   position: sticky;
   top: 0;
+  z-index: 25; /* above main-content layers (20) so the user menu opening to the right paints on top; below SlideOver (30) */
   align-self: start;
   display: flex;
   flex-direction: column;

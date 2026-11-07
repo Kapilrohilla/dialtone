@@ -57,7 +57,7 @@ export function Sidebar() {
       <div className={styles.user}>
         <span className={styles.name}>{me?.name}</span>
         <ThemeToggle />
-        <Menu label="User menu" items={[{ label: "Sign out", onSelect: () => logout.mutate() }]} />
+        <Menu label="User menu" placement="right" items={[{ label: "Sign out", onSelect: () => logout.mutate() }]} />
       </div>
     </aside>
   );
