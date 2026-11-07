@@ -278,3 +278,21 @@ The agent tests in `agent/tests` use pytest (configured by `agent/pytest.ini`) a
 cd agent && python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
 .venv/bin/pytest -q   # same command `make test` runs for the agent
 ```
+
+## Claude Code setup
+
+`.claude/settings.json` turns on two Claude Code plugins for everyone working in this repo:
+
+- [superpowers](https://github.com/obra/superpowers): skills for planning, TDD, debugging and code review (`superpowers@superpowers-marketplace`)
+- [hallmark](https://github.com/Nutlope/hallmark): a design skill for the console and dashboard UI (`hallmark@hallmark`, run it with `/hallmark:hallmark`)
+
+When you trust the folder, Claude Code asks you to install the two marketplaces and enable the plugins. To install them by hand:
+
+```text
+/plugin marketplace add obra/superpowers-marketplace
+/plugin install superpowers@superpowers-marketplace
+/plugin marketplace add Nutlope/hallmark
+/plugin install hallmark@hallmark
+```
+
+Put personal settings in `.claude/settings.local.json`. Git ignores it.
