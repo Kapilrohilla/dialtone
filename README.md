@@ -269,3 +269,12 @@ cd agent && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python -m livekit.agents download-files
 make agent-dev   # point LIVEKIT_URL in .env at your server
 ```
+
+## Running the agent tests
+
+The agent tests in `agent/tests` use pytest (configured by `agent/pytest.ini`) and need no running services:
+
+```bash
+cd agent && python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
+.venv/bin/pytest -q   # same command `make test` runs for the agent
+```
