@@ -52,13 +52,20 @@ if [ -f ai-calling/agent/knowledge.md ] && [ ! -f ai-calling.new/agent/knowledge
 fi
 
 # Build while the old containers keep serving calls, one image at a time (parallel builds can run the VM
-# out of memory next to live calls). A failed build changes nothing.
+# out of memory next to live calls). A failed build changes nothing. Up to 3 tries per image: the console
+# build downloads Google Fonts (next/font/google), which now and then gets a response it can't parse.
+build() {
+  local s=$1 i
+  for i in 1 2 3; do
+    docker compose --profile agent build "$s" && return 0
+    echo "build of $s failed (try $i of 3)"
+    sleep 20
+  done
+  return 1
+}
 cd ai-calling.new
-for s in dashboard console; do
-  docker compose build "$s" || fail "build of $s failed; nothing changed, the old version is still running"
-done
-for s in agent agent-sim; do
-  docker compose --profile agent build "$s" || fail "build of $s failed; nothing changed, the old version is still running"
+for s in dashboard console agent agent-sim; do
+  build "$s" || fail "build of $s failed; nothing changed, the old version is still running"
 done
 cd "$HOME"
 
@@ -97,8 +104,7 @@ mv ai-calling.prev ai-calling
 rm -rf ai-calling.failed
 mv ai-calling.failed-tmp ai-calling.failed
 cd ai-calling
-for s in dashboard console; do docker compose build "$s" || echo "rebuild of $s failed"; done
-for s in agent agent-sim; do docker compose --profile agent build "$s" || echo "rebuild of $s failed"; done
+for s in dashboard console agent agent-sim; do build "$s" || echo "rebuild of $s failed"; done
 if start_and_check; then
   echo "rolled back; ${current:-previous version} is running again (failed tree kept in ~/ai-calling.failed)"
 else

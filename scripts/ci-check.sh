@@ -7,5 +7,6 @@ cd "$(dirname "$0")/.."
 
 make test
 # Default .next dir: a custom distDir makes `next build` rewrite the tracked tsconfig.json.
-(cd console && npm run build)
+# Up to 3 tries: next/font/google downloads fonts during the build and now and then fails on Google's reply.
+(cd console && { npm run build || npm run build || npm run build; })
 echo "ci-check: all passed"
