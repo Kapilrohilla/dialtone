@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import { Chip, Menu } from "@/components/ui";
 import { useLiveCalls, useLogout, useMe } from "@/lib/queries";
+import type { Role } from "@/lib/types";
 import { ThemeToggle } from "./ThemeToggle";
 import styles from "./Sidebar.module.css";
 
@@ -20,7 +21,18 @@ const NAV: { href: string; label: string; Icon: LucideIcon }[] = [
   { href: "/settings", label: "Settings", Icon: Settings },
 ];
 
+const ROLE_LABEL: Record<Role, string> = { owner: "Owner", admin: "Admin", editor: "Editor", viewer: "Viewer" };
+
 const isActive = (pathname: string, href: string) => (href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`));
+
+/** "Carrum Mobility" → "CM", "Kapil" → "K". */
+export function initials(name: string | undefined): string {
+  const words = (name ?? "").trim().split(/\s+/).filter(Boolean);
+  return words
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join("");
+}
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -32,7 +44,10 @@ export function Sidebar() {
 
   return (
     <aside className={styles.sidebar}>
-      <p className={styles.workspace}>{me?.workspace.name}</p>
+      <div className={styles.brand}>
+        <span className={styles.logo} aria-hidden="true">{initials(me?.workspace.name)}</span>
+        <p className={styles.workspace}>{me?.workspace.name}</p>
+      </div>
       <nav aria-label="Main" className={styles.nav}>
         {NAV.map(({ href, label, Icon }) => {
           const active = isActive(pathname, href);
@@ -41,7 +56,7 @@ export function Sidebar() {
               <Icon size={20} strokeWidth={1.75} aria-hidden="true" />
               <span className={styles.label}>{label}</span>
               {href === "/live" && liveCount >= 1 && (
-                <Chip tone="blue" className={styles.count}>
+                <Chip tone="amber" className={styles.count}>
                   <span className="mono">{liveCount}</span>
                 </Chip>
               )}
@@ -54,10 +69,16 @@ export function Sidebar() {
           );
         })}
       </nav>
-      <div className={styles.user}>
-        <span className={styles.name}>{me?.name}</span>
+      <div className={styles.footer}>
         <ThemeToggle />
-        <Menu label="User menu" placement="right" items={[{ label: "Sign out", onSelect: () => logout.mutate() }]} />
+        <div className={styles.user}>
+          <span className={styles.avatar} aria-hidden="true">{initials(me?.name)}</span>
+          <span className={styles.who}>
+            <span className={styles.name}>{me?.name}</span>
+            {me && <span className={styles.role}>{ROLE_LABEL[me.role]}</span>}
+          </span>
+          <Menu label="User menu" placement="right" items={[{ label: "Sign out", onSelect: () => logout.mutate() }]} />
+        </div>
       </div>
     </aside>
   );

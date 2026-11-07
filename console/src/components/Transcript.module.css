@@ -7,3 +7,16 @@
 .chips { display: inline; margin-right: 6px; }
 .chips > span { margin-right: 4px; }
 .empty { margin: 0; color: var(--muted); font-size: 15px; }
+
+/* With times (call history): label and time on top, then the line; the one being heard is outlined. */
+.timed { grid-template-columns: minmax(0, 1fr) auto; row-gap: 4px; padding: 10px 12px; border: 1px solid transparent; border-radius: var(--radius); }
+.timed .text { grid-column: 1 / -1; }
+.active { border-color: color-mix(in srgb, var(--amber) 70%, transparent); background: color-mix(in srgb, var(--amber-tint) 45%, transparent); }
+.time { justify-self: end; color: var(--muted); font-size: 13px; }
+.seek { display: inline-flex; align-items: center; gap: 4px; padding: 0 4px; border: 0; border-radius: 4px; background: none; color: var(--muted); cursor: pointer; }
+.seek:hover { color: var(--ink); text-decoration: underline; }
+.active .seek { color: var(--amber); }
+.playingTag {
+  display: inline-flex; align-items: center; gap: 3px; margin-left: 8px; padding: 0 6px; height: 18px; vertical-align: 1px;
+  border-radius: 4px; background: var(--amber-tint); color: var(--amber); font-size: 11px; font-weight: 500;
+}

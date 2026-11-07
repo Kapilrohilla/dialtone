@@ -18,6 +18,8 @@ export type Workspace = {
   slug: string;
   /** Off: no agent or workflow checks in on silent callers. Reaches the next call, no publishing needed. */
   dead_air_enabled: boolean;
+  /** Records real phone calls (never browser tests). The server's RECORDING_ENABLED can still turn it off. */
+  recording_enabled: boolean;
 };
 
 export type Me = {
@@ -149,7 +151,14 @@ export type CallRow = {
   mood: string;
   duration_s: number | null;
   summary: string;
+  /** A finished recording can be played. */
+  has_recording: boolean;
+  /** Missing from older servers; then has_recording decides. */
+  recording_status?: RecordingStatus;
 };
+
+/** "processing" covers starting and still recording. */
+export type RecordingStatus = "none" | "processing" | "complete" | "failed" | "purged";
 
 export type TranscriptTurn = { speaker: string; text: string; expressions: string[]; at: string };
 
@@ -158,8 +167,12 @@ export type CallDetail = CallRow & {
   answers: Record<string, unknown>;
   step_path: string[];
   transcript: TranscriptTurn[];
-  /** Null until recordings arrive (plan 4). */
+  /** Set only when the recording is complete and its file exists. */
   recording_url: string | null;
+  recording_status: RecordingStatus;
+  recording_duration_s: number | null;
+  /** When the recording began: transcript times minus this are offsets into the audio. */
+  recording_started_at: string | null;
 };
 
 export type CallPage = { results: CallRow[]; count: number; page: number; pages: number };

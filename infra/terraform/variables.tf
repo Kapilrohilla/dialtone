@@ -26,8 +26,9 @@ variable "machine_type" {
 }
 
 variable "boot_disk_size_gb" {
-  type    = number
-  default = 10
+  description = "Boot disk; also holds the Docker volumes, including call recordings (~16 GB per 90 days at 300 calls/day)."
+  type        = number
+  default     = 100
 }
 
 variable "sip_provider_cidrs" {

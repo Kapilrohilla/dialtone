@@ -1,6 +1,6 @@
 "use client";
 
-import { Moon, Sun } from "lucide-react";
+import { Moon } from "lucide-react";
 import { useToast } from "@/components/ui";
 import { useMe, useUpdateMe } from "@/lib/queries";
 import { applyAppearance } from "@/lib/theme";
@@ -20,7 +20,6 @@ export function ThemeToggle() {
   if (!me) return null;
   const current = effective(me.preferences.appearance);
   const next = current === "dark" ? "light" : "dark";
-  const Icon = current === "dark" ? Sun : Moon;
 
   function flip() {
     const previous = me!.preferences.appearance;
@@ -37,8 +36,12 @@ export function ThemeToggle() {
   }
 
   return (
-    <button type="button" className={styles.toggle} aria-label={`Switch to ${next}`} onClick={flip}>
-      <Icon size={20} strokeWidth={1.75} aria-hidden="true" />
+    <button type="button" role="switch" aria-checked={current === "dark"} className={styles.toggle} onClick={flip}>
+      <Moon size={18} strokeWidth={1.75} aria-hidden="true" />
+      <span className={styles.label}>Dark mode</span>
+      <span className={styles.track} aria-hidden="true">
+        <span className={styles.thumb} />
+      </span>
     </button>
   );
 }

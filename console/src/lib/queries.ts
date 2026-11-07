@@ -2,6 +2,7 @@
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
+import { useEffect, useRef } from "react";
 import { useToast } from "@/components/ui";
 import { ApiError, apiFetch, isSignedOut } from "@/lib/api";
 import type {
@@ -53,7 +54,7 @@ export function useUpdateMe() {
 export function useUpdateWorkspace() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { dead_air_enabled: boolean }) => apiFetch<Workspace>("/api/workspace", { method: "PATCH", json: body }),
+    mutationFn: (body: Partial<Pick<Workspace, "dead_air_enabled" | "recording_enabled">>) => apiFetch<Workspace>("/api/workspace", { method: "PATCH", json: body }),
     onSuccess: (workspace) => qc.setQueryData<Me>(meKey, (me) => (me ? { ...me, workspace } : me)),
   });
 }
@@ -138,12 +139,28 @@ export function useCalls(filters: CallFilters, { enabled = true }: { enabled?: b
   });
 }
 
+const RECORDING_POLL_MS = 5_000;
+const RECORDING_POLL_FOR_MS = 120_000;
+
+/** One call. While its recording is still processing it polls every 5 s, for up to 2 minutes after opening. */
 export function useCall(room: string | null) {
-  return useQuery({
+  const qc = useQueryClient();
+  const opened = useRef(Date.now());
+  const lastStatus = useRef<string | undefined>(undefined);
+  const query = useQuery({
     queryKey: ["call", room],
     queryFn: () => apiFetch<CallDetail>(`/api/calls/${encodeURIComponent(room ?? "")}`),
     enabled: room !== null,
+    refetchInterval: (q) =>
+      q.state.data?.recording_status === "processing" && Date.now() - opened.current < RECORDING_POLL_FOR_MS ? RECORDING_POLL_MS : false,
   });
+  // When processing finishes, the list rows need the new state too.
+  const status = query.data?.recording_status;
+  useEffect(() => {
+    if (lastStatus.current === "processing" && status !== "processing") qc.invalidateQueries({ queryKey: ["calls"] });
+    lastStatus.current = status;
+  }, [status, qc]);
+  return query;
 }
 
 /** Marks a call for a call back; it then shows on the dashboard under "Needs a person". Marking twice is harmless. */

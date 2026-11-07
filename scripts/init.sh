@@ -38,8 +38,8 @@ for kv in POSTGRES_DB=dashboard POSTGRES_USER=dashboard POSTGRES_PASSWORD=; do
 done
 set_if_empty POSTGRES_PASSWORD "$(openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 32)"
 
-# Older .env files predate the agent runtime settings; add them with their defaults.
-for kv in DASHBOARD_URL=http://127.0.0.1:8787 RECORDING_ENABLED=false; do
+# Older .env files predate these settings; add them with their defaults.
+for kv in DASHBOARD_URL=http://127.0.0.1:8787 RECORDING_ENABLED=true EGRESS_VERSION=v1.15.0; do
   if ! grep -qE "^${kv%%=*}=" .env; then
     [[ -s .env && $(tail -c1 .env) != "" ]] && echo >> .env
     echo "$kv" >> .env

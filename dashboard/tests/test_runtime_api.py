@@ -79,7 +79,8 @@ def test_config_by_number(client, workspace, other_workspace, number):
     published_agent(other_workspace, phone_number="+91 99999 00000")
     res = get_config(client, number=number)
     assert res.status_code == 200
-    snapshot = {**version.snapshot, "account": {"dead_air_enabled": True}}
+    snapshot = {**version.snapshot,
+                "account": {"dead_air_enabled": True, "recording": {"enabled": False, "reason": "off"}}}
     assert res.json() == {"version_id": version.id, "workspace": "carrum", "snapshot": snapshot}
 
 

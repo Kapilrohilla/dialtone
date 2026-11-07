@@ -18,7 +18,7 @@ from livekit.protocol.models import ParticipantInfo
 from runtime.auth import REPORT_IDENTITY, verify_agent
 
 from .livekit_state import fetch_livekit_state
-from .models import Call, CallReport
+from .models import Call, CallReport, Recording
 from .numbers import strip_nul
 
 logger = logging.getLogger(__name__)
@@ -28,6 +28,9 @@ if not (settings.LIVEKIT_API_KEY and settings.LIVEKIT_API_SECRET):
     raise ImproperlyConfigured("LIVEKIT_API_KEY and LIVEKIT_API_SECRET must be set")
 
 receiver = api.WebhookReceiver(api.TokenVerifier(settings.LIVEKIT_API_KEY, settings.LIVEKIT_API_SECRET))
+
+
+EGRESS_EVENTS = {"egress_started", "egress_updated", "egress_ended"}
 
 
 def _dt(epoch: int) -> datetime:
@@ -47,6 +50,18 @@ def webhook(request):
     except Exception:
         logger.warning("rejected webhook with invalid signature")
         return HttpResponse(status=401)
+
+    if event.event in EGRESS_EVENTS:
+        # Recording progress. Never fails the webhook: LiveKit would only retry the same event.
+        try:
+            rec = Recording.from_egress(event.egress_info)
+            if rec is not None:
+                level = logging.WARNING if rec.status == Recording.FAILED else logging.INFO
+                logger.log(level, "recording %s: %s %s", event.event, rec.call.room, rec.status,
+                           extra={"egress_id": rec.egress_id, "error": rec.error})
+        except Exception:
+            logger.exception("could not apply %s", event.event)
+        return HttpResponse("ok")
 
     room = event.room.name
     ts = _dt(int(event.created_at) or int(time.time()))
