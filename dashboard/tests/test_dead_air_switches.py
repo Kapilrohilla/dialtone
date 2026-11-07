@@ -20,7 +20,8 @@ pytestmark = pytest.mark.django_db
 def test_account_switch_defaults_on_and_shows_in_me(member):
     c = member("viewer")
     assert c.get("/api/workspace").json() == {"id": c.get("/api/me").json()["workspace"]["id"], "name": "Carrum Mobility",
-                                              "slug": "carrum", "dead_air_enabled": True}
+                                              "slug": "carrum", "dead_air_enabled": True,
+                                              "recording_enabled": False}
     assert c.get("/api/me").json()["workspace"]["dead_air_enabled"] is True
 
 
@@ -56,10 +57,11 @@ def test_account_switch_belongs_to_the_members_workspace(member, workspace, othe
 def test_runtime_config_carries_the_live_account_switch(client, workspace):
     _, version = published_agent(workspace)
     body = get_config(client).json()
-    assert body["snapshot"] == {**version.snapshot, "account": {"dead_air_enabled": True}}
+    off = {"enabled": False, "reason": "off"}
+    assert body["snapshot"] == {**version.snapshot, "account": {"dead_air_enabled": True, "recording": off}}
     # No republish needed: the next call sees the change.
     Workspace.objects.filter(pk=workspace.pk).update(dead_air_enabled=False)
-    assert get_config(client).json()["snapshot"]["account"] == {"dead_air_enabled": False}
+    assert get_config(client).json()["snapshot"]["account"] == {"dead_air_enabled": False, "recording": off}
     version.refresh_from_db()
     assert "account" not in version.snapshot  # the stored version is untouched
 

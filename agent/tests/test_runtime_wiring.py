@@ -136,7 +136,7 @@ def test_opening_line_consent_only_when_recording():
     for lead in ({}, {"previously_interested": True}):
         assert opening_line(lead, recording=True).endswith(" " + CONSENT)
         assert CONSENT not in opening_line(lead, recording=False)
-        assert opening_line(lead, recording=False) == opening_line(lead)  # today's default (env off)
+        assert opening_line(lead, recording=False) == opening_line(lead)  # default: not recorded
 
 
 def test_opening_line_uses_persona():
@@ -274,14 +274,11 @@ async def test_record_outcome_unguarded_without_workflow():
     assert await a.record_outcome(disposition="NI", reason="r", summary="s") == "Recorded. Now say your closing line."
 
 
-def test_recording_default_follows_env(monkeypatch):
-    monkeypatch.delenv("RECORDING_ENABLED", raising=False)
-    assert CONSENT not in opening_line({})
-    monkeypatch.setenv("RECORDING_ENABLED", "false")
-    assert CONSENT not in opening_line({})
+def test_consent_follows_the_call_not_the_env(monkeypatch):
+    # RECORDING_ENABLED is only the master switch: the line carries the notice when this call is recorded.
     monkeypatch.setenv("RECORDING_ENABLED", "true")
-    assert opening_line({}).endswith(" " + CONSENT)
-    assert CONSENT not in opening_line({}, recording=False)
+    assert CONSENT not in opening_line({})
+    assert opening_line({}, recording=True).endswith(" " + CONSENT)
 
 
 async def test_gemini_step_change_returns_step_block_without_instruction_update(monkeypatch):

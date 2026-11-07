@@ -23,7 +23,7 @@ export const me: Me = {
   email: "kapil@carrum.example",
   phone: "+919810000001",
   role: "owner",
-  workspace: { id: 1, name: "Carrum Mobility", slug: "carrum", dead_air_enabled: true },
+  workspace: { id: 1, name: "Carrum Mobility", slug: "carrum", dead_air_enabled: true, recording_enabled: false },
   preferences: { appearance: "system", notify_needs_person: true, notify_daily_summary: false, time_zone: "Asia/Kolkata" },
 };
 
@@ -118,6 +118,8 @@ export const callRow: CallRow = {
   mood: "happy",
   duration_s: 125,
   summary: "Has a commercial yellow plate in Pune and wants to start next week.",
+  has_recording: false,
+  recording_status: "none",
 };
 
 export const callDetail: CallDetail = {
@@ -130,6 +132,9 @@ export const callDetail: CallDetail = {
     { speaker: "caller", text: "हाँ, बोलिए।", expressions: [], at: "2026-11-05T09:02:09Z" },
   ],
   recording_url: null,
+  recording_status: "none",
+  recording_duration_s: null,
+  recording_started_at: null,
 };
 
 export const callPage: CallPage = { results: [callRow], count: 1, page: 1, pages: 1 };

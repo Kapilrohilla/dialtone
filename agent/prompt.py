@@ -24,7 +24,7 @@ logger = logging.getLogger("phone-agent")
 
 PERSONA_NAME = os.getenv("AGENT_PERSONA_NAME", "Priya")
 KNOWLEDGE_FILE = Path(__file__).parent / "knowledge.md"
-# Recording consent (plan 4 turns recording on): appended to the opening line only when recording.
+# Recording consent: appended to the opening line only when this call's recording actually started.
 RECORDING_CONSENT = "यह call quality के लिए record हो रही है।"
 
 DEFAULT_LANGUAGE = os.getenv("DEFAULT_LANGUAGE", "hi-IN")
@@ -260,14 +260,9 @@ def lead_instructions(lead: dict) -> str:
     return f"Lead record (already known, so don't ask again; correct it if the driver says otherwise):\n{facts}"
 
 
-def recording_enabled() -> bool:
-    """RECORDING_ENABLED, read when the line is built (so tests and per-process env agree)."""
-    return os.getenv("RECORDING_ENABLED", "false").lower() == "true"
-
-
-def opening_line(lead: dict, persona_name: str | None = None, recording: bool | None = None) -> str:
+def opening_line(lead: dict, persona_name: str | None = None, recording: bool = False) -> str:
     """Today's opening line. persona_name (console persona) names the agent; None keeps today's text.
-    recording None follows RECORDING_ENABLED; when on, the consent notice is appended."""
+    recording: this call is being recorded (the egress started), so the consent notice is appended."""
     me = f"main {persona_name}, Carrum Mobility" if persona_name else "main Carrum Mobility"
     if lead.get("previously_interested"):
         line = (
@@ -279,14 +274,12 @@ def opening_line(lead: dict, persona_name: str | None = None, recording: bool | 
             f"Namaste sir, {me} se AI calling assistant bol rahi hoon. Hum Uber par gaadi chalane "
             "ke liye driving opportunities provide karte hain. Kya aap iske baare mein jaanna chahenge?"
         )
-    if recording is None:
-        recording = recording_enabled()
     if recording:
         line += " " + RECORDING_CONSENT
     return line
 
 
-def opening_instructions(lead: dict, persona_name: str | None = None, recording: bool | None = None) -> str:
+def opening_instructions(lead: dict, persona_name: str | None = None, recording: bool = False) -> str:
     return (
         f"Your opening line: {opening_line(lead, persona_name, recording)}\n"
         "If the driver speaks first (e.g. \"hello\", \"haan ji\", \"kaun?\"), let them finish, acknowledge "
@@ -294,10 +287,11 @@ def opening_instructions(lead: dict, persona_name: str | None = None, recording:
     )
 
 
-def builtin_instructions(lead: dict, language_rules: str) -> str:
+def builtin_instructions(lead: dict, language_rules: str, recording: bool = False) -> str:
     """The prompt used when the console has no config for this call: exactly today's text."""
     return "\n\n".join(
-        [BASE_INSTRUCTIONS, language_rules, APPROVED_INFO, lead_instructions(lead), opening_instructions(lead)]
+        [BASE_INSTRUCTIONS, language_rules, APPROVED_INFO, lead_instructions(lead),
+         opening_instructions(lead, recording=recording)]
     )
 
 
