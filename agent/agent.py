@@ -547,13 +547,17 @@ def gemini_live_session(
 ) -> tuple[AgentSession, PhoneAgent]:
     from livekit.plugins import google
 
+    # Tone follows the caller's emotion. Uses Gemini's v1alpha API; off by default.
+    affective = os.getenv("GEMINI_AFFECTIVE_DIALOG", "false").lower() == "true"
     llm = google.realtime.RealtimeModel(
         model=os.getenv("GEMINI_LIVE_MODEL", "gemini-3.8-live"),
         voice=voice or os.getenv("GEMINI_VOICE", "Kore"),
         # A bit of variety keeps replies from sounding scripted.
         temperature=0.8,
-        # Tone follows the caller's emotion. Uses Gemini's v1alpha API; off by default.
-        enable_affective_dialog=os.getenv("GEMINI_AFFECTIVE_DIALOG", "false").lower() == "true",
+        enable_affective_dialog=affective,
+        # The Live API only exists on v1beta/v1alpha. google-genai 3.x defaults to v1, where the
+        # Live websocket returns 404 and every call ends before the greeting.
+        api_version="v1alpha" if affective else "v1beta",
     )
     # Gemini does its own turn detection; no local VAD/STT/TTS needed.
     rules = GEMINI_LANGUAGE_RULES

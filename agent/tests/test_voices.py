@@ -48,6 +48,18 @@ def test_gemini_session_default_voice(monkeypatch):
     assert made["voice"] == "Orus"
 
 
+def test_gemini_session_pins_live_api_version(monkeypatch):
+    # google-genai 3.x defaults to v1, where the Live websocket 404s and every call goes silent.
+    made = {}
+    _fake_plugin(monkeypatch, "google", "x", made)
+    monkeypatch.setattr(agent, "AgentSession", lambda llm: llm)
+    agent.gemini_live_session({})
+    assert made["api_version"] == "v1beta"
+    monkeypatch.setenv("GEMINI_AFFECTIVE_DIALOG", "true")
+    agent.gemini_live_session({})
+    assert made["api_version"] == "v1alpha"
+
+
 def test_tts_builders_use_voice(monkeypatch):
     made = {}
     _fake_plugin(monkeypatch, "sarvam", "TTS", made)
