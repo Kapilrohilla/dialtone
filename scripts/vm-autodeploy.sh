@@ -3,6 +3,11 @@
 # when origin/dev moves, deploys it the same way scripts/deploy.sh does, checks the agent, dashboard and
 # console come up, and swaps the previous version back in if they don't.
 #
+# Each deploy is a fresh git checkout of `dev` (origin = GitHub) built in ~/ai-calling.new and swapped in
+# whole, so ~/ai-calling is a normal checkout (git status / log / pull work) and ~/ai-calling.prev is the
+# rollback. Local edits in ~/ai-calling block auto-deploys until they are committed or stashed, so a new
+# version never silently throws them away.
+#
 # Installed copy: /usr/local/bin/ai-calling-autodeploy (this file is the source; reinstall after editing).
 # Pause:   touch ~/.autodeploy-paused      Resume: rm ~/.autodeploy-paused
 # Logs:    sudo journalctl -u ai-calling-autodeploy -f
@@ -29,6 +34,12 @@ if [ "$(cat "$FAILED" 2>/dev/null || true)" = "$target" ]; then
   exit 0
 fi
 
+if [ -d ai-calling/.git ] && [ -n "$(git -C ai-calling status --porcelain)" ]; then
+  echo "~/ai-calling has uncommitted changes; not deploying $BRANCH@$target over them (commit and push, or git stash)"
+  git -C ai-calling status --short | head -10
+  exit 0
+fi
+
 # Never cut off callers: restarting the agent drops calls in progress. The next timer run retries.
 live=$(cd ai-calling && scripts/lk.sh room list 2>/dev/null | grep -c 'call-' || true)
 if [ "${live:-0}" -gt 0 ]; then echo "$live call(s) in progress; will retry"; exit 0; fi
@@ -37,10 +48,10 @@ echo "deploying $BRANCH@$target ($(git -C "$MIRROR" log -1 --format=%s "refs/hea
 fail() { echo "$1"; echo "$target" > "$FAILED"; exit 1; }
 
 rm -rf ai-calling.new
-mkdir ai-calling.new
-git -C "$MIRROR" archive "refs/heads/$BRANCH" | tar x -C ai-calling.new
-rm -rf ai-calling.new/infra
-echo "$target" > ai-calling.new/DEPLOYED_COMMIT
+# A real checkout on the branch, tracking GitHub's origin/<branch> (the local clone hardlinks the mirror's objects).
+git clone --quiet --branch "$BRANCH" "$MIRROR" ai-calling.new
+git -C ai-calling.new remote set-url origin "$REPO_URL"
+echo "$target" > ai-calling.new/DEPLOYED_COMMIT   # ignored by git (.gitignore)
 # Carry over VM-only state: secrets, generated SIP config, and pricing knowledge kept out of git.
 cp ai-calling/.env ai-calling.new/.env
 (cd ai-calling.new && scripts/init.sh >/dev/null)
