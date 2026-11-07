@@ -18,9 +18,10 @@ def test_render_hints_exact():
     assert render_hints("[[expr:laugh]] अरे वाह", {}) == "(say this with a light, warm laugh) अरे वाह"
 
 
-def test_pause_seconds_in_hint():
-    assert render_hints("[[expr:pause:1.2]] ji", {}) == "(pause for about 1.2 seconds before this) ji"
-    assert render_hints("[[expr:pause]] ji", {}) == "(pause for about 1 seconds before this) ji"
+def test_pause_renders_as_silent_cue():
+    # A worded pause hint was read aloud on calls ("pause 1 second"): render no words for a pause.
+    assert render_hints("[[expr:pause:1.2]] ji", {}) == "... ji"
+    assert render_hints("haan [[expr:pause]] ji", {}) == "haan ... ji"
 
 
 def test_custom_expression_used():
