@@ -76,7 +76,7 @@ export default function CallsSettingsPage() {
             </div>
             <p className={styles.note}>
               Callers hear &ldquo;यह call quality के लिए record हो रही है।&rdquo; at the start. Recordings show in Call history and are
-              kept for 90 days. Browser voice tests are never recorded. Changes reach the next call.
+              kept for 90 days. Phone calls and browser voice tests are both recorded. Changes reach the next call.
             </p>
           </section>
           <section className={styles.section} aria-labelledby="silent-h" style={{ borderBottom: 0, paddingBottom: 0 }}>

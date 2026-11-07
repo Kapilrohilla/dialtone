@@ -83,11 +83,13 @@ def _draft_config(agent_id: str, room: str):
         return JsonResponse(NOT_FOUND_DRAFT, status=404)
     Call.record_first(room[:255], workspace=agent.workspace, caller=WEB_CALLER)
     # build_snapshot only reads: the draft is never saved as a version.
+    # The account recording switch applies to voice tests too, so they can be played back in Call history.
+    snapshot = {**build_snapshot(agent, 0), "account": {"recording": recording_setting(agent.workspace)}}
     return JsonResponse({
         "version_id": None,
         "draft": True,
         "workspace": agent.workspace.slug,
-        "snapshot": build_snapshot(agent, 0),
+        "snapshot": snapshot,
     })
 
 
