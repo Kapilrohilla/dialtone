@@ -178,6 +178,9 @@ export type Dashboard = {
 export type PhoneNumber = { number: string; trunk_name: string; agent_name: string | null };
 
 // agent/simulate.py Simulation.response
+/** A browser voice test of an agent's draft: where to connect and a LiveKit token for a fresh room. */
+export type WebCallResponse = { url: string; token: string; room: string };
+
 export type SimResponse = {
   reply: string;
   state: Record<string, unknown>;

@@ -27,6 +27,10 @@ CONSOLE_URL = os.getenv("CONSOLE_URL", "http://localhost:3000/")
 # Which voice pipeline the worker runs; decides which voices an agent may pick.
 AGENT_PIPELINE = os.getenv("AGENT_PIPELINE", "gemini-live")
 AGENT_SIM_URL = os.getenv("AGENT_SIM_URL", "http://127.0.0.1:8790")
+# "Voice test" (browser call over WebRTC, no SIP): the worker to dispatch and the LiveKit URL the
+# browser connects to. The default works with `make tunnel`, which forwards port 7880.
+AGENT_NAME = os.getenv("AGENT_NAME", "phone-agent")
+LIVEKIT_PUBLIC_URL = os.getenv("LIVEKIT_PUBLIC_URL", "ws://localhost:7880")
 
 INSTALLED_APPS = [
     "django.contrib.admin",
