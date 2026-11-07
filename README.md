@@ -217,6 +217,26 @@ On a VM that runs only the agent (no dashboard), set `DASHBOARD_URL=` (empty) in
 
 **Simulator.** The `agent-sim` service (127.0.0.1:8790, same image as the agent, started with `--profile agent`) runs the same prompt and workflow engine as text. The console's Try it and Test call use it through `AGENT_SIM_URL`. It needs `GOOGLE_API_KEY`; `SIM_PORT` and `SIM_LLM_MODEL` change the port and model.
 
+## Voice test in the browser (no SIP)
+
+**Voice test** in the agent editor lets you talk to the agent through your microphone, with no phone call, so you don't pay SIP charges while you test. It is a real voice call over WebRTC: the same agent worker joins with the same pipeline (`AGENT_PIPELINE`), voice, dead-air handling, mood and workflow as a phone call. Test call, by contrast, is text only.
+
+How it works:
+
+1. The console asks the dashboard for a token (`POST /api/agents/<id>/web-call`, editors only).
+2. The dashboard signs a LiveKit token for a new `web-<agent id>-<random>` room. The token tells LiveKit to dispatch the `AGENT_NAME` worker into the room, with the metadata `{"web_test": {"agent_id": <id>}}`.
+3. The browser joins the room and publishes your microphone. The agent joins and fetches the agent's **saved draft** from `/api/runtime/config?agent=<id>`, not the version published on a number. So you hear your edits without publishing. The dashboard serves drafts only to `web-…` rooms, and the agent never caches them, so a phone call never gets a draft.
+4. The call is listed in call history with the caller `Web test`. Its outcome, mood and latency are reported like a phone call's.
+
+Requirements:
+
+- The agent worker is running (`make agent`).
+- The browser can reach LiveKit's signalling port, 7880. `make tunnel` now forwards it, so the default `LIVEKIT_PUBLIC_URL=ws://localhost:7880` works. If your tunnel was opened before this change, restart it.
+- The browser can reach the VM's media ports (UDP 50000–60000, or TCP 7881 as a fallback). The Terraform firewall already allows them.
+- The console is opened on `http://localhost:3000` (or over HTTPS). Browsers only allow the microphone on secure origins, and `localhost` counts as one.
+
+The agent hangs up as usual (end of the conversation or dead air). **Hang up** in the panel ends the call from your side.
+
 ## Evaluating caller mood
 
 Keep `MOOD_ENABLED=false` until telecaller labels show the mood readings are good enough.
@@ -278,3 +298,21 @@ The agent tests in `agent/tests` use pytest (configured by `agent/pytest.ini`) a
 cd agent && python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
 .venv/bin/pytest -q   # same command `make test` runs for the agent
 ```
+
+## Claude Code setup
+
+`.claude/settings.json` turns on two Claude Code plugins for everyone working in this repo:
+
+- [superpowers](https://github.com/obra/superpowers): skills for planning, TDD, debugging and code review (`superpowers@superpowers-marketplace`)
+- [hallmark](https://github.com/Nutlope/hallmark): a design skill for the console and dashboard UI (`hallmark@hallmark`, run it with `/hallmark:hallmark`)
+
+When you trust the folder, Claude Code asks you to install the two marketplaces and enable the plugins. To install them by hand:
+
+```text
+/plugin marketplace add obra/superpowers-marketplace
+/plugin install superpowers@superpowers-marketplace
+/plugin marketplace add Nutlope/hallmark
+/plugin install hallmark@hallmark
+```
+
+Put personal settings in `.claude/settings.local.json`. Git ignores it.

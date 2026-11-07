@@ -48,7 +48,7 @@ from livekit.agents.metrics import EOUMetrics, LLMMetrics, RealtimeModelMetrics,
 from livekit.plugins import silero
 
 from adapt import apply_mood, sends_mood_notes
-from console_config import Config, dashboard_url, load_config
+from console_config import Config, dashboard_url, load_config, load_draft_config, web_test_agent_id
 from behavior import BehaviorTracker, reply_latency_reliable
 from dead_air import DeadAirConfig, DeadAirWatcher
 from events import EventSink
@@ -213,14 +213,20 @@ def captured_answers(agent) -> dict | None:
     return dict(run.captured) if run is not None else None
 
 
-def lead_record(metadata: str) -> dict:
-    """The lead record passed as JSON dispatch metadata; empty when there is none."""
+def dispatch_metadata(metadata: str) -> dict:
+    """The JSON dispatch metadata; empty when there is none."""
     try:
-        lead = json.loads(metadata) if metadata else {}
+        data = json.loads(metadata) if metadata else {}
     except json.JSONDecodeError:
         logger.warning("dispatch metadata isn't JSON; ignoring it")
         return {}
-    return lead if isinstance(lead, dict) else {}
+    return data if isinstance(data, dict) else {}
+
+
+def lead_record(metadata: str) -> dict:
+    """The lead record passed as JSON dispatch metadata; empty when there is none. The console's
+    voice-test marker ("web_test") is not part of the lead, so the agent never sees it as a fact."""
+    return {k: v for k, v in dispatch_metadata(metadata).items() if k != "web_test"}
 
 
 class PhoneAgent(Agent):
@@ -610,6 +616,8 @@ server = AgentServer(
 async def entrypoint(ctx: JobContext) -> None:
     ctx.log_context_fields = {"room": ctx.room.name, "pipeline": PIPELINE}
     lead = lead_record(ctx.job.metadata)
+    # Set for a console voice test (browser over WebRTC): the call runs that agent's draft.
+    web_test_agent = web_test_agent_id(dispatch_metadata(ctx.job.metadata))
     if PIPELINE not in ("sarvam", "elevenlabs", "gemini-live"):
         raise ValueError(f"unknown AGENT_PIPELINE {PIPELINE!r}")
 
@@ -691,13 +699,22 @@ async def entrypoint(ctx: JobContext) -> None:
     phone = caller.attributes.get("sip.phoneNumber")
     called = caller.attributes.get("sip.trunkPhoneNumber", "")
     try:
-        cfg = await load_config(
-            called,
-            ctx.room.name,
-            base_url=dashboard_url(),
-            api_key=os.environ.get("LIVEKIT_API_KEY", ""),
-            api_secret=os.environ.get("LIVEKIT_API_SECRET", ""),
-        )
+        if web_test_agent is not None:
+            cfg = await load_draft_config(
+                web_test_agent,
+                ctx.room.name,
+                base_url=dashboard_url(),
+                api_key=os.environ.get("LIVEKIT_API_KEY", ""),
+                api_secret=os.environ.get("LIVEKIT_API_SECRET", ""),
+            )
+        else:
+            cfg = await load_config(
+                called,
+                ctx.room.name,
+                base_url=dashboard_url(),
+                api_key=os.environ.get("LIVEKIT_API_KEY", ""),
+                api_secret=os.environ.get("LIVEKIT_API_SECRET", ""),
+            )
     except Exception:  # load_config never raises; belt and braces for a live call
         logger.warning("config load failed, using the built-in agent", exc_info=True)
         cfg = BUILTIN_CONFIG
@@ -871,6 +888,7 @@ async def entrypoint(ctx: JobContext) -> None:
             "caller": phone,
             "called": called,
             "lead_id": lead.get("lead_id"),
+            "web_test_agent": web_test_agent,
             "config": cfg.source,
             "version_id": cfg.version_id,
         },
