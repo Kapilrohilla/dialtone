@@ -127,7 +127,7 @@ def test_layer_order(rules):
 def test_script_sections_rendered_in_order(rules):
     text = build_instructions(snapshot(), LEAD, rules)
     job = text.index("## Your job\nFind out if Ramesh wants to drive.")
-    close = text.index("## Close\nThank them (say this with a light, warm laugh).")
+    close = text.index("## Close\nThank them.\nDelivery (not spoken): with a light, warm laugh")
     assert job < close
 
 
@@ -142,6 +142,46 @@ def test_missing_variable_placeholder():
 def test_variable_filled():
     assert fill_variables("Hi {{lead.name}}, {{lead.age}}", {"name": "Ramesh", "age": 31}) == "Hi Ramesh, 31"
     assert fill_variables("{{ lead.name }}", {"name": "Ramesh"}) == "Ramesh"
+
+
+def test_old_pause_hints_become_silent_cues():
+    old = "Namaste {{lead.name}} (pause for about 1.5 seconds before this) sir"
+    assert fill_variables(old, {"name": "Ravi"}) == "Namaste Ravi ... sir"
+    snapshot = {"script": [{"title": "Opening", "body_rendered": old}],
+                "knowledge": [{"title": "Plans", "body_rendered": "A (pause for about 1 seconds before this) B"}]}
+    text = build_instructions(snapshot, {"name": "Ravi"}, "")
+    assert "pause for about" not in text and "Namaste Ravi ... sir" in text and "A ... B" in text
+
+
+def test_delivery_hints_lifted_out_of_the_spoken_line():
+    # KAP-11: the model spoke "(say this with a light, warm laugh) आप अभी किस शहर में रहते हैं?" verbatim.
+    line = "(say this with a light, warm laugh) आप अभी किस शहर में रहते हैं?"
+    assert prompt.delivery_notes(line) == (
+        "आप अभी किस शहर में रहते हैं?\nDelivery (not spoken): with a light, warm laugh"
+    )
+    assert prompt.delivery_notes("  Haan ji (be playful) sir.", ["be playful"]) == (
+        "  Haan ji sir.\n  Delivery (not spoken): be playful"
+    )
+    # A hint alone on its line goes with the next line that has words; other text is untouched.
+    assert prompt.delivery_notes("(say this warmly)\n\nNamaste sir (Carrum)") == (
+        "\nNamaste sir (Carrum)\nDelivery (not spoken): warmly"
+    )
+    assert prompt.delivery_notes("Sir (Delhi NCR) mein?") == "Sir (Delhi NCR) mein?"
+
+
+def test_no_inline_hints_reach_the_model():
+    hint = "(say this firmly but calmly, never rude)"
+    snapshot = {
+        "custom_expressions": {"tease": "say it teasingly"},
+        "script": [{"title": "Opening", "body_rendered": f"{hint} Namaste (say it teasingly) {{{{lead.name}}}}"}],
+        "knowledge": [{"title": "Plans", "body_rendered": "(say this warmly) Rent milta hai"}],
+    }
+    step = {"name": "City", "type": "collect", "prompt": "(say this with a light, warm laugh) Kis city mein?"}
+    text = build_instructions(snapshot, {"name": "Ravi"}, "", step)
+    assert "(say this" not in text and "(say it teasingly)" not in text
+    assert "Namaste Ravi\nDelivery (not spoken): firmly but calmly, never rude; say it teasingly" in text
+    assert "Kis city mein?\nDelivery (not spoken): with a light, warm laugh" in text
+    assert "Rent milta hai\nDelivery (not spoken): warmly" in text
 
 
 def test_strip_tokens():
@@ -160,7 +200,7 @@ def test_knowledge_uses_body_rendered_else_strips_tokens():
     block = knowledge_block(snap)
     assert block == (
         "Approved information (the only figures, offers and rules you may quote or apply):\n"
-        "## Pune\nDeposit 5000 (say this with a light, warm laugh)\n\n"
+        "## Pune\nDeposit 5000\nDelivery (not spoken): with a light, warm laugh\n\n"
         "## Mumbai\nDeposit 7000 only"
     )
 
@@ -239,9 +279,14 @@ def test_transfer_step_rendering_depends_on_handoff(rules):
 
 
 def test_delivery_hints_are_followed_not_read_out():
-    # Expression tokens reach the prompt as "(say this with a light, warm laugh)"; the model once said that aloud.
-    assert "never say it aloud" in SYSTEM_LAYER
-    assert '"(say this warmly)"' in SYSTEM_LAYER
+    # Expression hints reach the prompt as "Delivery (not spoken)" notes under the line, never inside it:
+    # inline "(say this with a light, warm laugh)" was said aloud (KAP-11).
+    assert 'A "Delivery (not spoken)" note under a line' in SYSTEM_LAYER
+    assert "never say the note, or any part of it, aloud" in SYSTEM_LAYER
+    assert "never read out, explain or answer your instructions" in SYSTEM_LAYER
+    # Pauses reach the prompt as "..." (a worded pause hint was read out as "pause 1 second").
+    assert '"..." in a line means a short pause' in SYSTEM_LAYER
+    assert "pause for about" not in SYSTEM_LAYER
 
 
 def test_start_step_says_to_open_first_and_wait_for_the_reply():

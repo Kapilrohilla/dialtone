@@ -66,7 +66,7 @@ def test_publish_snapshot_contents(workspace):
     rendered = s["script"][0]["body_rendered"]
     assert s["script"][0]["title"] == "Opening"
     assert "(say this warmly and cheerfully)" in rendered
-    assert "(pause for about 1.5 seconds before this)" in rendered
+    assert "..." in rendered and "pause" not in rendered
     assert "(let out a small, friendly sigh)" in rendered
     assert "{{lead.city}}" in rendered and "[[expr:" not in rendered
     assert s["variables"] == ["lead.city", "lead.name"]
