@@ -301,7 +301,7 @@ async def test_gemini_step_change_returns_step_block_without_instruction_update(
         LEAD,
         [{"name": "go_to_wrap_up", "label": "Driver gave a city"}],
     )
-    assert result == "Now at step City.\n" + block
+    assert result == "Now at step City. Instructions for you; say only the words meant for the driver.\n" + block
     assert "- Driver gave a city: call go_to_wrap_up" in result
     assert calls == [] and a.base_instructions == start
     end = await tool_named(a, "go_to_wrap_up")({"value": "Pune"})

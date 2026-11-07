@@ -84,6 +84,11 @@ def _hint(t: ExprToken, custom: dict[str, str]) -> str | None:
     return custom.get(t.name)
 
 
+# A pause is rendered as an ellipsis, which voice models perform as a pause. Rendered as a worded hint, the
+# realtime voice model read it aloud ("pause 1 second") instead of pausing.
+PAUSE_CUE = "..."
+
+
 def render_hints(body: str, custom: dict[str, str]) -> str:
     parts: list[str] = []
     for t in parse(body):
@@ -91,6 +96,8 @@ def render_hints(body: str, custom: dict[str, str]) -> str:
             parts.append(t.text)
         elif isinstance(t, VarToken):
             parts.append("{{" + t.path + "}}")
+        elif t.name == "pause":
+            parts.append(PAUSE_CUE)
         else:
             hint = _hint(t, custom)
             if hint is not None:

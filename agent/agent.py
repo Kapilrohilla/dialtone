@@ -60,6 +60,7 @@ from prompt import (
     PERSONA_NAME,
     build_instructions,
     builtin_instructions,
+    custom_hints,
     end_step_check,
     end_step_refusal,
     opening_instructions,
@@ -369,8 +370,12 @@ class PhoneAgent(Agent):
                 self.emit("field_captured", {"field": field, "value": captured})
             paths = run.paths_from_current()
             if not step_updates_instructions(self.pipeline):
-                block = step_block(asdict(step), self.lead, self._path_labels(paths), bool(HANDOFF_SIP_URI))
-                return f"Now at step {step.name}.\n{block}"
+                block = step_block(
+                    asdict(step), self.lead, self._path_labels(paths), bool(HANDOFF_SIP_URI),
+                    custom_hints(self.snapshot),
+                )
+                # A tool result is read as text to act on: say plainly that it is instructions, not a script.
+                return f"Now at step {step.name}. Instructions for you; say only the words meant for the driver.\n{block}"
             async with self.instructions_lock:
                 self.base_instructions = self._snapshot_instructions(step, paths)
                 note = f"\n\n{self.mood_note}" if self.mood_note else ""
