@@ -12,3 +12,5 @@ voice-samples/
 console/node_modules/
 console/.next/
 test/dashboard.html
+# Claude Code: share .claude/settings.json, keep per-user overrides local
+.claude/settings.local.json
