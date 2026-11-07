@@ -6,6 +6,6 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 make test
-# Separate dist dir so the check never touches a dev server's .next.
-(cd console && NEXT_DIST_DIR=.next-ci npm run build && rm -rf .next-ci)
+# Default .next dir: a custom distDir makes `next build` rewrite the tracked tsconfig.json.
+(cd console && npm run build)
 echo "ci-check: all passed"

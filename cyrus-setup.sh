@@ -10,7 +10,7 @@ mkdir -p "$cache"
 # Keep the links out of commits: .venv/ in .gitignore only matches directories, not symlinks.
 exclude=$(git rev-parse --git-common-dir)/info/exclude
 mkdir -p "$(dirname "$exclude")"
-for p in /agent/.venv /dashboard/.venv /console/.next-ci; do
+for p in /agent/.venv /dashboard/.venv; do
   grep -qxF "$p" "$exclude" 2>/dev/null || echo "$p" >> "$exclude"
 done
 
