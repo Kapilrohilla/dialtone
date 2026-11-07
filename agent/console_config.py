@@ -29,7 +29,8 @@ _warned_unwritable = False
 
 @dataclass(frozen=True)
 class Config:
-    source: Literal["console", "cache", "builtin"]
+    # "draft": a console voice test (browser call), never cached.
+    source: Literal["console", "cache", "builtin", "draft"]
     snapshot: dict | None
     version_id: int | None
 
@@ -178,5 +179,55 @@ async def load_config(
     logger.info(
         "config loaded",
         extra={"source": cfg.source, "version_id": cfg.version_id, "elapsed_ms": round((time.monotonic() - start) * 1000)},
+    )
+    return cfg
+
+
+def web_test_agent_id(metadata: dict) -> int | None:
+    """The console agent a voice test (browser call, dispatched by the dashboard) runs, else None."""
+    web_test = metadata.get("web_test") if isinstance(metadata, dict) else None
+    agent_id = web_test.get("agent_id") if isinstance(web_test, dict) else None
+    if isinstance(agent_id, bool) or not isinstance(agent_id, int) or agent_id <= 0:
+        return None
+    return agent_id
+
+
+async def load_draft_config(
+    agent_id: int,
+    room: str,
+    *,
+    base_url: str,
+    api_key: str,
+    api_secret: str,
+    timeout_s: float = 3.0,
+) -> Config:
+    """Never raises. The agent's current draft for a voice test, else built-in. Never memoised or cached:
+    each test call hears the latest edits, and a draft must never serve a phone call."""
+    start = time.monotonic()
+    cfg = _BUILTIN
+    try:
+        if base_url:
+            token = runtime_token(api_key, api_secret)
+            timeout = aiohttp.ClientTimeout(total=timeout_s)
+            async with aiohttp.ClientSession(timeout=timeout) as http:
+                async with http.get(
+                    f"{base_url}/api/runtime/config",
+                    params={"agent": str(agent_id), "room": room},
+                    headers={"Authorization": f"Bearer {token}"},
+                ) as resp:
+                    if resp.status == 200:
+                        snapshot = (await resp.json(content_type=None))["snapshot"]
+                        if isinstance(snapshot, dict):
+                            cfg = Config("draft", snapshot, None)
+                        else:
+                            logger.warning("draft config snapshot is not an object")
+                    else:
+                        logger.warning("draft config unavailable", extra={"status": resp.status})
+    except Exception as e:  # never fail a call over config
+        logger.warning("draft config load failed", extra={"error": repr(e)})
+        cfg = _BUILTIN
+    logger.info(
+        "config loaded",
+        extra={"source": cfg.source, "agent_id": agent_id, "elapsed_ms": round((time.monotonic() - start) * 1000)},
     )
     return cfg

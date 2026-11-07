@@ -20,6 +20,7 @@ import type {
   Revision,
   Role,
   SimResponse,
+  WebCallResponse,
   TeamMember,
   VoicesResponse,
   Graph,
@@ -470,6 +471,13 @@ export type SimRequest = { messages: SimMessage[]; state: Record<string, unknown
 export function useSimulate(kind: "agent" | "workflow", id: number) {
   const path = `/api/${kind === "agent" ? "agents" : "workflows"}/${id}/simulate`;
   return useMutation({ mutationFn: (body: SimRequest) => apiFetch<SimResponse>(path, { method: "POST", json: body }) });
+}
+
+/** A LiveKit token for a voice test of the agent's draft in the browser (no phone call). */
+export function useWebCall(agentId: number) {
+  return useMutation({
+    mutationFn: () => apiFetch<WebCallResponse>(`/api/agents/${agentId}/web-call`, { method: "POST" }),
+  });
 }
 
 // ---- team ----

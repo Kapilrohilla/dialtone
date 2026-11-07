@@ -328,6 +328,22 @@ describe("agent script editor", () => {
     expect(asked).toEqual([{ messages: [], state: null }]);
   });
 
+  it("opens the voice test, which asks the dashboard for a call token", async () => {
+    let asked = 0;
+    server.use(
+      http.post("*/api/agents/3/web-call", () => {
+        asked += 1;
+        return HttpResponse.json({ detail: "LiveKit isn't set up." }, { status: 503 });
+      }),
+    );
+    serve();
+    const { user } = open();
+    await user.click(await screen.findByRole("button", { name: "Voice test" }));
+    const panel = screen.getByRole("dialog", { name: "Voice test" });
+    expect(await within(panel).findByRole("alert")).toHaveTextContent("LiveKit isn't set up.");
+    expect(asked).toBe(1);
+  });
+
   it("is read-only for viewers", async () => {
     serve();
     open("viewer");
@@ -335,6 +351,7 @@ describe("agent script editor", () => {
     await waitFor(() => expect(greeting).toHaveAttribute("contenteditable", "false"));
     expect(screen.queryByRole("button", { name: "Publish" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Test call" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Voice test" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Add section" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Section actions" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Expression" })).not.toBeInTheDocument();

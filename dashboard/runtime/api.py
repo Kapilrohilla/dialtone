@@ -14,6 +14,8 @@ from django.views.decorators.http import require_GET, require_POST
 from calls.models import Call, CallEvent
 from calls.numbers import digits, same_number, strip_nul
 from voiceagents.models import Agent
+from voiceagents.publish import build_snapshot
+from voiceagents.webcall import WEB_CALLER, is_web_room
 
 from .auth import RUNTIME_IDENTITY, verify_agent
 
@@ -23,6 +25,7 @@ MAX_EVENTS = 200
 EVENT_TYPES = {t for t, _ in CallEvent.TYPES}
 SEQ_MAX = 2**31 - 1  # PositiveIntegerField
 NOT_FOUND = {"detail": "No published agent for this number."}
+NOT_FOUND_DRAFT = {"detail": "No agent to voice test."}
 
 
 def _unauthorized():
@@ -48,11 +51,36 @@ def find_published(number: str):
     return None
 
 
+def _draft_config(agent_id: str, room: str):
+    """A voice test (console, browser over WebRTC): the agent's draft, only ever for a `web-…` room."""
+    if not is_web_room(room) or not agent_id.isdigit():
+        return JsonResponse(NOT_FOUND_DRAFT, status=404)
+    agent = (
+        Agent.objects.select_related("workflow", "workspace")
+        .exclude(status=Agent.ARCHIVED)
+        .filter(pk=int(agent_id))
+        .first()
+    )
+    if agent is None:
+        return JsonResponse(NOT_FOUND_DRAFT, status=404)
+    Call.record_first(room[:255], workspace=agent.workspace, caller=WEB_CALLER)
+    # build_snapshot only reads: the draft is never saved as a version.
+    return JsonResponse({
+        "version_id": None,
+        "draft": True,
+        "workspace": agent.workspace.slug,
+        "snapshot": build_snapshot(agent, 0),
+    })
+
+
 @csrf_exempt
 @require_GET
 def config(request):
     if not verify_agent(request, RUNTIME_IDENTITY):
         return _unauthorized()
+    if request.GET.get("agent"):
+        room = strip_nul(request.GET.get("room", "")).strip()
+        return _draft_config(strip_nul(request.GET["agent"]).strip(), room)
     agent = find_published(request.GET.get("number", ""))
     if agent is None:
         return JsonResponse(NOT_FOUND, status=404)
