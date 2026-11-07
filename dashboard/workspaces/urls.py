@@ -9,6 +9,7 @@ urlpatterns = [
     path("auth/set-password", api.SetPasswordView.as_view()),
     path("me", api.MeView.as_view()),
     path("me/password", api.MePasswordView.as_view()),
+    path("workspace", api.WorkspaceView.as_view()),
     path("team", api.TeamView.as_view()),
     path("team/<int:pk>", api.TeamMemberView.as_view()),
     path("integrations/requests", api.IntegrationRequestView.as_view()),

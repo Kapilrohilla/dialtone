@@ -26,6 +26,7 @@ import type {
   Graph,
   Workflow,
   WorkflowListItem,
+  Workspace,
 } from "@/lib/types";
 
 // Query keys and hooks live here, one commented section per area. Later tasks add their own sections below.
@@ -45,6 +46,15 @@ export function useUpdateMe() {
   return useMutation({
     mutationFn: (body: MeUpdate) => apiFetch<Me>("/api/me", { method: "PATCH", json: body }),
     onSuccess: (me) => qc.setQueryData(meKey, me),
+  });
+}
+
+/** Account-wide switches (owners and admins). The saved workspace replaces the one inside `me`. */
+export function useUpdateWorkspace() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { dead_air_enabled: boolean }) => apiFetch<Workspace>("/api/workspace", { method: "PATCH", json: body }),
+    onSuccess: (workspace) => qc.setQueryData<Me>(meKey, (me) => (me ? { ...me, workspace } : me)),
   });
 }
 
@@ -373,6 +383,24 @@ export function useSaveDoc(id: number, onSaved?: (doc: KnowledgeDoc, sent: DocUp
   });
 }
 
+/** DELETE a document. It leaves every agent that linked it (published ones keep quoting it until they are
+ *  published again); the server refuses while a workflow step answers from it, and that reason is toasted. */
+export function useDeleteDoc() {
+  const qc = useQueryClient();
+  const toast = useToast();
+  return useMutation({
+    mutationFn: (id: number) => apiFetch<void>(`/api/knowledge/${id}`, { method: "DELETE" }),
+    onSuccess: (_, id) => {
+      qc.setQueryData<KnowledgeListItem[]>(knowledgeListKey, (list) => list?.filter((d) => d.id !== id));
+      qc.removeQueries({ queryKey: knowledgeDocKey(id) });
+      toast.show("Deleted.", "ok");
+      void invalidateOutdatedFlags(qc);
+      return qc.invalidateQueries({ queryKey: knowledgeListKey, exact: true });
+    },
+    onError: (e) => toast.show(e instanceof ApiError ? e.detail : "Could not delete the document.", "bad"),
+  });
+}
+
 /** Newest first. */
 export function useRevisions(id: number | undefined) {
   return useQuery({
@@ -433,7 +461,7 @@ export function useCreateWorkflow() {
   });
 }
 
-export type WorkflowUpdate = { name?: string; graph?: Graph };
+export type WorkflowUpdate = { name?: string; graph?: Graph; dead_air_enabled?: boolean };
 
 /** PATCH the name or the whole graph. A saved graph is toasted with what happens next; `errors` in the answer
  *  are the server's checks of the saved graph. Signed out keeps the draft on the page. `onSaved` runs with the
@@ -448,7 +476,8 @@ export function useSaveWorkflow(id: number, onSaved?: (wf: Workflow, sent: Workf
       onSaved?.(wf, sent);
       qc.setQueryData(workflowKey(id), wf);
       qc.invalidateQueries({ queryKey: workflowsKey });
-      if (!sent.graph) return;
+      // A rename changes nothing callers hear; the graph and the dead-air switch are published with agents.
+      if (!sent.graph && sent.dead_air_enabled === undefined) return;
       // Agents using it are now outdated; read the fresh list below to word the toast.
       await invalidateOutdatedFlags(qc);
       const agents = await qc

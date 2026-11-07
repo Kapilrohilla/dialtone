@@ -8,10 +8,27 @@ User = get_user_model()
 PREF_FIELDS = ["appearance", "notify_needs_person", "notify_daily_summary", "time_zone"]
 
 
+class StrictBooleanField(serializers.BooleanField):
+    """true or false only: DRF's BooleanField would also take "false", 0 or "no"."""
+
+    def to_internal_value(self, data):
+        if not isinstance(data, bool):
+            raise serializers.ValidationError("Must be true or false.")
+        return data
+
+
 class PreferencesSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserPreference
         fields = PREF_FIELDS
+
+
+def workspace_payload(ws):
+    return {"id": ws.id, "name": ws.name, "slug": ws.slug, "dead_air_enabled": ws.dead_air_enabled}
+
+
+class WorkspaceUpdateSerializer(serializers.Serializer):
+    dead_air_enabled = StrictBooleanField(required=False)
 
 
 def me_payload(user, membership):
@@ -23,7 +40,7 @@ def me_payload(user, membership):
         "email": user.email,
         "phone": pref.phone,
         "role": membership.role,
-        "workspace": {"id": ws.id, "name": ws.name, "slug": ws.slug},
+        "workspace": workspace_payload(ws),
         "preferences": PreferencesSerializer(pref).data,
     }
 

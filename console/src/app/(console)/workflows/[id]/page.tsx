@@ -1,10 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import { Simulator } from "@/components/sim/Simulator";
 import { TopBar } from "@/components/shell/TopBar";
-import { Button, Dialog, StateBlock, useToast } from "@/components/ui";
+import { Button, Dialog, StateBlock, Switch, useToast } from "@/components/ui";
 import { Canvas } from "@/components/workflow/Canvas";
 import { addPath, addStep, removePath, removeStep, retypeStep, updatePath, updateStep, withPathIds } from "@/components/workflow/graph";
 import { layoutMissing } from "@/components/workflow/layout";
@@ -36,7 +37,14 @@ export default function WorkflowBuilderPage() {
       </>
     );
   }
-  return <Builder key={workflow.id} workflow={workflow} editable={canEdit(me.data?.role)} />;
+  return (
+    <Builder
+      key={workflow.id}
+      workflow={workflow}
+      editable={canEdit(me.data?.role)}
+      accountCheckIns={me.data?.workspace.dead_air_enabled ?? true}
+    />
+  );
 }
 
 /** The graph being edited, the saved graph it is compared with (as JSON), and the revision it came from. */
@@ -57,7 +65,33 @@ function stepNamedIn(message: string, steps: Step[]) {
   return undefined;
 }
 
-function Builder({ workflow, editable }: { workflow: Workflow; editable: boolean }) {
+/** The dead-air switch for the whole workflow. It saves on its own (no Save), and agents publish it like the graph. */
+function WorkflowSettings({ workflow, editable, accountCheckIns }: { workflow: Workflow; editable: boolean; accountCheckIns: boolean }) {
+  const save = useSaveWorkflow(workflow.id);
+  const sending = save.isPending ? save.variables?.dead_air_enabled : undefined;
+  return (
+    <section className={styles.workflowSettings} aria-labelledby="workflow-settings-h">
+      <h2 id="workflow-settings-h" className={styles.panelHeading}>Workflow settings</h2>
+      <Switch
+        label="Check in when the caller goes quiet"
+        checked={sending ?? workflow.dead_air_enabled}
+        disabled={!editable || save.isPending}
+        onChange={(next) => save.mutate({ dead_air_enabled: next })}
+      />
+      <p className={styles.settingNote}>
+        {accountCheckIns ? (
+          "For agents using this workflow, once they are published. Each agent also has its own switch."
+        ) : (
+          <>
+            Off for the whole account, so no call checks in. Turn it back on in <Link href="/settings/calls">Settings</Link>.
+          </>
+        )}
+      </p>
+    </section>
+  );
+}
+
+function Builder({ workflow, editable, accountCheckIns }: { workflow: Workflow; editable: boolean; accountCheckIns: boolean }) {
   const toast = useToast();
   const [draft, setDraft] = useState(() => seed(workflow));
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -185,6 +219,7 @@ function Builder({ workflow, editable }: { workflow: Workflow; editable: boolean
           onPathChange={(id, patch) => edit((g) => updatePath(g, id, patch))}
           onPathRemove={(id) => edit((g) => removePath(g, id))}
           onDelete={() => selected && askDelete(selected.id)}
+          workflowSettings={<WorkflowSettings workflow={workflow} editable={editable} accountCheckIns={accountCheckIns} />}
         />
       </div>
       <Dialog

@@ -52,7 +52,7 @@ from console_config import Config, dashboard_url, load_config, load_draft_config
 from behavior import BehaviorTracker, reply_latency_reliable
 from dead_air import DeadAirConfig, DeadAirWatcher
 from events import EventSink
-from greeting import GreetingGate, greeting_instructions
+from greeting import GreetingGate, greeting_instructions, start_path_refusal
 from metrics import LatencyStats
 from mood import MoodReading, MoodTracker
 from prompt import BASE_INSTRUCTIONS, SCRIPT_FALLBACK, SYSTEM_LAYER  # noqa: F401  (layers live in prompt.py)
@@ -174,6 +174,27 @@ def dead_air_enabled(settings: dict | None) -> bool:
     return enabled if isinstance(enabled, bool) else DEAD_AIR_ENABLED
 
 
+def dead_air_on(snapshot: dict | None) -> bool:
+    """Dead-air handling runs only when the account, the agent's workflow and the agent all allow it.
+
+    The account switch is added to the snapshot when the console serves it; the workflow's is in the
+    published workflow. A level that says nothing (older snapshots, no workflow) allows it, and anything
+    but an explicit false counts as allowing it. The agent's own switch falls back to DEAD_AIR_ENABLED."""
+    snap = snapshot if isinstance(snapshot, dict) else {}
+    for level in (snap.get("account"), snap.get("workflow")):
+        if isinstance(level, dict) and level.get("dead_air_enabled") is False:
+            return False
+    return dead_air_enabled(_settings(snap))
+
+
+def spoken_text(chunk) -> bool:
+    """Whether an LLM output chunk carries words the agent will say (not just a tool call)."""
+    if isinstance(chunk, str):
+        return bool(chunk.strip())
+    content = getattr(getattr(chunk, "delta", None), "content", None)
+    return isinstance(content, str) and bool(content.strip())
+
+
 def mood_enabled(settings: dict | None) -> bool:
     """Mood adaptation needs the worker's MOOD_ENABLED and the agent's mood_adaptation (default on)."""
     enabled = settings.get("mood_adaptation") if isinstance(settings, dict) else None
@@ -249,6 +270,11 @@ class PhoneAgent(Agent):
         self.mood_note: str | None = None
         # Serialises instruction updates so a mood note and a step change never overwrite each other.
         self.instructions_lock = asyncio.Lock()
+        # Whether the agent has said anything yet. Set as soon as its words or audio are produced, ahead of
+        # any tool call in the same reply (llm_node / realtime_audio_output_node).
+        self.has_spoken = False
+        # Live calls turn this on: until the agent has spoken, the workflow can't leave its start step.
+        self.opening_guard = False
         path_tools: list = []
         # Kept so a caller-mood note can be swapped in and out without losing the base prompt. With a
         # workflow it is the current step's prompt, updated on every step change (except on Gemini
@@ -322,6 +348,11 @@ class PhoneAgent(Agent):
             run = self.workflow
             if run is None:
                 return "Carry on with the call."
+            if self.opening_guard and run.current is not None:
+                refusal = start_path_refusal(run.current.type, run.transitions, self.has_spoken, self.opening)
+                if refusal is not None:
+                    logger.info("path refused before the opening", extra={"tool": tool_name})
+                    return refusal
             value = raw_arguments.get("value") if isinstance(raw_arguments, dict) else None
             transition = run.take(tool_name, value if isinstance(value, str) else None)
             if not transition.ok or transition.entered is None:
@@ -348,6 +379,19 @@ class PhoneAgent(Agent):
         except Exception:
             logger.exception("workflow step change failed", extra={"tool": tool_name})
             return "Carry on with the call."
+
+    async def llm_node(self, chat_ctx, tools, model_settings):
+        """Cascaded pipelines: the reply's text streams through here before any tool call in it is run."""
+        async for chunk in Agent.default.llm_node(self, chat_ctx, tools, model_settings):
+            if not self.has_spoken and spoken_text(chunk):
+                self.has_spoken = True
+            yield chunk
+
+    async def realtime_audio_output_node(self, audio, model_settings):
+        """Gemini Live: the reply's audio streams through here; it arrives before a tool call that follows it."""
+        async for frame in Agent.default.realtime_audio_output_node(self, audio, model_settings):
+            self.has_spoken = True
+            yield frame
 
     def workflow_stopped(self) -> bool:
         """The loop cap stopped the workflow: the end-step outcome rule no longer applies."""
@@ -733,6 +777,7 @@ async def entrypoint(ctx: JobContext) -> None:
         session, agent = gemini_live_session(lead, cfg, mood_on, voice)
     agent.caller_identity = caller.identity
     agent.emit = sink.add
+    agent.opening_guard = True
     used, settings = call_settings(cfg, agent)
     if used is not cfg:
         logger.warning("console config unusable, the call runs the built-in agent", extra={"source": cfg.source})
@@ -794,6 +839,8 @@ async def entrypoint(ctx: JobContext) -> None:
             watcher.agent_listening(listening_at)
         elif ev.new_state in ("thinking", "speaking"):
             watcher.agent_busy(time.monotonic())
+        if ev.new_state == "speaking":
+            agent.has_spoken = True
 
     @session.on("speech_created")
     def _on_speech(ev) -> None:
@@ -905,8 +952,10 @@ async def entrypoint(ctx: JobContext) -> None:
     else:
         session.generate_reply(instructions=greeting_instructions(agent.opening, gate.caller_said))
 
-    if dead_air_enabled(settings):
+    if dead_air_on(cfg.snapshot):
         start_background(watch_dead_air(session, agent, watcher))
+    else:
+        logger.info("dead air off for this call", extra={"config": cfg.source})
 
     # After the greeting is queued, so ambience setup never delays it.
     if ambient := ambient_sound():

@@ -199,6 +199,12 @@ _KNOWLEDGE_RULE = (
 
 _PLACEHOLDER_RULE = "If a line contains [unknown …], say it naturally without that detail."
 
+# Expression tokens are rendered into lines as "(say this …)" hints.
+_DELIVERY_RULE = (
+    'Text in parentheses in a line you are given, like "(say this warmly)" or "(pause for about 1 seconds before '
+    'this)", tells you how to say the line. Follow it, and never say it aloud.'
+)
+
 _CLOSE_RULE = "To close the call: call `record_outcome`, then say the matching line, then call `end_call`."
 
 SYSTEM_LAYER = "\n\n".join(
@@ -209,6 +215,7 @@ SYSTEM_LAYER = "\n\n".join(
         _DOCUMENTS_RULE,
         _KNOWLEDGE_RULE,
         _PLACEHOLDER_RULE,
+        _DELIVERY_RULE,
         _NEVER,
         _CLOSE_RULE,
         _RECORDING,
@@ -329,6 +336,13 @@ def persona_line(persona_name: str) -> str:
     return f"You are {persona_name}, a female AI calling assistant for Carrum Mobility Solutions."
 
 
+# Worded for the start of the call only: a workflow can loop back to its start step later, without a new opening.
+START_STEP_RULE = (
+    "At the start of the call, your first turn is your opening line, even if the driver spoke first: answer their "
+    "greeting in a few words (\"Ji, hello sir!\"), then say it. Take a path from this step only after you have said "
+    "your opening line and the driver has replied to it."
+)
+
 TRANSFER_DIRECTION = (
     "Record the outcome, tell the driver you are connecting them, then call transfer_to_telecaller."
 )
@@ -339,6 +353,9 @@ NO_TRANSFER_DIRECTION = (
 
 def step_block(step: dict, lead: dict, paths: Sequence[Mapping] = (), handoff_available: bool = True) -> str:
     lines = [f"Current step: {step.get('name', '')}", fill_variables(step.get("prompt") or "", lead).strip()]
+    if step.get("type") == "start":
+        # A caller's "hello" must not count as the start step being done (paths are often just "Next").
+        lines.append(START_STEP_RULE)
     if paths:
         lines.append("When one of these happens, call the matching tool:")
         lines.extend(f"- {path['label']}: call {path['name']}" for path in paths)

@@ -32,7 +32,9 @@ from prompt import (
     end_step_check,
     end_step_refusal,
     opening_instructions,
+    opening_line,
 )
+from greeting import start_path_refusal
 from workflow import WorkflowRun, path_tool_schema
 
 logger = logging.getLogger("phone-agent.simulate")
@@ -263,6 +265,8 @@ class Simulation:
         self.end_step_refused = clean_refused(state.get("end_step_refused")) if state else None
         self.ended = False
         self.path_names = {p.name for p in self.run.all_path_tools()} if has_start else set()
+        # Like PhoneAgent.has_spoken: whether the agent has said anything yet (earlier turns or this reply).
+        self.agent_spoke = False
 
     def current_step(self) -> dict | None:
         return asdict(self.run.current) if self.run.current is not None else None
@@ -302,6 +306,13 @@ class Simulation:
                 return "Call record_outcome first."
             return "Transfer simulated."
         if isinstance(name, str) and name in self.path_names:
+            current = self.run.current
+            refusal = start_path_refusal(
+                current.type if current else None, self.run.transitions, self.agent_spoke,
+                opening_line(self.lead, self.persona),
+            )
+            if refusal is not None:
+                return refusal
             value = args.get("value")
             transition = self.run.take(name, value if isinstance(value, str) else None)
             if not transition.ok or transition.entered is None:
@@ -348,10 +359,12 @@ async def simulate_turn(model: ChatModel, snapshot: dict, lead: dict, messages: 
         raise BadRequest("The snapshot couldn't be turned into instructions.") from e
     convo = list(messages)
     said: list[str] = []
+    sim.agent_spoke = any(m["role"] == "agent" for m in messages)
     for round_no in range(MAX_MODEL_CALLS):
         turn = await model.complete(sim.instructions(), convo, sim.tools())
         text = (turn.text or "").strip()
         if text:
+            sim.agent_spoke = True
             said.append(text)
             convo.append({"role": "agent", "text": text})
         if not turn.tool_calls:

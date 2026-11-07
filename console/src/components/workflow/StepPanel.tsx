@@ -1,6 +1,6 @@
 "use client";
 
-import { useId } from "react";
+import { useId, type ReactNode } from "react";
 import { TokenEditor } from "@/components/editor/TokenEditor";
 import { Button, Disclosure, Field } from "@/components/ui";
 import { DISPOSITIONS, OUTCOME_GROUPS } from "@/lib/outcomes";
@@ -20,6 +20,8 @@ export type StepPanelProps = {
   onPathChange: (id: string, patch: Partial<Omit<Path, "id">>) => void;
   onPathRemove: (id: string) => void;
   onDelete: () => void;
+  /** Settings for the whole workflow, shown while no step is selected. */
+  workflowSettings?: ReactNode;
 };
 
 const TYPE_LABELS: Record<StepType, string> = {
@@ -37,6 +39,7 @@ export function StepPanel(props: StepPanelProps) {
   if (!step) {
     return (
       <aside className={styles.panel} aria-label="Step">
+        {props.workflowSettings}
         <p className={styles.panelEmpty}>Select a step to edit it.</p>
       </aside>
     );

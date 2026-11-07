@@ -105,6 +105,9 @@
 .panel { display: flex; flex-direction: column; gap: var(--row-gap); padding: var(--gutter); border-left: 1px solid var(--border); background: var(--panel); overflow-y: auto; }
 .panelEmpty { margin: 0; color: var(--muted); font-size: 15px; }
 .panelHeading { margin: 0; font-size: 18px; font-weight: 500; overflow-wrap: anywhere; }
+.workflowSettings { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; padding-bottom: var(--gutter); border-bottom: 1px solid var(--border); }
+.settingNote { margin: 0; color: var(--muted); font-size: 14px; }
+.settingNote a { color: var(--blue); }
 .group { display: flex; flex-direction: column; gap: 8px; }
 .label { font-size: 14px; font-weight: 500; color: var(--ink-2); }
 .says { min-height: 40px; padding: 8px 12px; background: var(--well); border-radius: var(--radius); }

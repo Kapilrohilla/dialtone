@@ -56,6 +56,9 @@
 .markdown:focus-visible { border-color: var(--focus); outline: 2px solid var(--focus); outline-offset: 0; }
 .note { margin: 0; padding: 10px 14px; border-radius: var(--radius); background: var(--amber-tint); color: var(--ink); font-size: 15px; }
 .footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; color: var(--muted); font-size: 15px; }
+.footerActions { display: flex; gap: 4px; }
+.delete { color: var(--bad); }
+.delete:hover:not(:disabled) { background: var(--bad-tint); }
 .who { color: var(--amber); }
 
 .versions { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; }

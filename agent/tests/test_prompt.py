@@ -236,3 +236,18 @@ def test_transfer_step_rendering_depends_on_handoff(rules):
     # build_instructions passes it through; the default keeps today's transfer text.
     assert without in build_instructions(snapshot(), {}, rules, step, handoff_available=False)
     assert with_handoff in build_instructions(snapshot(), {}, rules, step)
+
+
+def test_delivery_hints_are_followed_not_read_out():
+    # Expression tokens reach the prompt as "(say this with a light, warm laugh)"; the model once said that aloud.
+    assert "never say it aloud" in SYSTEM_LAYER
+    assert '"(say this warmly)"' in SYSTEM_LAYER
+
+
+def test_start_step_says_to_open_first_and_wait_for_the_reply():
+    paths = [{"name": "go_to_ask_city", "label": "Next"}]
+    start = prompt.step_block({"name": "Greeting", "type": "start", "prompt": "Namaste."}, {}, paths)
+    assert "At the start of the call, your first turn is your opening line, even if the driver spoke first" in start
+    assert "only after you have said your opening line and the driver has replied to it" in start
+    later = prompt.step_block({"name": "Ask city", "type": "prompt", "prompt": "City?"}, {}, paths)
+    assert "opening line" not in later

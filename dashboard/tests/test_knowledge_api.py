@@ -121,3 +121,106 @@ def test_upload_md_with_nul_is_stripped_not_500(member):
     r = c.post("/api/knowledge/upload", {"file": f}, format="multipart")
     assert r.status_code == 201, r.content
     assert c.get(f"/api/knowledge/{r.json()['id']}").json()["body_md"] == "ab"
+
+
+# --- delete -----------------------------------------------------------------------------------------
+
+
+def _graph_using(doc_id, step_name="Pricing answers"):
+    from tests.test_workflow_graph import driver_graph, step
+
+    g = driver_graph()
+    g["steps"].append(step("k1", step_name, "knowledge", knowledge_id=doc_id))
+    return g
+
+
+@pytest.mark.django_db
+def test_delete_removes_the_document_and_unlinks_agents(member, workspace):
+    from voiceagents.models import Agent
+
+    c = member("editor")
+    pk = _create(c).json()["id"]
+    keep = _create(c, title="Keep").json()["id"]
+    agent = Agent.objects.create(workspace=workspace, name="A")
+    agent.knowledge.add(pk, keep)
+    assert c.delete(f"/api/knowledge/{pk}").status_code == 204
+    assert c.get(f"/api/knowledge/{pk}").status_code == 404
+    assert [d["id"] for d in c.get("/api/knowledge").json()] == [keep]
+    assert list(agent.knowledge.values_list("id", flat=True)) == [keep]
+    # Gone from the console; the row and its history stay in the database.
+    doc = KnowledgeDocument.objects.get(pk=pk)
+    assert doc.archived and doc.revisions.count() == 1
+    assert c.delete(f"/api/knowledge/{pk}").status_code == 404
+
+
+@pytest.mark.django_db
+def test_delete_refused_while_a_workflow_step_uses_it(member, workspace):
+    from tests.test_publish import make_workflow
+
+    c = member("editor")
+    pk = _create(c).json()["id"]
+    make_workflow(workspace, _graph_using(pk), name="Onboarding")
+    r = c.delete(f"/api/knowledge/{pk}")
+    assert r.status_code == 409
+    assert r.json()["detail"] == (
+        'The "Pricing answers" step of the workflow "Onboarding" uses this document. '
+        "Pick another document there first."
+    )
+    assert not KnowledgeDocument.objects.get(pk=pk).archived
+
+
+@pytest.mark.django_db
+def test_delete_ignores_old_workflow_revisions_and_archived_workflows(member, workspace):
+    from tests.test_publish import make_workflow
+    from tests.test_workflow_graph import driver_graph
+    from workflows.models import WorkflowRevision
+
+    c = member("editor")
+    pk = _create(c).json()["id"]
+    moved_on = make_workflow(workspace, _graph_using(pk), name="Moved on")
+    WorkflowRevision.objects.create(workflow=moved_on, number=2, graph=driver_graph())
+    gone = make_workflow(workspace, _graph_using(pk), name="Gone")
+    gone.archived = True
+    gone.save()
+    assert c.delete(f"/api/knowledge/{pk}").status_code == 204
+
+
+@pytest.mark.django_db
+def test_published_agent_keeps_the_text_until_it_is_published_again(member, workspace):
+    from tests.test_publish import make_agent, make_user
+    from voiceagents.publish import is_outdated, publish
+
+    c = member("editor")
+    pk = _create(c, body="Deposit 5000").json()["id"]
+    agent = make_agent(workspace)
+    agent.knowledge.add(pk)
+    version = publish(agent, make_user())
+    assert c.delete(f"/api/knowledge/{pk}").status_code == 204
+    version.refresh_from_db()
+    assert version.snapshot["knowledge"][0]["body_md"] == "Deposit 5000"
+    agent.refresh_from_db()
+    assert is_outdated(agent) is True
+
+
+@pytest.mark.django_db
+def test_viewers_cannot_delete_and_other_workspaces_documents_404(member, other_workspace):
+    e, v = member("editor"), member("viewer")
+    pk = _create(e).json()["id"]
+    assert v.delete(f"/api/knowledge/{pk}").status_code == 403
+    foreign = KnowledgeDocument.objects.create(workspace=other_workspace, title="x")
+    assert e.delete(f"/api/knowledge/{foreign.id}").status_code == 404
+    assert not KnowledgeDocument.objects.get(pk=pk).archived
+    assert not KnowledgeDocument.objects.get(pk=foreign.id).archived
+
+
+@pytest.mark.django_db
+def test_delete_skips_malformed_workflow_steps(member, workspace):
+    from tests.test_publish import make_workflow
+    from tests.test_workflow_graph import driver_graph, step
+
+    c = member("editor")
+    pk = _create(c).json()["id"]
+    g = driver_graph()
+    g["steps"] += ["not a step", step("k1", "Odd", "knowledge", knowledge_id=True), step("k2", "Text id", "knowledge", knowledge_id=str(pk))]
+    make_workflow(workspace, g)
+    assert c.delete(f"/api/knowledge/{pk}").status_code == 204
