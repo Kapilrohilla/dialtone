@@ -77,6 +77,20 @@ def long_pause_errors(body: str) -> list[str]:
     return out
 
 
+MIN_PAUSE_SECONDS = 0.2  # the console's MIN_PAUSE_S
+
+
+def short_pause_errors(body: str) -> list[str]:
+    out: list[str] = []
+    for t in parse(body):
+        if isinstance(t, ExprToken) and t.name == "pause" and t.seconds is not None \
+                and t.seconds < MIN_PAUSE_SECONDS:
+            msg = f"Pause is too short ({t.seconds:g} s). Use at least {MIN_PAUSE_SECONDS:g} seconds."
+            if msg not in out:
+                out.append(msg)
+    return out
+
+
 def _hint(t: ExprToken, custom: dict[str, str]) -> str | None:
     if t.name in BUILTIN_EXPRESSIONS:
         seconds = 1.0 if t.seconds is None else t.seconds

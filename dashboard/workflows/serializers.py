@@ -22,6 +22,8 @@ class WorkflowWriteSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=200, required=False)
     graph = serializers.DictField(required=False)
     dead_air_enabled = StrictBooleanField(required=False)
+    # "Suggest with AI" items the author accepted into this graph; they become accepted with the save.
+    accepted_suggestions = serializers.ListField(child=serializers.IntegerField(), required=False, max_length=500)
 
     def validate_graph(self, value):
         return strip_nul(value)  # Postgres jsonb rejects NUL; the graph is checked for errors after saving

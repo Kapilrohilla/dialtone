@@ -73,7 +73,14 @@ export type Step = {
   position?: { x: number; y: number };
 };
 
-export type Path = { id?: string; from: string; to: string; label: string };
+export type Path = {
+  id?: string;
+  from: string;
+  to: string;
+  label: string;
+  /** Things a caller might say for this path (up to 5, 40 characters each); they help the agent pick it. */
+  examples?: string[];
+};
 export type Graph = { steps: Step[]; paths: Path[] };
 
 export type WorkflowListItem = {
@@ -211,4 +218,55 @@ export type SimResponse = {
   step: { id: string; name: string } | null;
   outcome: Record<string, unknown> | null;
   ended: boolean;
+};
+
+// dashboard/workflows (suggestions_api.py): "Suggest with AI" drafts
+export type SuggestKind = "answers" | "expressions";
+export type SuggestScope = "step" | "workflow";
+
+/** A new step an answer leads to: one that says something and moves on, or one that ends the call. */
+export type SuggestedNewStep =
+  | { name: string; type: "prompt"; prompt: string; then: { step_id: string; label: string } }
+  | { name: string; type: "end"; prompt: string; outcome: string };
+
+export type AnswerPayload = {
+  label: string;
+  examples: string[];
+  reason: string;
+  target: { step_id: string } | { new_step: SuggestedNewStep };
+};
+
+export type ExpressionPayload = { before: string; after: string; reason: string };
+
+type SuggestionBase = {
+  id: number;
+  step_id: string;
+  /** The author's edit when there is one, else what the AI suggested. */
+  edited: boolean;
+  status: "pending" | "accepted" | "dismissed";
+  /** Why it can't be accepted against the saved workflow; empty when it can. */
+  invalid_reason: string;
+  /** Its step changed after the suggestions were made. */
+  stale: boolean;
+};
+
+export type AnswerSuggestion = SuggestionBase & { kind: "answer"; payload: AnswerPayload };
+export type ExpressionSuggestion = SuggestionBase & { kind: "expression"; payload: ExpressionPayload };
+export type Suggestion = AnswerSuggestion | ExpressionSuggestion;
+
+export type SuggestionSet = {
+  id: number;
+  status: "running" | "ready" | "empty" | "error" | "closed";
+  scope: SuggestScope;
+  kinds: SuggestKind[];
+  step_ids: string[];
+  /** How many steps could have been looked at ("Looked at 20 of N steps"). */
+  total_steps: number;
+  failed_step_ids: string[];
+  error: string;
+  base_revision: number;
+  created_by: { id: number; name: string | null } | null;
+  created_at: string;
+  finished_at: string | null;
+  items: Suggestion[];
 };

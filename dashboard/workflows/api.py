@@ -85,6 +85,10 @@ class WorkflowDetailView(_Base):
                         workflow=wf, number=(last.number + 1) if last else 1,
                         graph=data["graph"], saved_by=request.user,
                     )
+            if data.get("accepted_suggestions"):
+                from .suggestions_api import accept_on_save
+
+                accept_on_save(wf, data["accepted_suggestions"], request.user)
             wf.save()  # bumps updated_at
         return Response(detail(wf))
 
