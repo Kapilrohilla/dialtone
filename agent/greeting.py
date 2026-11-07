@@ -31,6 +31,20 @@ class GreetingGate:
         return now - self._last_speech >= self.gap_s
 
 
+def start_path_refusal(step_type: str | None, transitions: int, agent_spoke: bool, opening: str) -> str | None:
+    """Why a path off the start step must wait, or None when it may go ahead.
+
+    A caller who says "hello" first can make the model take the start step's path before it has said a
+    word, skipping the greeting and the company intro. Until the agent has spoken, a call that has never
+    left its start step stays there, and the refusal tells the model what to say instead."""
+    if agent_spoke or step_type != "start" or transitions:
+        return None
+    return (
+        "Not yet: you haven't greeted the driver. Answer their greeting in a few words (e.g. \"Ji, hello sir!\"), "
+        f"then say your opening line: {opening} Take a path from this step only after the driver replies."
+    )
+
+
 def greeting_instructions(opening: str, caller_said: str) -> str:
     """What to tell the model when it's time to greet."""
     if not caller_said:

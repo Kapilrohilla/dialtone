@@ -136,6 +136,19 @@ test("4. knowledge: saving a document adds a version", async ({ page }) => {
   await page.getByRole("button", { name: "Version history" }).click();
   const history = page.getByRole("dialog", { name: "Version history" });
   await expect(history.getByRole("button", { name: /^Version \d+/ })).toHaveCount(2);
+  await page.keyboard.press("Escape");
+  await expect(history).toBeHidden();
+
+  // A new, unused document can be deleted; the remaining one opens.
+  await page.getByRole("button", { name: "New document" }).click();
+  await expect(page.getByRole("textbox", { name: "Document title" })).toHaveValue("Untitled document");
+  await page.getByRole("button", { name: "Delete", exact: true }).click();
+  const confirm = page.getByRole("dialog", { name: "Delete Untitled document?" });
+  await expect(confirm.getByText("No agent uses it.")).toBeVisible();
+  await confirm.getByRole("button", { name: "Delete document" }).click();
+  await expect(page.getByRole("status").getByText("Deleted.")).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Document title" })).toHaveValue("Approved pricing and rules");
+  await expect(page.getByRole("navigation", { name: "Documents" }).getByText("Untitled document")).toHaveCount(0);
   noCrash();
 });
 
@@ -158,9 +171,19 @@ test("5. workflows: the seeded flow fits, shows its chips and saves cleanly", as
       `${title} inside the canvas`).toBeTruthy();
   }
 
+  // With no step selected, the panel holds the workflow's own settings; the switch saves on its own.
+  const panel = page.getByRole("complementary", { name: "Step" });
+  const checkIn = panel.getByRole("switch", { name: "Check in when the caller goes quiet" });
+  await expect(checkIn).toHaveAttribute("aria-checked", "true");
+  await checkIn.click();
+  await expect(page.getByRole("status").getByText(/^Saved\./)).toBeVisible();
+  await expect(checkIn).toHaveAttribute("aria-checked", "false");
+  await shot(page, LIGHT, "05b-workflow-settings");
+  await checkIn.click();
+  await expect(checkIn).toHaveAttribute("aria-checked", "true");
+
   // Devanagari prompts render in the panel.
   await canvas.locator(".react-flow__node").filter({ hasText: "Greeting" }).click();
-  const panel = page.getByRole("complementary", { name: "Step" });
   await expect(panel.getByRole("textbox", { name: "What the agent says" })).toContainText("नमस्ते, मैं Carrum से बोल रही हूँ।");
 
   await canvas.locator(".react-flow__node").filter({ hasText: "Explain the plan" }).click();
@@ -204,11 +227,12 @@ test("7. call history is empty and exports a date range", async ({ page }) => {
   noCrash();
 });
 
-/** The ten screens, for the dark pass. */
+/** Every screen, for the dark pass. */
 async function darkPass(page: Page, browser: Browser) {
   const screens: [string, string][] = [
     ["02-today", "/"], ["03-agents", "/agents"], ["06-knowledge", "/knowledge"], ["07-live-calls", "/live"],
-    ["08-call-history", "/calls"], ["09-settings", "/settings"], ["10-integrations", "/integrations"],
+    ["08-call-history", "/calls"], ["09-settings", "/settings"], ["09b-settings-calls", "/settings/calls"],
+    ["10-integrations", "/integrations"],
   ];
   for (const [name, path] of screens) {
     await page.goto(path);
@@ -242,6 +266,20 @@ test("8. settings: dark appearance is saved and kept", async ({ page, browser })
   await expect(page.getByRole("link", { name: "Team" })).toHaveCSS("text-decoration-line", "none");
   await shot(page, LIGHT, "09-settings");
 
+  // The account switch saves straight away (the e2e user is an owner).
+  await page.getByRole("navigation", { name: "Settings" }).getByRole("link", { name: "Call handling" }).click();
+  await expect(page).toHaveURL(/\/settings\/calls$/);
+  const checkIn = page.getByRole("switch", { name: "Check in when the caller goes quiet" });
+  await expect(checkIn).toHaveAttribute("aria-checked", "true");
+  await checkIn.click();
+  await expect(page.getByRole("status").getByText("Check-ins are off for every agent from the next call.")).toBeVisible();
+  await page.reload();
+  await expect(checkIn).toHaveAttribute("aria-checked", "false");
+  await shot(page, LIGHT, "09b-settings-calls");
+  await checkIn.click();
+  await expect(checkIn).toHaveAttribute("aria-checked", "true");
+
+  await page.goto("/settings");
   await page.getByRole("radio", { name: "Dark" }).click();
   await page.getByRole("button", { name: "Save changes" }).click();
   await expect(page.getByRole("status").getByText("Saved.")).toBeVisible();

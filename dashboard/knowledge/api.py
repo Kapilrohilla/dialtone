@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from calls.numbers import strip_nul
+from workflows.models import Workflow
 from workspaces.permissions import CanEdit, IsMember, workspace_for
 
 from .models import KnowledgeDocument, KnowledgeRevision
@@ -41,6 +42,23 @@ def _add_revision(doc, body, user):
         document=doc, number=(cur.number + 1) if cur else 1, body_md=body, edited_by=user
     )
     doc.save(update_fields=["updated_at"])
+
+
+def _workflow_steps_using(doc) -> list[tuple[str, str]]:
+    """(step, workflow) names of knowledge steps that answer from `doc`, in the current revision of each
+    workflow still in use. Older revisions and archived workflows don't count."""
+    uses = []
+    for wf in Workflow.objects.filter(workspace_id=doc.workspace_id, archived=False).order_by("id"):
+        cur = wf.current
+        steps = cur.graph.get("steps") if cur is not None and isinstance(cur.graph, dict) else None
+        for st in steps if isinstance(steps, list) else []:
+            if not isinstance(st, dict) or st.get("type") != "knowledge":
+                continue
+            kid = st.get("knowledge_id")
+            if isinstance(kid, int) and not isinstance(kid, bool) and kid == doc.id:
+                name = st.get("name") if isinstance(st.get("name"), str) else ""
+                uses.append((name.strip() or str(st.get("id", "")), wf.name))
+    return uses
 
 
 class KnowledgeListView(_Base):
@@ -81,6 +99,31 @@ class KnowledgeDetailView(_Base):
                 _add_revision(doc, s.validated_data["body_md"], request.user)
         doc.refresh_from_db()
         return Response(KnowledgeDetailSerializer(doc).data)
+
+    def delete(self, request, pk):
+        """Remove a document from the console and from every agent that links it.
+
+        Published agents keep quoting it until they are published again (their snapshot holds the text).
+        A workflow step that answers from it would be left pointing at nothing, so that is refused. The row
+        and its revisions stay in the database, archived."""
+        doc = self.doc(pk)
+        uses = _workflow_steps_using(doc)
+        if uses:
+            step, workflow = uses[0]
+            more = len(uses) - 1
+            also = f" and {more} other step{'s' if more > 1 else ''}" if more else ""
+            verb = "use" if more else "uses"
+            return Response(
+                {"detail": f'The "{step}" step of the workflow "{workflow}"{also} {verb} this document. '
+                           "Pick another document there first."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        with transaction.atomic():
+            locked = KnowledgeDocument.objects.select_for_update().get(pk=doc.pk)
+            locked.archived = True
+            locked.save(update_fields=["archived", "updated_at"])
+            locked.agents.clear()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class KnowledgeUploadView(_Base):

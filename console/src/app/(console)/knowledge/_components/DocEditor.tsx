@@ -17,11 +17,13 @@ type Props = {
   onBody: (body: string) => void;
   onMode: (mode: EditorMode) => void;
   onHistory: () => void;
+  /** Absent for people who can't edit. */
+  onDelete?: () => void;
   /** Set when a newer saved version exists and this draft has edits. */
   onLoadTheirs?: () => void;
 };
 
-export function DocEditor({ title, body, mode, readOnly, newest, timeZone, onTitle, onBody, onMode, onHistory, onLoadTheirs }: Props) {
+export function DocEditor({ title, body, mode, readOnly, newest, timeZone, onTitle, onBody, onMode, onHistory, onDelete, onLoadTheirs }: Props) {
   return (
     <div className={styles.doc}>
       {onLoadTheirs && (
@@ -58,9 +60,16 @@ export function DocEditor({ title, body, mode, readOnly, newest, timeZone, onTit
             </>
           ) : null}
         </span>
-        <Button variant="text" onClick={onHistory}>
-          Version history
-        </Button>
+        <span className={styles.footerActions}>
+          <Button variant="text" onClick={onHistory}>
+            Version history
+          </Button>
+          {onDelete && (
+            <Button variant="text" className={styles.delete} onClick={onDelete}>
+              Delete
+            </Button>
+          )}
+        </span>
       </div>
     </div>
   );

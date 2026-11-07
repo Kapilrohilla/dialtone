@@ -8,6 +8,7 @@ import styles from "../settings.module.css";
 const LINKS = [
   { href: "/settings", label: "Profile" },
   { href: "/settings/team", label: "Team" },
+  { href: "/settings/calls", label: "Call handling" },
   { href: "/settings/phone-numbers", label: "Phone numbers" },
   { href: "/settings#appearance", label: "Appearance" },
 ];

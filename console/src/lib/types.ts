@@ -11,13 +11,22 @@ export type Preferences = {
   time_zone: string;
 };
 
+/** The account. GET/PATCH /api/workspace; also inside GET /api/me. */
+export type Workspace = {
+  id: number;
+  name: string;
+  slug: string;
+  /** Off: no agent or workflow checks in on silent callers. Reaches the next call, no publishing needed. */
+  dead_air_enabled: boolean;
+};
+
 export type Me = {
   id: number;
   name: string;
   email: string;
   phone: string;
   role: Role;
-  workspace: { id: number; name: string; slug: string };
+  workspace: Workspace;
   preferences: Preferences;
 };
 
@@ -70,6 +79,8 @@ export type WorkflowListItem = {
   name: string;
   updated_at: string;
   current_revision: number;
+  /** Off: agents using this workflow don't check in on silent callers (after they are published). */
+  dead_air_enabled: boolean;
 };
 
 export type Workflow = WorkflowListItem & {

@@ -532,3 +532,95 @@ async def test_captured_answers_for_the_report():
     await tool_named(a, "go_to_wrap_up")({"value": "Pune"})
     answers = agent.captured_answers(a)
     assert answers == {"city": "Pune"} and answers is not a.workflow.captured
+
+
+async def test_start_step_path_waits_until_the_agent_has_spoken():
+    # The caller says "hello" first and the model takes the start step's path before saying a word.
+    a = agent.PhoneAgent(LEAD, agent.GEMINI_LANGUAGE_RULES, console(snapshot({"id": 1, "graph": GRAPH})))
+    a.opening_guard = True  # on in live calls (entrypoint)
+    events = []
+    a.emit = lambda type, payload: events.append(type)
+    refused = await tool_named(a, "go_to_city")({})
+    assert a.opening in refused and "Ji, hello sir" in refused
+    assert a.workflow.current.name == "Greet" and a.workflow.transitions == 0 and events == []
+    a.has_spoken = True
+    assert await tool_named(a, "go_to_city")({}) == "Now at step City."
+    assert events == ["step_entered"]
+
+
+async def test_start_step_guard_is_off_unless_the_call_turns_it_on():
+    a = agent.PhoneAgent(LEAD, agent.GEMINI_LANGUAGE_RULES, console(snapshot({"id": 1, "graph": GRAPH})))
+    assert a.opening_guard is False and a.has_spoken is False
+    assert await tool_named(a, "go_to_city")({}) == "Now at step City."
+
+
+def test_spoken_text_counts_words_not_tool_calls():
+    from livekit.agents import llm
+
+    def chunk(content=None, tool_calls=()):
+        return llm.ChatChunk(id="c", delta=llm.ChoiceDelta(role="assistant", content=content, tool_calls=list(tool_calls)))
+
+    call = llm.FunctionToolCall(name="go_to_city", arguments="{}", call_id="1")
+    assert agent.spoken_text(chunk("Namaste")) is True
+    assert agent.spoken_text("Ji sir") is True
+    assert agent.spoken_text(chunk(tool_calls=[call])) is False
+    assert agent.spoken_text(chunk("  ")) is False
+    assert agent.spoken_text(" ") is False
+    assert agent.spoken_text(llm.ChatChunk(id="u")) is False
+
+
+async def test_reply_text_marks_the_agent_as_having_spoken(monkeypatch):
+    from livekit.agents import llm
+
+    call = llm.FunctionToolCall(name="go_to_city", arguments="{}", call_id="1")
+    chunks = [
+        llm.ChatChunk(id="1", delta=llm.ChoiceDelta(role="assistant", tool_calls=[call])),
+        llm.ChatChunk(id="2", delta=llm.ChoiceDelta(role="assistant", content="Ji, hello sir!")),
+    ]
+
+    async def fake_llm_node(_agent, _ctx, _tools, _settings):
+        for c in chunks:
+            yield c
+
+    monkeypatch.setattr(agent.Agent.default, "llm_node", fake_llm_node)
+    a = agent.PhoneAgent(LEAD, agent.GEMINI_LANGUAGE_RULES, console(snapshot()))
+    seen = []
+    async for c in a.llm_node(None, [], None):
+        seen.append((c, a.has_spoken))
+    # Passed through untouched; only the text chunk marks speech, at the moment it goes by.
+    assert seen == [(chunks[0], False), (chunks[1], True)]
+
+
+async def test_realtime_audio_marks_the_agent_as_having_spoken(monkeypatch):
+    async def fake_audio_node(_agent, audio, _settings):
+        async for frame in audio:
+            yield frame
+
+    async def frames():
+        yield "frame-1"
+        yield "frame-2"
+
+    monkeypatch.setattr(agent.Agent.default, "realtime_audio_output_node", fake_audio_node)
+    a = agent.PhoneAgent(LEAD, agent.GEMINI_LANGUAGE_RULES, console(snapshot()))
+    assert a.has_spoken is False
+    assert [f async for f in a.realtime_audio_output_node(frames(), None)] == ["frame-1", "frame-2"]
+    assert a.has_spoken is True
+
+
+def test_dead_air_runs_only_when_account_workflow_and_agent_allow_it(monkeypatch):
+    monkeypatch.setattr(agent, "DEAD_AIR_ENABLED", True)
+    wf_on = {"id": 1, "graph": GRAPH, "dead_air_enabled": True}
+    wf_off = {"id": 1, "graph": GRAPH, "dead_air_enabled": False}
+    assert agent.dead_air_on(None) is True
+    assert agent.dead_air_on(snapshot()) is True  # older snapshots say nothing: on
+    assert agent.dead_air_on(snapshot(wf_on, account={"dead_air_enabled": True})) is True
+    assert agent.dead_air_on(snapshot(account={"dead_air_enabled": False})) is False
+    assert agent.dead_air_on(snapshot(wf_off)) is False
+    assert agent.dead_air_on(snapshot(wf_on, settings={"dead_air": {"enabled": False}})) is False
+    # Junk never turns it off.
+    assert agent.dead_air_on(snapshot(account={"dead_air_enabled": "no"}, workflow="x")) is True
+    assert agent.dead_air_on(snapshot(account="off")) is True
+    # The agent's own switch falls back to the worker default.
+    monkeypatch.setattr(agent, "DEAD_AIR_ENABLED", False)
+    assert agent.dead_air_on(snapshot(wf_on, account={"dead_air_enabled": True})) is False
+    assert agent.dead_air_on(snapshot(settings={"dead_air": {"enabled": True}})) is True

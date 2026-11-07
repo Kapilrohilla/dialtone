@@ -79,7 +79,8 @@ def test_config_by_number(client, workspace, other_workspace, number):
     published_agent(other_workspace, phone_number="+91 99999 00000")
     res = get_config(client, number=number)
     assert res.status_code == 200
-    assert res.json() == {"version_id": version.id, "workspace": "carrum", "snapshot": version.snapshot}
+    snapshot = {**version.snapshot, "account": {"dead_air_enabled": True}}
+    assert res.json() == {"version_id": version.id, "workspace": "carrum", "snapshot": snapshot}
 
 
 def test_config_unmatched_number_404s_when_numbers_set(client, workspace):

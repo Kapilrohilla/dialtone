@@ -4,6 +4,7 @@ from django.conf import settings
 from rest_framework import serializers
 
 from calls.numbers import strip_nul
+from workspaces.serializers import StrictBooleanField
 
 from .models import Agent, AgentVersion, default_settings
 from . import voices
@@ -72,13 +73,6 @@ class AgentVersionSerializer(serializers.ModelSerializer):
 
     def get_published_by_name(self, obj):
         return display_name(obj.published_by)
-
-
-class StrictBooleanField(serializers.BooleanField):
-    def to_internal_value(self, data):
-        if not isinstance(data, bool):
-            raise serializers.ValidationError("Must be true or false.")
-        return data
 
 
 class StrictIntegerField(serializers.IntegerField):

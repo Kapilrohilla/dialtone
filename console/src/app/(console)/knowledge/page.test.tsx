@@ -238,6 +238,7 @@ describe("Knowledge base", () => {
     expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Upload .md" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "New document" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
   });
 
   const theirs = { ...knowledgeDoc, current_revision: 3, body_md: "A teammate rewrote this." };
@@ -303,5 +304,79 @@ describe("Knowledge base", () => {
     await user.click(within(await screen.findByRole("dialog", { name: /Discard unsaved/ })).getByRole("button", { name: "Discard" }));
     expect(await screen.findByText(oldBody)).toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: "Version history" })).not.toBeInTheDocument();
+  });
+
+  /** DELETE removes the document from the fake API, or answers 409 with `refusal`. */
+  function serveDelete(docs: KnowledgeDoc[], refusal?: string) {
+    const deleted: number[] = [];
+    server.use(
+      http.delete("*/api/knowledge/:id", ({ params }) => {
+        if (refusal) return HttpResponse.json({ detail: refusal }, { status: 409 });
+        const id = Number(params.id);
+        deleted.push(id);
+        docs.splice(docs.findIndex((d) => d.id === id), 1);
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    return deleted;
+  }
+
+  it("deletes a document after confirming and opens the next one", async () => {
+    const { docs } = serve();
+    const deleted = serveDelete(docs);
+    renderWithProviders(<KnowledgePage />, { route: "/knowledge" });
+    const user = userEvent.setup();
+    await screen.findByText(/The weekly plan is for drivers/);
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    const dialog = await screen.findByRole("dialog", { name: "Delete Pricing and plans, Pune?" });
+    expect(within(dialog).getByText(/Used by 1 agent\. Agents stop quoting it once they are published again/)).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Delete document" }));
+    expect(await screen.findByText("Deleted.")).toBeInTheDocument();
+    expect(deleted).toEqual([7]);
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Document title" })).toHaveValue("Refund policy"));
+    expect(within(screen.getByRole("navigation", { name: "Documents" })).queryByText("Pricing and plans, Pune")).not.toBeInTheDocument();
+    expect(router.replace).toHaveBeenLastCalledWith("/knowledge?doc=8");
+  });
+
+  it("keeps the document when the person backs out", async () => {
+    const { docs } = serve();
+    const deleted = serveDelete(docs);
+    renderWithProviders(<KnowledgePage />, { route: "/knowledge?doc=8" });
+    const user = userEvent.setup();
+    await screen.findByText("Refunds take five days.");
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    const dialog = await screen.findByRole("dialog", { name: "Delete Refund policy?" });
+    expect(within(dialog).getByText("No agent uses it.")).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Keep it" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(deleted).toEqual([]);
+    expect(screen.getByRole("textbox", { name: "Document title" })).toHaveValue("Refund policy");
+  });
+
+  it("says why when a workflow step still answers from the document", async () => {
+    const { docs } = serve();
+    const why = 'The "Pricing answers" step of the workflow "Driver onboarding" uses this document. Pick another document there first.';
+    serveDelete(docs, why);
+    renderWithProviders(<KnowledgePage />, { route: "/knowledge" });
+    const user = userEvent.setup();
+    await screen.findByText(/The weekly plan is for drivers/);
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Delete document" }));
+    expect(await screen.findByText(why)).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(screen.getByRole("textbox", { name: "Document title" })).toHaveValue("Pricing and plans, Pune");
+  });
+
+  it("warns that unsaved edits go too, and shows the empty state after the last document", async () => {
+    const { docs } = serve([second]);
+    serveDelete(docs);
+    renderWithProviders(<KnowledgePage />, { route: "/knowledge" });
+    const user = userEvent.setup();
+    await user.type(await screen.findByRole("textbox", { name: "Document title" }), "!");
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    const dialog = await screen.findByRole("dialog", { name: "Delete Refund policy!?" });
+    expect(within(dialog).getByText(/Your unsaved edits are lost too\./)).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Delete document" }));
+    expect(await screen.findByText("No documents yet")).toBeInTheDocument();
   });
 });

@@ -29,6 +29,7 @@ def detail(workflow):
         "name": workflow.name,
         "updated_at": workflow.updated_at,
         "current_revision": cur.number if cur else 0,
+        "dead_air_enabled": workflow.dead_air_enabled,
         "graph": graph,
         "errors": validate_for(workflow, graph),
     }
@@ -74,6 +75,9 @@ class WorkflowDetailView(_Base):
                 if not name:
                     return Response({"detail": "Name cannot be empty."}, status=400)
                 wf.name = name
+            if "dead_air_enabled" in data:
+                # A setting, not a graph edit: no new revision. Agents using the workflow publish it.
+                wf.dead_air_enabled = data["dead_air_enabled"]
             if "graph" in data:
                 last = wf.revisions.order_by("-number").first()
                 if last is None or last.graph != data["graph"]:
