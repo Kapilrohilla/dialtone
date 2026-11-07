@@ -72,8 +72,9 @@ cd "$HOME"
 start_and_check() {
   local since
   since=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-  docker compose up -d
-  docker compose --profile agent up -d agent agent-sim
+  docker compose up -d   # infra (postgres, redis, livekit, sip) only if it is down; never recreated here
+  # Always recreate the app containers: compose does not reliably notice a rebuilt image under the same tag.
+  docker compose --profile agent up -d --force-recreate --no-deps dashboard console agent agent-sim
   for i in $(seq 1 30); do
     docker compose logs --since "$since" agent 2>&1 | grep -q 'registered worker' && break
     sleep 2
