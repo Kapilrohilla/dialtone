@@ -46,8 +46,10 @@ fi
 commit=$(git rev-parse --short HEAD)
 echo "Deploying ${commit} ($(git log -1 --format=%s)) to ${VM}..."
 
-bundle=$(mktemp -t ai-calling-deploy).tgz
-trap 'rm -f "$bundle"' EXIT
+# A temp dir works the same with BSD (macOS) and GNU (Linux) mktemp.
+bundle_dir=$(mktemp -d)
+bundle=$bundle_dir/ai-calling-deploy.tgz
+trap 'rm -rf "$bundle_dir"' EXIT
 extra=()
 # knowledge.md holds approved pricing; ship it even if you keep it out of git.
 [[ -f agent/knowledge.md ]] && ! git ls-files --error-unmatch agent/knowledge.md >/dev/null 2>&1 && extra+=(agent/knowledge.md)
