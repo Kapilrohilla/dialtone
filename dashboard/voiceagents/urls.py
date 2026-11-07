@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import api, simulate
+from . import api, simulate, webcall
 
 urlpatterns = [
     path("agents", api.AgentListView.as_view()),
@@ -12,6 +12,7 @@ urlpatterns = [
     path("agents/<int:pk>/restore", api.AgentRestoreView.as_view()),
     path("agents/<int:pk>/versions", api.AgentVersionsView.as_view()),
     path("agents/<int:pk>/simulate", simulate.AgentSimulateView.as_view()),
+    path("agents/<int:pk>/web-call", webcall.AgentWebCallView.as_view()),
     path("workflows/<int:pk>/simulate", simulate.WorkflowSimulateView.as_view()),
     path("voices", api.VoicesView.as_view()),
     path("expressions", api.ExpressionsView.as_view()),

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import { Simulator } from "@/components/sim/Simulator";
+import { VoiceTest } from "@/components/sim/VoiceTest";
 import { TopBar, type Crumb } from "@/components/shell/TopBar";
 import { Button, Chip, StateBlock, useToast } from "@/components/ui";
 import { ApiError } from "@/lib/api";
@@ -54,6 +55,7 @@ function AgentEditor({ agent, editable }: { agent: Agent; editable: boolean }) {
   const toast = useToast();
   const [publishing, setPublishing] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [voiceTesting, setVoiceTesting] = useState(false);
   const live = agents?.find((a) => a.status === "published") ?? null;
   const isLive = agent.status === "published";
   const upToDate = isLive && !agent.is_outdated;
@@ -72,6 +74,12 @@ function AgentEditor({ agent, editable }: { agent: Agent; editable: boolean }) {
     // The simulator runs the saved draft: save first, but a failed save still lets you try the last one.
     await saves.flushAll().catch(() => undefined);
     setTesting(true);
+  }
+
+  async function voiceTest() {
+    // The voice agent fetches the saved draft when it joins: save first, like Test call.
+    await saves.flushAll().catch(() => undefined);
+    setVoiceTesting(true);
   }
 
   const breadcrumb: Crumb[] = [
@@ -96,7 +104,16 @@ function AgentEditor({ agent, editable }: { agent: Agent; editable: boolean }) {
         breadcrumb={breadcrumb}
         chip={<StatusChip status={agent.status} />}
         status={editable ? <SaveStatus script={saves.autosave} field={saves.field} signedOut={saves.signedOut} /> : undefined}
-        secondary={editable ? <Button onClick={testCall}>Test call</Button> : undefined}
+        secondary={
+          editable ? (
+            <>
+              <Button onClick={testCall}>Test call</Button>
+              <Button onClick={voiceTest} title="Talk to the draft through your microphone; no phone call">
+                Voice test
+              </Button>
+            </>
+          ) : undefined
+        }
         primary={
           editable ? (
             <Button variant="primary" disabled={upToDate} title={upToDate ? "Up to date" : undefined} onClick={publish}>
@@ -144,6 +161,7 @@ function AgentEditor({ agent, editable }: { agent: Agent; editable: boolean }) {
         <PublishDialog agent={publishing ? agent : null} liveAgent={live} onClose={() => setPublishing(false)} />
       )}
       {testing && <Simulator kind="agent" id={agent.id} customExpressions={saves.custom} onClose={() => setTesting(false)} />}
+      {voiceTesting && <VoiceTest agentId={agent.id} onClose={() => setVoiceTesting(false)} />}
     </>
   );
 }
