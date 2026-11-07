@@ -61,7 +61,9 @@ def config(request):
     if room:
         # First value wins: a call keeps the version it started with.
         Call.record_first(room[:255], workspace=agent.workspace, agent_version=version)
-    return JsonResponse({"version_id": version.id, "workspace": agent.workspace.slug, "snapshot": version.snapshot})
+    # Account switches reach the next call without a republish: added here, never stored in the version.
+    snapshot = {**version.snapshot, "account": {"dead_air_enabled": agent.workspace.dead_air_enabled}}
+    return JsonResponse({"version_id": version.id, "workspace": agent.workspace.slug, "snapshot": snapshot})
 
 
 def _seq(value):

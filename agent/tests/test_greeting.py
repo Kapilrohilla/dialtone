@@ -54,3 +54,24 @@ def test_greeting_instructions_acknowledge_hello_first():
     assert '"hello kaun?"' in text
     assert "Ji, hello sir" in text
     assert text.endswith("Namaste sir, main Carrum se bol rahi hoon.")
+
+
+OPENING = "Namaste sir, main Priya, Carrum Mobility se AI calling assistant bol rahi hoon."
+
+
+def test_leaving_the_start_step_before_speaking_is_refused_with_the_opening():
+    from greeting import start_path_refusal
+
+    refusal = start_path_refusal("start", 0, agent_spoke=False, opening=OPENING)
+    assert refusal is not None
+    assert OPENING in refusal and "Ji, hello sir" in refusal
+
+
+def test_start_step_paths_allowed_once_the_agent_has_spoken_or_the_call_moved_on():
+    from greeting import start_path_refusal
+
+    assert start_path_refusal("start", 0, agent_spoke=True, opening=OPENING) is None
+    # Back on the start step later in the call (a loop): the opening was said long ago.
+    assert start_path_refusal("start", 3, agent_spoke=False, opening=OPENING) is None
+    assert start_path_refusal("prompt", 0, agent_spoke=False, opening=OPENING) is None
+    assert start_path_refusal(None, 0, agent_spoke=False, opening=OPENING) is None

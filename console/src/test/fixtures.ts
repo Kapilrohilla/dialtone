@@ -23,7 +23,7 @@ export const me: Me = {
   email: "kapil@carrum.example",
   phone: "+919810000001",
   role: "owner",
-  workspace: { id: 1, name: "Carrum Mobility", slug: "carrum" },
+  workspace: { id: 1, name: "Carrum Mobility", slug: "carrum", dead_air_enabled: true },
   preferences: { appearance: "system", notify_needs_person: true, notify_daily_summary: false, time_zone: "Asia/Kolkata" },
 };
 
@@ -93,6 +93,7 @@ export const workflow: Workflow = {
   name: "Driver onboarding",
   updated_at: "2026-11-04T09:00:00Z",
   current_revision: 3,
+  dead_air_enabled: true,
   errors: [],
   graph: {
     steps: [

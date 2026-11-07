@@ -39,6 +39,7 @@ function serve(opts: { graph?: Graph; errors?: string[]; patchErrors?: (body: Wo
         ...current,
         ...(body.name ? { name: body.name } : {}),
         ...(body.graph ? { graph: body.graph, current_revision: current.current_revision + 1 } : {}),
+        ...(body.dead_air_enabled !== undefined ? { dead_air_enabled: body.dead_air_enabled } : {}),
         errors: opts.patchErrors?.(body) ?? [],
       };
       return HttpResponse.json(current);
@@ -382,5 +383,47 @@ describe("workflow builder", () => {
     expect(await screen.findByText("Not found.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
     vi.restoreAllMocks();
+  });
+
+  const checkIn = () => within(panel()).getByRole("switch", { name: "Check in when the caller goes quiet" });
+
+  it("turns check-ins off for the workflow from the side panel", async () => {
+    const { patches } = serve();
+    server.use(http.get("*/api/agents", () => HttpResponse.json([{ ...agentListItem, workflow: 2 }])));
+    const { user } = open();
+    await screen.findByRole("heading", { level: 1, name: /Driver onboarding/ });
+    expect(within(panel()).getByRole("heading", { name: "Workflow settings" })).toBeInTheDocument();
+    expect(checkIn()).toHaveAttribute("aria-checked", "true");
+    await user.click(checkIn());
+    await waitFor(() => expect(patches).toEqual([{ dead_air_enabled: false }]));
+    expect(await screen.findByText("Saved. Agents using this workflow need republishing before callers hear the change.")).toBeInTheDocument();
+    expect(checkIn()).toHaveAttribute("aria-checked", "false");
+    // A setting, not a graph edit: nothing to save.
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+  });
+
+  it("puts the switch back when saving it fails", async () => {
+    serve({ patch: () => HttpResponse.json({ detail: "Could not reach the server." }, { status: 500 }) });
+    const { user } = open();
+    await screen.findByRole("heading", { level: 1, name: /Driver onboarding/ });
+    await user.click(checkIn());
+    expect(await screen.findByText("Could not reach the server.")).toBeInTheDocument();
+    await waitFor(() => expect(checkIn()).toHaveAttribute("aria-checked", "true"));
+  });
+
+  it("says when the account has check-ins off", async () => {
+    serve();
+    server.use(http.get("*/api/me", () => HttpResponse.json({ ...me, workspace: { ...me.workspace, dead_air_enabled: false } })));
+    open();
+    await screen.findByRole("heading", { level: 1, name: /Driver onboarding/ });
+    expect(within(panel()).getByText(/Off for the whole account/)).toBeInTheDocument();
+    expect(within(panel()).getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings/calls");
+  });
+
+  it("viewers see the workflow switch but can't change it", async () => {
+    serve();
+    open("viewer");
+    await screen.findByRole("heading", { level: 1, name: "Driver onboarding" });
+    expect(checkIn()).toBeDisabled();
   });
 });

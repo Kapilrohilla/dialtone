@@ -162,7 +162,8 @@ def build_snapshot(agent, number: int, resolved: Resolved | None = None) -> dict
             if isinstance(st, dict) and isinstance(st.get("prompt"), str):
                 collect(st["prompt"])
                 st["prompt"] = render_hints(st["prompt"], custom)
-        workflow = {"id": resolved.workflow.id, "revision": rev.number if rev else 0, "graph": graph}
+        workflow = {"id": resolved.workflow.id, "revision": rev.number if rev else 0, "graph": graph,
+                    "dead_air_enabled": resolved.workflow.dead_air_enabled}
 
     return {
         "agent_id": agent.id,
@@ -258,7 +259,7 @@ def _fingerprint(agent) -> dict:
     workflow = None
     if resolved.workflow is not None:
         rev = resolved.workflow_revision
-        workflow = [resolved.workflow.id, rev.number if rev else 0]
+        workflow = [resolved.workflow.id, rev.number if rev else 0, resolved.workflow.dead_air_enabled]
     return {
         "script": _rendered_script(agent),
         "settings": agent.settings,
@@ -283,7 +284,8 @@ def _snapshot_fingerprint(s: dict) -> dict:
         "phone_number": s.get("phone_number"),
         "custom_expressions": s.get("custom_expressions", {}),
         "knowledge": sorted([k["id"], k["revision"]] for k in s.get("knowledge") or []),
-        "workflow": [wf["id"], wf["revision"]] if wf else None,
+        # Snapshots from before the workflow switch existed had it on.
+        "workflow": [wf["id"], wf["revision"], wf.get("dead_air_enabled", True)] if wf else None,
     }
 
 

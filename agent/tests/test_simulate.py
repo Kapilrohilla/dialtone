@@ -278,7 +278,8 @@ async def test_sim_tampered_state_and_bad_arguments_do_not_500(make_client):
     client = await make_client(model)
     tampered = {"current_step_id": ["x"], "visits": "lots", "transitions": -4, "outcome": "INTERESTED"}
     try:
-        r = await post(client, body([{"role": "caller", "text": "hi"}], tampered))
+        convo = [{"role": "agent", "text": "Namaste sir"}, {"role": "caller", "text": "hi"}]
+        r = await post(client, body(convo, tampered))
         assert r.status == 200
         data = await r.json()
     finally:
@@ -488,3 +489,23 @@ def test_transfer_tool_description_matches_live_agent():
     assert live == simulate.TRANSFER_SCHEMA["description"]
     assert "connecting" not in live
     assert "Call record_outcome first." in live and "offer a callback instead" in live
+
+
+async def test_sim_start_step_path_waits_until_the_agent_has_spoken(make_client):
+    # Like the live call: a caller's "hello" first must not let the model skip the greeting.
+    model = FakeModel(
+        ModelTurn(tool_calls=[call("go_to_city")]),
+        ModelTurn(text="Ji, hello sir! Namaste, main Anjali bol rahi hoon.", tool_calls=[call("go_to_city")]),
+        ModelTurn(text="Sir, aap kis city mein rehte hain?"),
+    )
+    client = await make_client(model)
+    try:
+        data = await (await post(client, body([{"role": "caller", "text": "hello"}]))).json()
+    finally:
+        await client.close()
+    results = [m["output"] for m in model.calls[2]["messages"] if m["role"] == "tool_result"]
+    assert "Ji, hello sir" in results[0] and "Namaste sir, main Anjali, Carrum Mobility" in results[0]
+    # Once the agent has said something in this reply, the path goes ahead.
+    assert results[1] == "Now at step City."
+    assert data["step"] == {"id": "s2", "name": "City"}
+    assert data["reply"] == "Ji, hello sir! Namaste, main Anjali bol rahi hoon. Sir, aap kis city mein rehte hain?"

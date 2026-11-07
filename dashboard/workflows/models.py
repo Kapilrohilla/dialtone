@@ -8,6 +8,8 @@ class Workflow(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     archived = models.BooleanField(default=False)
+    # Off: agents using this workflow don't check in on silent callers (published with the workflow).
+    dead_air_enabled = models.BooleanField(default=True)
 
     class Meta:
         ordering = ["-updated_at", "-id"]

@@ -173,6 +173,27 @@ class TeamMemberView(APIView):
         return Response(s.TeamMemberSerializer(membership).data)
 
 
+class WorkspaceView(APIView):
+    """The member's workspace (account) and its account-wide switches. Owners and admins change them."""
+
+    def get_permissions(self):
+        return [IsMember(), CanManageTeam()] if self.request.method == "PATCH" else [IsMember()]
+
+    def get(self, request):
+        return Response(s.workspace_payload(workspace_for(request)))
+
+    def patch(self, request):
+        data = s.WorkspaceUpdateSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        ws = workspace_for(request)
+        fields = list(data.validated_data)
+        for key, value in data.validated_data.items():
+            setattr(ws, key, value)
+        if fields:
+            ws.save(update_fields=fields)
+        return Response(s.workspace_payload(ws))
+
+
 class IntegrationRequestView(APIView):
     permission_classes = [IsMember]
 

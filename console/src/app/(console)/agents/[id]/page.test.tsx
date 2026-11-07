@@ -4,7 +4,7 @@ import { delay, http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 import type { AgentUpdate } from "@/lib/queries";
 import type { Agent, KnowledgeListItem, Voice } from "@/lib/types";
-import { agent as baseAgent, me, voices } from "@/test/fixtures";
+import { agent as baseAgent, me, voices, workflow as baseWorkflow } from "@/test/fixtures";
 import { setParams } from "@/test/navigation";
 import { renderWithProviders } from "@/test/render";
 import { server } from "@/test/server";
@@ -245,6 +245,33 @@ describe("agent script editor", () => {
     await user.selectOptions(workflow, "Driver onboarding");
     await waitFor(() => expect(patches.at(-1)).toEqual({ workflow: 2 }));
     expect(screen.getByRole("link", { name: "Open workflow" })).toHaveAttribute("href", "/workflows/2");
+  });
+
+  it("says when its workflow keeps check-ins off", async () => {
+    serve();
+    server.use(http.get("*/api/workflows", () => HttpResponse.json([{ ...baseWorkflow, dead_air_enabled: false }])));
+    open();
+    expect(await screen.findByText('Off in the workflow "Driver onboarding", so this agent won\'t check in.')).toBeInTheDocument();
+  });
+
+  it("says when the account keeps check-ins off, ahead of the workflow", async () => {
+    serve();
+    server.use(
+      http.get("*/api/me", () => HttpResponse.json({ ...me, workspace: { ...me.workspace, dead_air_enabled: false } })),
+      http.get("*/api/workflows", () => HttpResponse.json([{ ...baseWorkflow, dead_air_enabled: false }])),
+    );
+    open();
+    expect(await screen.findByText(/Off for the whole account, so this agent won't check in\./)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings/calls");
+    expect(screen.queryByText(/Off in the workflow/)).not.toBeInTheDocument();
+  });
+
+  it("says nothing extra when check-ins are on everywhere", async () => {
+    serve();
+    open();
+    await screen.findByRole("switch", { name: "Check in when the caller goes quiet" });
+    await screen.findByRole("option", { name: "Driver onboarding" });
+    expect(screen.queryByText(/so this agent won't check in/)).not.toBeInTheDocument();
   });
 
   it("attaches and removes knowledge", async () => {

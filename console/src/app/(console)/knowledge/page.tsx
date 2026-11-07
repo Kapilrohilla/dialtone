@@ -6,11 +6,11 @@ import { Button, Dialog, StateBlock } from "@/components/ui";
 import { TopBar } from "@/components/shell/TopBar";
 import { ApiError } from "@/lib/api";
 import type { KnowledgeDoc } from "@/lib/types";
-import { useCreateDoc, useKnowledgeDoc, useKnowledgeList, useMe, useRevisions, useSaveDoc, type DocUpdate } from "@/lib/queries";
+import { useCreateDoc, useDeleteDoc, useKnowledgeDoc, useKnowledgeList, useMe, useRevisions, useSaveDoc, type DocUpdate } from "@/lib/queries";
 import { canEdit as roleCanEdit } from "@/lib/roles";
 import { useLeaveGuard } from "@/lib/useLeaveGuard";
 import { DocEditor, type EditorMode } from "./_components/DocEditor";
-import { DocList } from "./_components/DocList";
+import { DocList, usedBy } from "./_components/DocList";
 import { UploadButton } from "./_components/UploadButton";
 import { VersionHistory } from "./_components/VersionHistory";
 import styles from "./knowledge.module.css";
@@ -63,6 +63,8 @@ function Knowledge() {
   const save = useSaveDoc(docId ?? 0, (saved, sent) => setDraft((d) => (d && d.id === saved.id ? afterSave(d, saved, sent) : d)));
   const [mode, setMode] = useState<EditorMode>("rich");
   const [history, setHistory] = useState(false);
+  const remove = useDeleteDoc();
+  const [deleting, setDeleting] = useState(false);
 
   // A newly loaded document starts a fresh draft. A newer saved revision replaces an untouched draft silently;
   // an edited one is kept and the person is told.
@@ -110,6 +112,23 @@ function Knowledge() {
   }
 
   const switchTo = (id: number) => id !== docId && guarded(() => open(id));
+
+  /** Deletes the open document (unsaved edits go with it), then opens the next one, if any. */
+  function deleteOpen(id: number) {
+    remove.mutate(id, {
+      onSuccess: () => {
+        setDeleting(false);
+        setDraft(null);
+        const next = docs?.find((d) => d.id !== id);
+        if (next) open(next.id);
+        else {
+          setSelected(undefined);
+          router.replace("/knowledge");
+        }
+      },
+      onError: () => setDeleting(false),
+    });
+  }
   const newDocument = () =>
     guarded(() => create.mutate({ title: "Untitled document", body_md: "" }, { onSuccess: (d) => open(d.id) }));
 
@@ -210,6 +229,7 @@ function Knowledge() {
               onBody={(body) => setDraft((d) => (d ? { ...d, body } : d))}
               onMode={setMode}
               onHistory={() => setHistory(true)}
+              onDelete={editable ? () => setDeleting(true) : undefined}
               onLoadTheirs={newerSaved ? loadTheirs : undefined}
             />
           )}
@@ -224,6 +244,28 @@ function Knowledge() {
           canEdit={editable}
           onRestore={restore}
         />
+      )}
+      {current && (
+        <Dialog
+          open={deleting}
+          onClose={() => setDeleting(false)}
+          title={`Delete ${current.draft.title.trim() || "this document"}?`}
+          footer={
+            <>
+              <Button onClick={() => setDeleting(false)}>Keep it</Button>
+              <Button variant="danger" loading={remove.isPending} onClick={() => deleteOpen(current.doc.id)}>
+                Delete document
+              </Button>
+            </>
+          }
+        >
+          <p className={styles.dialogText}>
+            {current.doc.used_by > 0
+              ? `${usedBy(current.doc.used_by)}. Agents stop quoting it once they are published again; until then callers still hear it.`
+              : "No agent uses it."}
+            {dirty ? " Your unsaved edits are lost too." : ""}
+          </p>
+        </Dialog>
       )}
       <Dialog
         open={pending !== null}

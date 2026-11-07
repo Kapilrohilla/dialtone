@@ -8,7 +8,7 @@ import { renderWithProviders, router } from "@/test/render";
 import { server } from "@/test/server";
 import WorkflowsPage from "./page";
 
-const second: WorkflowListItem = { id: 5, name: "Call back follow-up", updated_at: "2026-11-01T09:00:00Z", current_revision: 1 };
+const second: WorkflowListItem = { id: 5, name: "Call back follow-up", updated_at: "2026-11-01T09:00:00Z", current_revision: 1, dead_air_enabled: true };
 const agents: AgentListItem[] = [
   { ...agentListItem, id: 3, name: "Driver lead qualifier", workflow: 2 },
   { ...agentListItem, id: 4, name: "Weekend shift", workflow: 2, status: "draft" },
