@@ -791,8 +791,9 @@ async def entrypoint(ctx: JobContext) -> None:
     mood_on = mood_enabled(settings)
 
     # Record only when the egress really starts: the consent line depends on it (recording.py).
-    is_phone_call = web_test_agent is None and caller.kind == rtc.ParticipantKind.PARTICIPANT_KIND_SIP
-    wanted, why_not = recording_wanted(cfg.source, cfg.snapshot, is_phone_call)
+    # Both phone calls (SIP) and console voice tests (browser over WebRTC) are recorded.
+    is_call = web_test_agent is not None or caller.kind == rtc.ParticipantKind.PARTICIPANT_KIND_SIP
+    wanted, why_not = recording_wanted(cfg.source, cfg.snapshot, is_call)
     if wanted:
         recording, recording_error = await start_recording(ctx.api, ctx.room.name)
     else:

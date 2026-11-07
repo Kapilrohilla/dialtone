@@ -317,6 +317,19 @@ def test_runtime_recording_setting(client, workspace, rec_dir, settings, monkeyp
     assert recording() == {"enabled": False, "reason": "disk_low"}
 
 
+def test_runtime_recording_setting_reaches_voice_tests(client, workspace, rec_dir):
+    agent, _ = published_agent(workspace)
+
+    def recording():
+        res = get_config(client, agent=str(agent.id), room=f"web-{agent.id}-abcd1234")
+        assert res.status_code == 200, res.content
+        return res.json()["snapshot"]["account"]["recording"]
+
+    assert recording() == {"enabled": False, "reason": "off"}
+    Workspace.objects.filter(pk=workspace.pk).update(recording_enabled=True)
+    assert recording() == {"enabled": True, "reason": None}
+
+
 def test_owner_turns_recording_on_viewer_cannot(member, workspace):
     assert member("viewer").patch("/api/workspace", {"recording_enabled": True}, format="json").status_code == 403
     r = member("owner").patch("/api/workspace", {"recording_enabled": True}, format="json")
