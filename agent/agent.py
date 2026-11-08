@@ -75,6 +75,7 @@ from prompt import (  # noqa: F401  (re-exported: tests and callers use agent.X)
     step_block,
 )
 import voices
+from recording import RecordingHandle, recording_wanted, report_field, start_recording
 from report import build_report, send_report
 from sentiment import make_classifier
 from tone import mood_message, tone_guide
@@ -258,8 +259,11 @@ class PhoneAgent(Agent):
         language_rules: str = GEMINI_LANGUAGE_RULES,
         cfg: Config | None = None,
         pipeline: str | None = None,
+        recording: bool = False,
     ) -> None:
         self.lead = lead
+        # The call's recording started: the opening line carries the consent notice.
+        self.recording = recording
         self.language_rules = language_rules
         self.pipeline = pipeline or PIPELINE
         self.snapshot: dict | None = None
@@ -280,8 +284,8 @@ class PhoneAgent(Agent):
         # Kept so a caller-mood note can be swapped in and out without losing the base prompt. With a
         # workflow it is the current step's prompt, updated on every step change (except on Gemini
         # Live, where it stays the starting prompt and later steps arrive as tool results).
-        self.base_instructions = builtin_instructions(lead, language_rules)
-        self.opening = opening_line(lead)
+        self.base_instructions = builtin_instructions(lead, language_rules, recording)
+        self.opening = opening_line(lead, recording=recording)
         snapshot = cfg.snapshot if cfg is not None else None
         if snapshot is not None:
             try:
@@ -292,7 +296,7 @@ class PhoneAgent(Agent):
                 paths = workflow.paths_from_current() if workflow else []
                 self.snapshot, self.persona_name = snapshot, persona
                 self.base_instructions = self._snapshot_instructions(step, paths)
-                self.opening = opening_line(lead, persona)
+                self.opening = opening_line(lead, persona, recording)
                 # Every path tool of the graph, registered once: tools never change mid-call (on Gemini
                 # Live a tool update reconnects the session). The engine refuses paths not valid here.
                 path_tools = [self._path_tool(p) for p in workflow.all_path_tools()] if workflow else []
@@ -301,8 +305,8 @@ class PhoneAgent(Agent):
                 # A call must never fail because of console data: run today's built-in agent instead.
                 logger.warning("console config unusable, using the built-in prompt", exc_info=True)
                 self.snapshot = self.workflow = self.persona_name = None
-                self.base_instructions = builtin_instructions(lead, language_rules)
-                self.opening = opening_line(lead)
+                self.base_instructions = builtin_instructions(lead, language_rules, recording)
+                self.opening = opening_line(lead, recording=recording)
                 path_tools = []
         super().__init__(instructions=self.base_instructions, tools=path_tools)
         self.outcome: dict | None = None
@@ -335,7 +339,7 @@ class PhoneAgent(Agent):
             self._path_labels(paths),
             handoff_available=bool(HANDOFF_SIP_URI),
         )
-        return f"{text}\n\n{opening_instructions(self.lead, self.persona_name)}"
+        return f"{text}\n\n{opening_instructions(self.lead, self.persona_name, self.recording)}"
 
     def _path_tool(self, tool: PathTool):
         async def take_path(raw_arguments: dict) -> str:
@@ -523,8 +527,10 @@ class PhoneAgent(Agent):
 
 
 class SarvamPhoneAgent(PhoneAgent):
-    def __init__(self, lead: dict, cfg: Config | None = None, pipeline: str | None = None) -> None:
-        super().__init__(lead, language_rules=SARVAM_LANGUAGE_RULES, cfg=cfg, pipeline=pipeline)
+    def __init__(
+        self, lead: dict, cfg: Config | None = None, pipeline: str | None = None, recording: bool = False
+    ) -> None:
+        super().__init__(lead, language_rules=SARVAM_LANGUAGE_RULES, cfg=cfg, pipeline=pipeline, recording=recording)
 
     @function_tool
     async def switch_language(self, ctx: RunContext, language_code: str) -> str:
@@ -548,7 +554,11 @@ class SarvamPhoneAgent(PhoneAgent):
 
 
 def gemini_live_session(
-    lead: dict, cfg: Config = BUILTIN_CONFIG, mood_on: bool = MOOD_ENABLED, voice: str | None = None
+    lead: dict,
+    cfg: Config = BUILTIN_CONFIG,
+    mood_on: bool = MOOD_ENABLED,
+    voice: str | None = None,
+    recording: bool = False,
 ) -> tuple[AgentSession, PhoneAgent]:
     from livekit.plugins import google
 
@@ -569,7 +579,9 @@ def gemini_live_session(
     if mood_on:
         # Gemini hears the caller's tone itself; it gets the guide once instead of mid-call notes.
         rules += "\n\n" + tone_guide(handoff_available=bool(HANDOFF_SIP_URI))
-    return AgentSession(llm=llm), PhoneAgent(lead, language_rules=rules, cfg=cfg, pipeline="gemini-live")
+    return AgentSession(llm=llm), PhoneAgent(
+        lead, language_rules=rules, cfg=cfg, pipeline="gemini-live", recording=recording
+    )
 
 
 def sarvam_tts(voice: str | None = None):
@@ -595,7 +607,7 @@ def elevenlabs_tts(voice: str | None = None):
 
 
 def cascaded_session(
-    proc: JobProcess, lead: dict, tts, cfg: Config = BUILTIN_CONFIG
+    proc: JobProcess, lead: dict, tts, cfg: Config = BUILTIN_CONFIG, recording: bool = False
 ) -> tuple[AgentSession, PhoneAgent]:
     from livekit.plugins import openai, sarvam
     from livekit.plugins.turn_detector.multilingual import MultilingualModel
@@ -608,7 +620,7 @@ def cascaded_session(
         tts=tts,
         turn_handling={"turn_detection": MultilingualModel()},
     )
-    return session, SarvamPhoneAgent(lead, cfg)
+    return session, SarvamPhoneAgent(lead, cfg, recording=recording)
 
 
 def prewarm(proc: JobProcess) -> None:
@@ -691,6 +703,9 @@ async def entrypoint(ctx: JobContext) -> None:
     tracker = MoodTracker()
     behavior = BehaviorTracker()
     call_start_wall = time.time()
+    # This call's recording (egress), or why it failed to start; None/None when it wasn't attempted.
+    recording: RecordingHandle | None = None
+    recording_error: str | None = None
 
     def final_outcome() -> dict:
         # Hung up before the agent recorded anything: dropped if the driver spoke, else never connected.
@@ -738,6 +753,7 @@ async def entrypoint(ctx: JobContext) -> None:
             agent_version_id=cfg.version_id,
             step_path=step_path(),
             captured=captured_answers(agent),
+            recording=report_field(recording, recording_error),
         )
         await send_report(
             DASHBOARD_REPORT_URL, report, os.environ["LIVEKIT_API_KEY"], os.environ["LIVEKIT_API_SECRET"]
@@ -774,16 +790,26 @@ async def entrypoint(ctx: JobContext) -> None:
     settings = _settings(cfg.snapshot)
     mood_on = mood_enabled(settings)
 
+    # Record only when the egress really starts: the consent line depends on it (recording.py).
+    # Both phone calls (SIP) and console voice tests (browser over WebRTC) are recorded.
+    is_call = web_test_agent is not None or caller.kind == rtc.ParticipantKind.PARTICIPANT_KIND_SIP
+    wanted, why_not = recording_wanted(cfg.source, cfg.snapshot, is_call)
+    if wanted:
+        recording, recording_error = await start_recording(ctx.api, ctx.room.name)
+    else:
+        logger.info("call not recorded", extra={"reason": why_not})
+    recorded = recording is not None
+
     chosen = cfg.snapshot.get("voice_id") if isinstance(cfg.snapshot, dict) else None
     if PIPELINE == "sarvam":
         voice = voices.resolve(PIPELINE, chosen, os.getenv("TTS_SPEAKER", "priya"))
-        session, agent = cascaded_session(ctx.proc, lead, sarvam_tts(voice), cfg)
+        session, agent = cascaded_session(ctx.proc, lead, sarvam_tts(voice), cfg, recorded)
     elif PIPELINE == "elevenlabs":
         voice = voices.resolve(PIPELINE, chosen, os.getenv("ELEVENLABS_VOICE_ID", "EXAVITQu4vr4xnSDxMaL"))
-        session, agent = cascaded_session(ctx.proc, lead, elevenlabs_tts(voice), cfg)
+        session, agent = cascaded_session(ctx.proc, lead, elevenlabs_tts(voice), cfg, recorded)
     else:
         voice = voices.resolve(PIPELINE, chosen, os.getenv("GEMINI_VOICE", "Kore"))
-        session, agent = gemini_live_session(lead, cfg, mood_on, voice)
+        session, agent = gemini_live_session(lead, cfg, mood_on, voice, recorded)
     agent.caller_identity = caller.identity
     agent.emit = sink.add
     agent.opening_guard = True
@@ -947,6 +973,7 @@ async def entrypoint(ctx: JobContext) -> None:
             "web_test_agent": web_test_agent,
             "config": cfg.source,
             "version_id": cfg.version_id,
+            "recording": recording.egress_id if recording is not None else None,
         },
     )
 

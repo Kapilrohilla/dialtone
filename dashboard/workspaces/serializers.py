@@ -24,11 +24,13 @@ class PreferencesSerializer(serializers.ModelSerializer):
 
 
 def workspace_payload(ws):
-    return {"id": ws.id, "name": ws.name, "slug": ws.slug, "dead_air_enabled": ws.dead_air_enabled}
+    return {"id": ws.id, "name": ws.name, "slug": ws.slug, "dead_air_enabled": ws.dead_air_enabled,
+            "recording_enabled": ws.recording_enabled}
 
 
 class WorkspaceUpdateSerializer(serializers.Serializer):
     dead_air_enabled = StrictBooleanField(required=False)
+    recording_enabled = StrictBooleanField(required=False)
 
 
 def me_payload(user, membership):

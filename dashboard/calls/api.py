@@ -17,7 +17,7 @@ from asgiref.sync import async_to_sync
 from django.conf import settings
 from django.db.models import Count, F, Func, Q, Value
 from django.db.models.functions import Trim, Upper
-from django.http import Http404, HttpResponse
+from django.http import Http404, HttpResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
@@ -28,7 +28,7 @@ from voiceagents.models import Agent
 from workspaces.permissions import CanEdit, IsMember, workspace_for
 
 from . import livekit_state
-from .models import Call, CallEvent
+from .models import Call, CallEvent, Recording
 from .numbers import same_number
 from .outcomes import DISPLAY_OUTCOME, DROPPED, GROUPS, NOT_REACHED, codes_for, display_outcome
 from .serializers import (
@@ -40,6 +40,7 @@ from .serializers import (
     duration_s,
     latest,
     outcome_data,
+    recording_of,
     report_of,
     transcript,
 )
@@ -93,7 +94,7 @@ def _int(value, name, minimum=None):
 def filtered_calls(request):
     """The workspace's calls with the list filters applied, newest first; 400 on a bad filter."""
     p = request.query_params
-    qs = calls_of(request).select_related("report", "agent_version")
+    qs = calls_of(request).select_related("report", "recording", "agent_version")
     q = p.get("q", "").strip()
     if digits := re.sub(r"\D", "", q):
         qs = qs.annotate(
@@ -135,9 +136,82 @@ class CallListView(_Base):
 
 class CallDetailView(_Base):
     def get(self, request, room):
-        call = get_object_or_404(calls_of(request).select_related("report", "agent_version"), room=room)
+        call = get_object_or_404(calls_of(request).select_related("report", "recording", "agent_version"), room=room)
         events = list(CallEvent.objects.filter(call=call).order_by("seq"))
         return Response(call_detail(call, events))
+
+
+RANGE_RE = re.compile(r"^bytes=(\d*)-(\d*)$")
+CHUNK = 64 * 1024
+
+
+def byte_range(header: str, size: int):
+    """(start, end) inclusive for a single `Range: bytes=…` header; None to send the whole file; "bad" when
+    it can't be satisfied (416). Multi-range requests get the whole file (allowed by RFC 9110)."""
+    m = RANGE_RE.match((header or "").strip())
+    if not m or (not m.group(1) and not m.group(2)):
+        return None
+    first, last = m.group(1), m.group(2)
+    if first:
+        start = int(first)
+        end = min(int(last), size - 1) if last else size - 1
+        if start >= size or (last and int(last) < start):
+            return "bad"
+    else:  # suffix: the last N bytes
+        n = int(last)
+        if n == 0:
+            return "bad"
+        start, end = max(0, size - n), size - 1
+    return start, end
+
+
+def file_chunks(path, start: int, length: int):
+    with open(path, "rb") as f:
+        f.seek(start)
+        while length > 0:
+            chunk = f.read(min(CHUNK, length))
+            if not chunk:
+                return
+            length -= len(chunk)
+            yield chunk
+
+
+def recording_filename(call) -> str:
+    who = re.sub(r"\D", "", call.caller or "") or "call"
+    when = timezone.localtime(call.started_at, IST).strftime("%Y-%m-%d-%H%M") if call.started_at else call.room
+    return re.sub(r"[^A-Za-z0-9._-]", "", f"{who}-{when}.ogg")
+
+
+class CallRecordingView(_Base):
+    """The call's audio, members of its workspace only. Range requests for seeking (Safari needs them)."""
+
+    def get(self, request, room):
+        call = get_object_or_404(calls_of(request).select_related("recording"), room=room)
+        rec = recording_of(call)
+        if rec is None or rec.status != Recording.COMPLETE:
+            raise Http404("This call has no recording.")
+        path = rec.file()
+        if path is None:
+            logger.error("recording file missing", extra={"room": room, "path": rec.path})
+            raise Http404("This call has no recording.")
+        size = path.stat().st_size
+        rng = byte_range(request.headers.get("Range", ""), size) if size else None
+        if rng == "bad":
+            response = HttpResponse(status=416)
+            response["Content-Range"] = f"bytes */{size}"
+        else:
+            start, end = rng if rng else (0, size - 1)
+            length = max(0, end - start + 1)
+            body = [] if request.method == "HEAD" else file_chunks(path, start, length)
+            response = StreamingHttpResponse(body, status=206 if rng else 200, content_type="audio/ogg")
+            response["Content-Length"] = str(length)
+            if rng:
+                response["Content-Range"] = f"bytes {start}-{end}/{size}"
+        response["Accept-Ranges"] = "bytes"
+        response["Cache-Control"] = "private, no-store"
+        disposition = "attachment" if request.query_params.get("download") == "1" else "inline"
+        response["Content-Disposition"] = f'{disposition}; filename="{recording_filename(call)}"'
+        return response
 
 
 PHONE_LIKE = re.compile(r"^\+?[\d\s()-]+$")

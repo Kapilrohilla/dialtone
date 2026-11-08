@@ -7,6 +7,8 @@ class Workspace(models.Model):
     slug = models.SlugField(unique=True)
     # Account-wide switch for checking in on silent callers; off here wins over every agent and workflow.
     dead_air_enabled = models.BooleanField(default=True)
+    # Record phone calls (the caller hears a consent line). Off until an owner or admin turns it on.
+    recording_enabled = models.BooleanField(default=False)
 
     def __str__(self):
         return self.name

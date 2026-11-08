@@ -21,6 +21,37 @@ fi
 apt-get install -y make git
 [[ -n "${SUDO_USER:-}" ]] && usermod -aG docker "$SUDO_USER"
 
+# Daily retention: delete transcripts and call recordings older than 90 days (and orphaned recording
+# files). Runs as root in the dashboard container: recording files are written by the egress service.
+# Logs: journalctl -u ai-calling-purge     Dry run: docker compose exec -T dashboard python manage.py purge_old_call_data --dry-run
+if [[ -n "${SUDO_USER:-}" ]]; then
+  app_dir=$(getent passwd "$SUDO_USER" | cut -d: -f6)/ai-calling
+  cat > /etc/systemd/system/ai-calling-purge.service <<EOF
+[Unit]
+Description=ai-calling: purge call data older than 90 days
+After=docker.service
+
+[Service]
+Type=oneshot
+User=$SUDO_USER
+WorkingDirectory=$app_dir
+ExecStart=/usr/bin/docker compose exec -T -u root dashboard python manage.py purge_old_call_data
+EOF
+  cat > /etc/systemd/system/ai-calling-purge.timer <<EOF
+[Unit]
+Description=ai-calling: daily call data purge
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+  systemctl daemon-reload
+  systemctl enable --now ai-calling-purge.timer
+fi
+
 if (($# == 0)); then
   echo "no provider IPs given: skipping ufw (configure the cloud firewall instead)"
   exit 0

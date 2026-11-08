@@ -77,11 +77,11 @@ def test_calls_list_shape_and_fields(member, workspace):
     assert body["count"] == 1 and body["page"] == 1 and body["pages"] == 1
     row = body["results"][0]
     assert set(row) == {"room", "started_at", "caller", "agent_name", "outcome", "outcome_code", "mood",
-                        "duration_s", "summary"}
+                        "duration_s", "summary", "has_recording", "recording_status"}
     assert row["room"] == "r1" and row["agent_name"] == "Driver lead qualifier"
     assert row["outcome"] == "Interested" and row["outcome_code"] == "INTERESTED" and row["mood"] == "happy"
     assert row["duration_s"] == 120 and row["summary"] == "Wants the weekly plan"
-    assert row["caller"] == "+919876543210"
+    assert row["caller"] == "+919876543210" and row["has_recording"] is False and row["recording_status"] == "none"
 
 
 def test_calls_duration_fallbacks(member, workspace):

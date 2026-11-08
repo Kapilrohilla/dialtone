@@ -1,6 +1,9 @@
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
+from pathlib import Path, PurePosixPath
 
+from django.conf import settings
 from django.db import models, transaction
+from django.utils import timezone as djtz
 
 from .evaluation import EMOTIONS, UNCLEAR, align_predictions
 from .numbers import same_number, strip_nul
@@ -196,6 +199,7 @@ class CallReport(models.Model):
                     at_s=row["at_s"],
                     defaults={"caller_text": row["caller_text"], "predicted": row["predicted"]},
                 )
+        Recording.from_report(call.room, report.get("recording"))
         return obj
 
 
@@ -234,3 +238,160 @@ class CallEvent(models.Model):
 
     def __str__(self) -> str:
         return f"{self.call.room} #{self.seq} {self.type}"
+
+
+def _ns(value) -> datetime | None:
+    """A LiveKit nanosecond epoch as an aware datetime; None for 0/missing/bad values."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
+        return None
+    try:
+        return datetime.fromtimestamp(value / 1e9, timezone.utc)
+    except (OverflowError, OSError, ValueError):
+        return None
+
+
+def recording_relpath(filename: str) -> str:
+    """A recording's path relative to RECORDINGS_DIR, from the egress file name (an absolute path inside
+    the egress container). "" when it isn't a plain path under the recordings directory."""
+    filename = str(filename or "").strip()
+    for root in (settings.EGRESS_RECORDINGS_DIR, str(settings.RECORDINGS_DIR)):
+        prefix = root.rstrip("/") + "/"
+        if filename.startswith(prefix):
+            filename = filename[len(prefix):]
+            break
+    else:
+        if filename.startswith("/"):
+            return ""
+    parts = PurePosixPath(filename).parts
+    if not parts or any(p in ("", ".", "..") for p in parts):
+        return ""
+    return str(PurePosixPath(*parts))
+
+
+class Recording(models.Model):
+    """A call's audio recording (LiveKit Egress), tracked from egress webhooks and the agent's report."""
+
+    STARTING, RECORDING, COMPLETE, FAILED, PURGED = "starting", "recording", "complete", "failed", "purged"
+    STATUSES = [(s, s) for s in (STARTING, RECORDING, COMPLETE, FAILED, PURGED)]
+    FINAL = {COMPLETE, FAILED, PURGED}
+    # Recording started but no egress_ended arrived this long after the call ended: settle from the file.
+    RECONCILE_AFTER = timedelta(minutes=10)
+
+    call = models.OneToOneField(Call, on_delete=models.CASCADE, related_name="recording")
+    egress_id = models.CharField(max_length=64, unique=True, null=True, blank=True)
+    status = models.CharField(max_length=16, choices=STATUSES, default=STARTING, db_index=True)
+    path = models.CharField(max_length=512, blank=True)  # relative to settings.RECORDINGS_DIR
+    duration_ms = models.PositiveIntegerField(null=True, blank=True)
+    size_bytes = models.PositiveBigIntegerField(null=True, blank=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    ended_at = models.DateTimeField(null=True, blank=True)
+    error = models.TextField(blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self) -> str:
+        return f"recording of {self.call.room} ({self.status})"
+
+    def file(self) -> Path | None:
+        """The recording file on disk, if this recording has one and it exists inside RECORDINGS_DIR."""
+        rel = recording_relpath(self.path)
+        if not rel:
+            return None
+        root = Path(settings.RECORDINGS_DIR).resolve()
+        path = (root / rel).resolve()
+        if not path.is_relative_to(root) or not path.is_file():
+            return None
+        return path
+
+    @classmethod
+    @transaction.atomic
+    def _for(cls, room: str, egress_id: str) -> "Recording":
+        call = Call.record_first(room)
+        rec = cls.objects.select_for_update().filter(call=call).first()
+        if rec is None and egress_id:
+            rec = cls.objects.select_for_update().filter(egress_id=egress_id).first()
+        if rec is None:
+            rec = cls(call=call)
+        if egress_id and not rec.egress_id:
+            rec.egress_id = egress_id
+        return rec
+
+    @classmethod
+    def from_egress(cls, info) -> "Recording | None":
+        """Apply an egress webhook (EgressInfo). Idempotent; a final status is never moved back by a late
+        or repeated event. None when the event names no room."""
+        from livekit.protocol.egress import EgressStatus
+
+        room = strip_nul(info.room_name or "")
+        if not room:
+            return None
+        with transaction.atomic():
+            rec = cls._for(room, strip_nul(info.egress_id or ""))
+            status = info.status
+            if status in (EgressStatus.EGRESS_STARTING, EgressStatus.EGRESS_ACTIVE, EgressStatus.EGRESS_ENDING):
+                if rec.status not in cls.FINAL:
+                    rec.status = cls.RECORDING if status != EgressStatus.EGRESS_STARTING else rec.status
+                rec.started_at = rec.started_at or _ns(info.started_at)
+            elif status == EgressStatus.EGRESS_COMPLETE or status == EgressStatus.EGRESS_LIMIT_REACHED:
+                if rec.status != cls.PURGED:
+                    files = list(info.file_results)
+                    f = files[0] if files else None
+                    if f is not None and recording_relpath(f.filename):
+                        rec.status = cls.COMPLETE
+                        rec.path = recording_relpath(f.filename)
+                        rec.size_bytes = max(0, int(f.size)) or None
+                        rec.duration_ms = max(0, int(f.duration) // 1_000_000) or None
+                        # The file's own start lines transcript times up best; else when the egress started.
+                        rec.started_at = _ns(f.started_at) or rec.started_at or _ns(info.started_at)
+                        rec.error = ""
+                    else:
+                        rec.status = cls.FAILED
+                        rec.error = strip_nul(info.error) or "egress ended without a file"
+                    rec.ended_at = _ns(info.ended_at) or djtz.now()
+            elif status in (EgressStatus.EGRESS_FAILED, EgressStatus.EGRESS_ABORTED):
+                if rec.status not in (cls.COMPLETE, cls.PURGED):
+                    rec.status = cls.FAILED
+                    rec.error = strip_nul(info.error) or EgressStatus.Name(status).lower()
+                    rec.ended_at = _ns(info.ended_at) or djtz.now()
+            rec.save()
+        return rec
+
+    @classmethod
+    def from_report(cls, room: str, data) -> "Recording | None":
+        """The agent's report["recording"]: {"egress_id", "started_at" (epoch s), "filepath", "error"}.
+        Links the egress to the call even when webhooks come late or never; never overrides webhook data."""
+        if not isinstance(data, dict):
+            return None
+        egress_id = data.get("egress_id") if isinstance(data.get("egress_id"), str) else ""
+        error = data.get("error") if isinstance(data.get("error"), str) else ""
+        if not egress_id and not error:
+            return None
+        with transaction.atomic():
+            rec = cls._for(room, egress_id[:64])
+            if not egress_id and rec.status not in cls.FINAL:
+                rec.status = cls.FAILED
+            if error and not rec.error and rec.status == cls.FAILED:
+                rec.error = error[:2000]
+            started = data.get("started_at")
+            if rec.started_at is None and isinstance(started, (int, float)) and not isinstance(started, bool):
+                rec.started_at = _ns(started * 1e9)
+            filepath = data.get("filepath")
+            if not rec.path and rec.status != cls.PURGED and isinstance(filepath, str):
+                rec.path = recording_relpath(filepath)
+            rec.save()
+        return rec
+
+    def reconcile(self) -> None:
+        """A recording stuck in starting/recording long after its call ended (egress_ended lost): settle it
+        from the file on disk, else mark it failed."""
+        if self.status in self.FINAL:
+            return
+        ended = self.call.ended_at
+        if ended is None or djtz.now() - ended < self.RECONCILE_AFTER:
+            return
+        path = self.file()
+        if path is not None:
+            self.status, self.size_bytes = self.COMPLETE, path.stat().st_size
+        else:
+            self.status, self.error = self.FAILED, self.error or "no egress result after the call ended"
+        self.ended_at = self.ended_at or ended
+        self.save(update_fields=["status", "size_bytes", "error", "ended_at", "updated_at"])

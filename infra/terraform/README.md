@@ -37,7 +37,7 @@ Common changes:
 
 - **Open SIP to your provider:** in `terraform.tfvars`, set `sip_provider_cidrs = ["1.2.3.4/32", ...]`.
 - **Resize the VM:** set `machine_type = "e2-standard-4"`. The VM stops briefly; the static IP stays.
-- **Grow the disk:** increase `boot_disk_size_gb`.
+- **Grow the disk:** increase `boot_disk_size_gb` (100 GB now; call recordings live on it). GCP disks only grow; shrinking means a new disk.
 
 ## Not managed here
 

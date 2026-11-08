@@ -20,6 +20,8 @@ export type StepPanelProps = {
   onPathChange: (id: string, patch: Partial<Omit<Path, "id">>) => void;
   onPathRemove: (id: string) => void;
   onDelete: () => void;
+  /** "Suggest more answers" under "Then go to"; editors only. */
+  onSuggest?: () => void;
   /** Settings for the whole workflow, shown while no step is selected. */
   workflowSettings?: ReactNode;
 };
@@ -53,7 +55,7 @@ export function StepPanel(props: StepPanelProps) {
       <Field label="Step name" value={step.name} maxLength={80} readOnly={readOnly} onChange={(e) => props.onChange({ name: e.target.value })} />
       <Says key={step.id} {...props} step={step} />
       <TypeFields {...props} step={step} />
-      <PathRows step={step} graph={graph} readOnly={readOnly} onAdd={props.onAddPath} onChange={props.onPathChange} onRemove={props.onPathRemove} />
+      <PathRows step={step} graph={graph} readOnly={readOnly} onAdd={props.onAddPath} onChange={props.onPathChange} onRemove={props.onPathRemove} onSuggest={props.onSuggest} />
       {!readOnly && (
         <Disclosure>
           <div className={styles.advanced}>

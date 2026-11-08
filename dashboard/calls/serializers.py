@@ -4,7 +4,9 @@ Report data and event payloads are written by the agent and never validated, so 
 defensive: anything of the wrong type is treated as missing rather than raising.
 """
 
-from .models import CallEvent, CallReport
+from urllib.parse import quote
+
+from .models import CallEvent, CallReport, Recording
 from .outcomes import display_outcome
 
 # The report outcome keys that answer qualification questions (agent.py record_outcome); the rest
@@ -26,6 +28,43 @@ def report_of(call):
         return call.report
     except CallReport.DoesNotExist:
         return None
+
+
+def recording_of(call):
+    try:
+        return call.recording
+    except Recording.DoesNotExist:
+        return None
+
+
+# Recording.status -> what the console shows. starting/recording read as "processing".
+RECORDING_STATUS = {
+    Recording.STARTING: "processing",
+    Recording.RECORDING: "processing",
+    Recording.COMPLETE: "complete",
+    Recording.FAILED: "failed",
+    Recording.PURGED: "purged",
+}
+
+
+def recording_fields(call) -> dict:
+    """recording_url/status/duration/started_at for the call detail. Stats the file once."""
+    rec = recording_of(call)
+    if rec is not None:
+        rec.reconcile()
+    status = RECORDING_STATUS.get(rec.status, "none") if rec else "none"
+    url = None
+    if status == "complete":
+        if rec.file() is not None:
+            url = f"/api/calls/{quote(call.room, safe='')}/recording"
+        else:
+            status = "failed"
+    return {
+        "recording_url": url,
+        "recording_status": status,
+        "recording_duration_s": round(rec.duration_ms / 1000, 1) if url and rec.duration_ms else None,
+        "recording_started_at": rec.started_at if url else None,
+    }
 
 
 def outcome_data(call) -> dict:
@@ -50,8 +89,9 @@ def agent_name(call):
 
 
 def call_row(call) -> dict:
-    """One row of the calls list. Needs `report` and `agent_version` loaded (select_related)."""
+    """One row of the calls list. Needs `report`, `recording` and `agent_version` loaded (select_related)."""
     report = report_of(call)
+    rec = recording_of(call)
     code = report.disposition if report else ""
     return {
         "room": call.room,
@@ -63,6 +103,9 @@ def call_row(call) -> dict:
         "mood": report.final_mood if report else "",
         "duration_s": duration_s(call),
         "summary": _text(outcome_data(call).get("summary")),
+        "has_recording": rec is not None and rec.status == Recording.COMPLETE,
+        # No file check here (one per row would be slow); the detail view checks the file.
+        "recording_status": RECORDING_STATUS.get(rec.status, "none") if rec else "none",
     }
 
 
@@ -136,5 +179,5 @@ def call_detail(call, events) -> dict:
         "answers": answers,
         "step_path": step_path,
         "transcript": transcript(events),
-        "recording_url": None,  # recordings arrive in plan 4
+        **recording_fields(call),
     }

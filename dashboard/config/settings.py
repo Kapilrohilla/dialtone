@@ -31,6 +31,10 @@ AGENT_SIM_URL = os.getenv("AGENT_SIM_URL", "http://127.0.0.1:8790")
 # browser connects to. The default works with `make tunnel`, which forwards port 7880.
 AGENT_NAME = os.getenv("AGENT_NAME", "phone-agent")
 LIVEKIT_PUBLIC_URL = os.getenv("LIVEKIT_PUBLIC_URL", "ws://localhost:7880")
+# Workflow builder "Suggest with AI": Gemini proposes other caller answers and expressions (workflows/suggest.py).
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
+SUGGEST_LLM_MODEL = os.getenv("SUGGEST_LLM_MODEL", "gemini-2.5-flash")
+SUGGEST_DAILY_LIMIT = int(os.getenv("SUGGEST_DAILY_LIMIT", "20"))  # runs per workspace per day; failed runs don't count
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -78,8 +82,14 @@ TEMPLATES = [
 
 ASGI_APPLICATION = "config.asgi.application"
 
-# Directory for files the dashboard keeps (recordings, later). The database is PostgreSQL.
+# Directory for files the dashboard keeps (call recordings). The database is PostgreSQL.
 DB_DIR = Path(os.getenv("DASHBOARD_DB_DIR", "/data"))
+# Call recordings: written by the egress service into the same volume, served only by the dashboard.
+RECORDINGS_DIR = DB_DIR / "recordings"
+# Where the egress service writes RECORDINGS_DIR inside its own container (the agent asks for this path).
+EGRESS_RECORDINGS_DIR = "/data/recordings"
+# Below this much free disk, new calls are not recorded (the runtime config tells the agent).
+RECORDING_MIN_FREE_BYTES = int(os.getenv("RECORDING_MIN_FREE_GB", "2")) * 1024**3
 
 if not os.getenv("POSTGRES_PASSWORD"):
     raise ImproperlyConfigured("POSTGRES_PASSWORD is not set (scripts/init.sh generates it in .env)")

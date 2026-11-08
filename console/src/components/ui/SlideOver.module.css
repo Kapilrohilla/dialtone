@@ -11,6 +11,8 @@
   border-left: 1px solid var(--border);
   animation: slide 0.16s ease-out;
 }
+.wide { width: min(520px, 100vw); }
+.title { margin: 0; min-width: 0; }
 .header { display: flex; align-items: center; justify-content: space-between; padding: 16px var(--gutter); border-bottom: 1px solid var(--border); }
 .close { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: 0; border-radius: var(--radius); background: none; color: var(--ink-2); }
 .close:hover { background: var(--well); }

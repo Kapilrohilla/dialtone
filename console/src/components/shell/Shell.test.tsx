@@ -16,6 +16,9 @@ describe("shell", () => {
     expect(screen.getByText("Carrum Mobility")).toBeInTheDocument();
     expect(screen.getByText("Kapil Rohilla")).toBeInTheDocument();
     expect(screen.getByText("Soon")).toBeInTheDocument();
+    expect(screen.getByText("CM")).toBeInTheDocument();
+    expect(screen.getByText("KR")).toBeInTheDocument();
+    expect(screen.getByText("Owner")).toBeInTheDocument();
   });
 
   it("sidebar shows the live count only when calls are live", async () => {
@@ -53,11 +56,13 @@ describe("shell", () => {
     }));
     const user = userEvent.setup();
     open();
-    await user.click(await screen.findByRole("button", { name: "Switch to dark" }));
+    const toggle = await screen.findByRole("switch", { name: "Dark mode" });
+    expect(toggle).toHaveAttribute("aria-checked", "false");
+    await user.click(toggle);
     expect(document.documentElement.dataset.theme).toBe("dark");
     expect(document.cookie).toContain("cv_theme=dark");
     await waitFor(() => expect(body).toEqual({ preferences: { appearance: "dark" } }));
-    expect(await screen.findByRole("button", { name: "Switch to light" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("switch", { name: "Dark mode" })).toHaveAttribute("aria-checked", "true"));
   });
 
   it("syncs the theme cookie from the saved preference", async () => {
