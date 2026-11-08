@@ -77,11 +77,30 @@ def long_pause_errors(body: str) -> list[str]:
     return out
 
 
+MIN_PAUSE_SECONDS = 0.2  # the console's MIN_PAUSE_S
+
+
+def short_pause_errors(body: str) -> list[str]:
+    out: list[str] = []
+    for t in parse(body):
+        if isinstance(t, ExprToken) and t.name == "pause" and t.seconds is not None \
+                and t.seconds < MIN_PAUSE_SECONDS:
+            msg = f"Pause is too short ({t.seconds:g} s). Use at least {MIN_PAUSE_SECONDS:g} seconds."
+            if msg not in out:
+                out.append(msg)
+    return out
+
+
 def _hint(t: ExprToken, custom: dict[str, str]) -> str | None:
     if t.name in BUILTIN_EXPRESSIONS:
         seconds = 1.0 if t.seconds is None else t.seconds
         return BUILTIN_EXPRESSIONS[t.name].format(seconds=f"{seconds:g}")
     return custom.get(t.name)
+
+
+# A pause is rendered as an ellipsis, which voice models perform as a pause. Rendered as a worded hint, the
+# realtime voice model read it aloud ("pause 1 second") instead of pausing.
+PAUSE_CUE = "..."
 
 
 def render_hints(body: str, custom: dict[str, str]) -> str:
@@ -91,6 +110,8 @@ def render_hints(body: str, custom: dict[str, str]) -> str:
             parts.append(t.text)
         elif isinstance(t, VarToken):
             parts.append("{{" + t.path + "}}")
+        elif t.name == "pause":
+            parts.append(PAUSE_CUE)
         else:
             hint = _hint(t, custom)
             if hint is not None:

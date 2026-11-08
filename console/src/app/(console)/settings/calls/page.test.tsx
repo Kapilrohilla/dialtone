@@ -57,3 +57,25 @@ describe("calls settings", () => {
     expect(screen.getByText("Only owners and admins can change this.")).toBeInTheDocument();
   });
 });
+
+describe("recording switch", () => {
+  const record = () => screen.getByRole("switch", { name: "Record calls" });
+
+  it("turns recording on from the next call", async () => {
+    const { patches } = serve("owner");
+    const { queryClient } = renderWithProviders(<CallsSettingsPage />, { route: "/settings/calls" });
+    expect(await screen.findByRole("heading", { name: "Recording" })).toBeInTheDocument();
+    expect(record()).toHaveAttribute("aria-checked", "false");
+    await userEvent.setup().click(record());
+    expect(await screen.findByText("Calls are recorded from the next call.")).toBeInTheDocument();
+    expect(patches).toEqual([{ recording_enabled: true }]);
+    expect(queryClient.getQueryData<Me>(["me"])?.workspace.recording_enabled).toBe(true);
+  });
+
+  it("is read-only for editors", async () => {
+    serve("editor");
+    renderWithProviders(<CallsSettingsPage />, { route: "/settings/calls" });
+    await screen.findByRole("heading", { name: "Recording" });
+    expect(record()).toBeDisabled();
+  });
+});

@@ -30,6 +30,18 @@ export default function CallsSettingsPage() {
 
   const canChange = canManageTeam(me.role);
   const sending = update.isPending ? update.variables?.dead_air_enabled : undefined;
+  const sendingRecording = update.isPending ? update.variables?.recording_enabled : undefined;
+
+  function setRecording(next: boolean) {
+    update.mutate(
+      { recording_enabled: next },
+      {
+        onSuccess: (ws) =>
+          toast.show(ws.recording_enabled ? "Calls are recorded from the next call." : "Calls aren't recorded from the next call.", "ok"),
+        onError: (e) => toast.show(e instanceof ApiError ? e.detail : "Could not save.", "bad"),
+      },
+    );
+  }
 
   function setCheckIns(next: boolean) {
     update.mutate(
@@ -52,6 +64,21 @@ export default function CallsSettingsPage() {
       <TopBar title="Call handling" />
       <div className={styles.page}>
         <Panel>
+          <section className={styles.section} aria-labelledby="recording-h">
+            <h2 id="recording-h">Recording</h2>
+            <div className={styles.switches}>
+              <Switch
+                label="Record calls"
+                checked={sendingRecording ?? me.workspace.recording_enabled}
+                disabled={!canChange || update.isPending}
+                onChange={setRecording}
+              />
+            </div>
+            <p className={styles.note}>
+              Callers hear &ldquo;यह call quality के लिए record हो रही है।&rdquo; at the start. Recordings show in Call history and are
+              kept for 90 days. Phone calls and browser voice tests are both recorded. Changes reach the next call.
+            </p>
+          </section>
           <section className={styles.section} aria-labelledby="silent-h" style={{ borderBottom: 0, paddingBottom: 0 }}>
             <h2 id="silent-h">Silent callers</h2>
             <div className={styles.switches}>

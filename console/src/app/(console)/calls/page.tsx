@@ -1,13 +1,14 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
+import type { PlaybackState } from "@/components/recording/useRecording";
 import { TopBar } from "@/components/shell/TopBar";
 import { Button, StateBlock } from "@/components/ui";
 import { ApiError } from "@/lib/api";
 import { shiftDay, todayIn } from "@/lib/format";
 import { callsQuery, useCalls, useMe, type CallFilters } from "@/lib/queries";
-import { CallSlideOver } from "./_components/CallSlideOver";
+import { CallSlideOver, type PlaybackControls } from "./_components/CallSlideOver";
 import { CallsTable } from "./_components/CallsTable";
 import { DateRange } from "./_components/DateRange";
 import { Filters } from "./_components/Filters";
@@ -47,6 +48,10 @@ function Calls() {
     page: Math.max(1, Number.parseInt(params.get("page") ?? "1", 10) || 1),
   };
   const room = params.get("room");
+  // The open call's player, shared with its table row.
+  const [playback, setPlayback] = useState<PlaybackState | null>(null);
+  const [autoplayRoom, setAutoplayRoom] = useState<string | null>(null);
+  const controls = useRef<PlaybackControls | null>(null);
 
   const href = (next: CallFilters, withRoom = room) => {
     const query = callsQuery(next);
@@ -112,6 +117,16 @@ function Calls() {
         stale={calls.isPlaceholderData}
         onOpen={(next) => router.push(href(filters, next), { scroll: false })}
         onPage={(page) => change({ page })}
+        openRoom={room}
+        playback={playback}
+        onPlay={(next) => {
+          if (next === room && controls.current) {
+            controls.current.toggle();
+          } else {
+            setAutoplayRoom(next);
+            router.push(href(filters, next), { scroll: false });
+          }
+        }}
       />
     );
   }
@@ -131,7 +146,20 @@ function Calls() {
         <Filters filters={filters} anyFilter={anyFilter} error={filterError} onChange={change} onClear={clearFilters} />
         {body}
       </div>
-      {room && <CallSlideOver key={room} room={room} timeZone={timeZone} onClose={() => router.replace(href(filters, null), { scroll: false })} />}
+      {room && (
+        <CallSlideOver
+          key={room}
+          room={room}
+          timeZone={timeZone}
+          autoplay={autoplayRoom === room}
+          onPlayback={setPlayback}
+          controls={controls}
+          onClose={() => {
+            setAutoplayRoom(null);
+            router.replace(href(filters, null), { scroll: false });
+          }}
+        />
+      )}
     </>
   );
 }

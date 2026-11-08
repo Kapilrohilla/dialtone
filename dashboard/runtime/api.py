@@ -3,8 +3,10 @@
 import json
 import logging
 import math
+import shutil
 from datetime import datetime, timezone
 
+from django.conf import settings
 from django.db import transaction
 from django.http import JsonResponse
 from django.utils import timezone as djtz
@@ -51,6 +53,22 @@ def find_published(number: str):
     return None
 
 
+def recording_setting(workspace) -> dict:
+    """Whether the agent should record this call: the workspace switch, unless the disk is nearly full."""
+    if not workspace.recording_enabled:
+        return {"enabled": False, "reason": "off"}
+    try:
+        settings.RECORDINGS_DIR.mkdir(mode=0o750, parents=True, exist_ok=True)
+        free = shutil.disk_usage(settings.RECORDINGS_DIR).free
+    except OSError:
+        logger.warning("can't check free space for recordings", exc_info=True)
+        return {"enabled": False, "reason": "disk_low"}
+    if free < settings.RECORDING_MIN_FREE_BYTES:
+        logger.warning("recording skipped: only %d MB free for recordings", free // 2**20)
+        return {"enabled": False, "reason": "disk_low"}
+    return {"enabled": True, "reason": None}
+
+
 def _draft_config(agent_id: str, room: str):
     """A voice test (console, browser over WebRTC): the agent's draft, only ever for a `web-…` room."""
     if not is_web_room(room) or not agent_id.isdigit():
@@ -65,11 +83,13 @@ def _draft_config(agent_id: str, room: str):
         return JsonResponse(NOT_FOUND_DRAFT, status=404)
     Call.record_first(room[:255], workspace=agent.workspace, caller=WEB_CALLER)
     # build_snapshot only reads: the draft is never saved as a version.
+    # The account recording switch applies to voice tests too, so they can be played back in Call history.
+    snapshot = {**build_snapshot(agent, 0), "account": {"recording": recording_setting(agent.workspace)}}
     return JsonResponse({
         "version_id": None,
         "draft": True,
         "workspace": agent.workspace.slug,
-        "snapshot": build_snapshot(agent, 0),
+        "snapshot": snapshot,
     })
 
 
@@ -90,7 +110,10 @@ def config(request):
         # First value wins: a call keeps the version it started with.
         Call.record_first(room[:255], workspace=agent.workspace, agent_version=version)
     # Account switches reach the next call without a republish: added here, never stored in the version.
-    snapshot = {**version.snapshot, "account": {"dead_air_enabled": agent.workspace.dead_air_enabled}}
+    snapshot = {**version.snapshot, "account": {
+        "dead_air_enabled": agent.workspace.dead_air_enabled,
+        "recording": recording_setting(agent.workspace),
+    }}
     return JsonResponse({"version_id": version.id, "workspace": agent.workspace.slug, "snapshot": snapshot})
 
 

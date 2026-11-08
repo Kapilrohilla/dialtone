@@ -14,7 +14,7 @@ import {
 import "@xyflow/react/dist/base.css";
 import { Maximize, Minus, Plus } from "lucide-react";
 import { useMemo, useState, type KeyboardEvent } from "react";
-import type { Graph, StepType } from "@/lib/types";
+import type { AnswerSuggestion, Graph, StepType } from "@/lib/types";
 import { AddStepMenu } from "./AddStepMenu";
 import { toFlow, type StepFlowNode } from "./graph";
 import { StepNode } from "./StepNode";
@@ -32,6 +32,8 @@ export type CanvasProps = {
   onAdd: (type: StepType) => void;
   /** Delete or Backspace on the selected step; the page asks first. */
   onDelete: (id: string) => void;
+  /** Pending "Suggest with AI" answers, drawn dashed. They are not part of the graph. */
+  drafts?: AnswerSuggestion[];
 };
 
 /** The workflow as cards and labelled paths. The graph is the source of truth; React Flow only keeps sizes. */
@@ -61,8 +63,8 @@ function canConnect(graph: Graph, from: string | null, to: string | null) {
 const isTyping = (el: EventTarget | null) =>
   el instanceof HTMLElement && (el.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName));
 
-function Flow({ graph, selectedId, readOnly, onSelect, onMove, onConnect, onAdd, onDelete }: CanvasProps) {
-  const flow = useMemo(() => toFlow(graph, selectedId ?? undefined), [graph, selectedId]);
+function Flow({ graph, selectedId, readOnly, onSelect, onMove, onConnect, onAdd, onDelete, drafts }: CanvasProps) {
+  const flow = useMemo(() => toFlow(graph, selectedId ?? undefined, drafts), [graph, selectedId, drafts]);
   const [nodes, setNodes] = useState(flow.nodes);
   const [shown, setShown] = useState(flow);
   if (shown !== flow) {

@@ -1,0 +1,124 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 20px 18px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--ink) 3%, var(--panel));
+}
+
+.header { display: flex; align-items: center; gap: 10px; min-height: 28px; }
+.title { margin: 0; font-size: 15px; font-weight: 600; color: var(--ink); }
+.loadingNote { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: var(--muted); font-size: 14px; }
+.badge {
+  display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px;
+  border: 1px solid var(--border); border-radius: 6px; background: var(--well); color: var(--ink-2); font-size: 12px; font-weight: 500;
+}
+.badgePlaying { border-color: transparent; background: var(--amber-tint); color: var(--amber); }
+.headerActions { display: inline-flex; gap: 2px; margin-left: auto; }
+.iconButton {
+  display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0;
+  border: 0; border-radius: var(--radius); background: none; color: var(--ink-2); cursor: pointer;
+}
+.iconButton:hover:not(:disabled) { background: var(--well); color: var(--ink); }
+.iconButton:disabled { opacity: 0.45; cursor: default; }
+
+/* Waveform. The bubble above the playhead shows the elapsed time. */
+.waveWrap { position: relative; padding-top: 30px; }
+.wave { position: relative; display: flex; align-items: center; gap: 2px; height: 64px; cursor: pointer; touch-action: none; }
+.wave:focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; border-radius: 4px; }
+.bar { flex: 1 1 0; min-width: 2px; border-radius: 2px; background: var(--rule-strong); }
+.barPlayed { background: var(--amber); }
+.playhead { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: var(--amber); border-radius: 1px; pointer-events: none; }
+.bubble {
+  position: absolute; top: 0; transform: translateX(-50%); padding: 1px 7px;
+  border: 1px solid color-mix(in srgb, var(--amber) 55%, transparent); border-radius: 5px;
+  background: var(--amber-tint); color: var(--amber); font-size: 12px; line-height: 18px; white-space: nowrap; pointer-events: none;
+}
+.waveLoading { padding-top: 12px; }
+.waveLoading .wave { cursor: default; opacity: 0.55; }
+.loadingRule { display: block; height: 3px; margin-top: 12px; border-radius: 2px; background: var(--border); }
+
+/* Who spoke when. */
+.turnBar { position: relative; height: 4px; }
+.turn { position: absolute; top: 0; bottom: 0; border-radius: 2px; box-shadow: inset -3px 0 0 color-mix(in srgb, var(--ink) 3%, var(--panel)); }
+.turnCaller { background: var(--amber); }
+.turnAgent { background: var(--blue); }
+.legend { display: flex; align-items: center; gap: 14px; margin-top: -4px; color: var(--muted); font-size: 13px; }
+.legendItem { display: inline-flex; align-items: center; gap: 6px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; }
+.turns { margin-left: auto; }
+
+/* Controls. */
+.controls { display: flex; align-items: center; gap: 8px; padding-top: 6px; }
+.skip {
+  position: relative; display: inline-flex; flex: none; align-items: center; justify-content: center; width: 34px; height: 34px; padding: 0;
+  border: 0; border-radius: 50%; background: none; color: var(--ink-2); cursor: pointer;
+}
+.skip:hover:not(:disabled) { background: var(--well); color: var(--ink); }
+.skip:disabled, .play:disabled { opacity: 0.5; cursor: default; }
+.skipNum { position: absolute; font-size: 8px; font-weight: 700; line-height: 1; transform: translateY(1px); }
+.play {
+  display: inline-flex; flex: none; align-items: center; justify-content: center; width: 50px; height: 50px; padding: 0;
+  border: 1px solid var(--rule-strong); border-radius: 50%; background: var(--well); color: var(--ink); cursor: pointer;
+}
+.play:hover:not(:disabled) { border-color: var(--amber); }
+.playActive { border-color: var(--amber); color: var(--amber); }
+.time { flex: none; font-size: 14px; color: var(--ink); white-space: nowrap; }
+
+.speed { position: relative; }
+.speedButton {
+  display: inline-flex; align-items: center; gap: 4px; height: 30px; padding: 0 8px;
+  border: 1px solid var(--border); border-radius: 6px; background: var(--panel); color: var(--ink); font-size: 13px; cursor: pointer;
+}
+.speedButton:disabled { opacity: 0.5; cursor: default; }
+.speedMenu {
+  position: absolute; z-index: 5; top: calc(100% + 6px); right: -60px; display: flex; flex-direction: column; min-width: 200px; padding: 6px;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); box-shadow: 0 8px 24px rgb(0 0 0 / 0.25);
+}
+.speedHeading { margin: 4px 10px 6px; color: var(--muted); font-size: 12px; font-family: var(--font-sans); }
+.speedItem {
+  display: flex; align-items: center; justify-content: space-between; height: 34px; padding: 0 10px;
+  border: 0; border-radius: 6px; background: none; color: var(--ink); font-size: 14px; text-align: left; cursor: pointer;
+}
+.speedItem:hover, .speedItem:focus-visible { background: var(--well); outline: none; }
+.speedCurrent { background: var(--amber-tint); color: var(--amber); }
+.speedCurrent:hover, .speedCurrent:focus-visible { background: var(--amber-tint); }
+
+.volume { display: inline-flex; flex: 0 1 auto; align-items: center; gap: 2px; min-width: 0; margin-left: auto; }
+.volumeRange {
+  --fill: 100%;
+  width: 56px; min-width: 24px; flex: 0 1 56px; height: 4px; margin: 0; appearance: none; border-radius: 2px; cursor: pointer;
+  background: linear-gradient(to right, var(--ink-2) var(--fill), var(--border) var(--fill));
+}
+.volumeRange::-webkit-slider-thumb { appearance: none; width: 10px; height: 10px; border-radius: 50%; background: var(--ink); }
+.volumeRange::-moz-range-thumb { width: 10px; height: 10px; border: 0; border-radius: 50%; background: var(--ink); }
+.volumeRange:disabled { opacity: 0.5; cursor: default; }
+
+/* Error and processing cards. */
+.notice { flex-direction: row; flex-wrap: wrap; align-items: flex-start; gap: 14px; }
+.noticeIcon { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: var(--radius); }
+.bad { background: var(--bad-tint); color: var(--bad); }
+.blue { background: var(--blue-tint); color: var(--blue); }
+.noticeText { flex: 1; min-width: 0; }
+.noticeTitle { margin: 0 0 4px; font-size: 16px; font-weight: 600; color: var(--ink); }
+.noticeBody { margin: 0; font-size: 14px; line-height: 1.45; color: var(--muted); }
+.processing { padding-bottom: 20px; }
+.indeterminate { position: relative; flex-basis: 100%; height: 4px; overflow: hidden; border-radius: 2px; background: var(--border); }
+.indeterminate::after {
+  content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 40%; border-radius: 2px; background: var(--blue);
+  animation: sweep 1.6s ease-in-out infinite;
+}
+@keyframes sweep { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+@media (prefers-reduced-motion: reduce) { .indeterminate::after { animation: none; } }
+
+/* No recording. */
+.group { display: flex; flex-direction: column; gap: 10px; }
+.groupTitle { margin: 0; font-size: 15px; font-weight: 600; color: var(--ink); }
+.empty {
+  display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 24px 20px; text-align: center;
+  border: 1px dashed var(--rule-strong); border-radius: 12px;
+}
+.emptyIcon { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; margin-bottom: 8px; border-radius: 50%; background: var(--well); color: var(--muted); }
+.emptyTitle { margin: 0; font-size: 17px; font-weight: 600; color: var(--ink); }

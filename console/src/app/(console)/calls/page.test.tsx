@@ -61,7 +61,8 @@ describe("call history", () => {
     const row = (await screen.findByRole("button", { name: /Open call from \+91 80 4718 2290/ })).closest("tr")!;
     expect(within(row).getByText("Interested")).toBeInTheDocument();
     expect(within(row).getByText("Happy")).toBeInTheDocument();
-    expect(within(row).getByText("2:05")).toBeInTheDocument();
+    expect(within(row).getByText("02:05")).toBeInTheDocument();
+    expect(within(row).getByText("No recording")).toBeInTheDocument();
     expect(within(row).getByText(callRow.summary)).toBeInTheDocument();
   });
 
@@ -225,16 +226,110 @@ describe("call history", () => {
     expect(router.replace).toHaveBeenLastCalledWith(`/calls?${RANGE}`, { scroll: false });
   });
 
-  it("slide-over hides the player without a recording and shows it with one", async () => {
+  it("slide-over says why there's no recording", async () => {
     const view = renderWithProviders(<CallsPage />, { route: `/calls?${RANGE}&room=call-7f3a` });
     const panel = await screen.findByRole("dialog");
     await within(panel).findByText("What happened");
     expect(panel.querySelector("audio")).toBeNull();
+    expect(within(panel).getByText("No recording for this call")).toBeInTheDocument();
+    expect(within(panel).getByText("This call wasn't recorded.")).toBeInTheDocument();
     view.unmount();
 
-    server.use(http.get("*/api/calls/:room", () => HttpResponse.json({ ...callDetail, recording_url: "https://example.test/r.mp3" })));
+    server.use(http.get("*/api/calls/:room", () => HttpResponse.json({ ...callDetail, outcome: "Not reached" })));
+    const second = renderWithProviders(<CallsPage />, { route: `/calls?${RANGE}&room=call-7f3a` });
+    expect(await screen.findByText("The caller didn't pick up, so nothing was recorded.")).toBeInTheDocument();
+    second.unmount();
+
+    server.use(http.get("*/api/calls/:room", () => HttpResponse.json({ ...callDetail, recording_status: "purged" })));
+    const third = renderWithProviders(<CallsPage />, { route: `/calls?${RANGE}&room=call-7f3a` });
+    expect(await screen.findByText("Recordings are kept for 90 days.")).toBeInTheDocument();
+    third.unmount();
+
+    server.use(http.get("*/api/calls/:room", () => HttpResponse.json({ ...callDetail, recording_status: "processing" })));
     renderWithProviders(<CallsPage />, { route: `/calls?${RANGE}&room=call-7f3a` });
-    expect(await screen.findByLabelText("Call recording")).toHaveAttribute("src", "https://example.test/r.mp3");
+    expect(await screen.findByText("Recording is being prepared")).toBeInTheDocument();
+  });
+
+  describe("recordings", () => {
+    const recorded = {
+      ...callDetail,
+      recording_url: "/api/calls/call-7f3a/recording",
+      recording_status: "complete",
+      recording_duration_s: 134.2,
+      recording_started_at: "2026-11-05T09:02:00Z",
+    };
+    const serveAudio = (status = 200) =>
+      server.use(
+        http.get("*/api/calls/:room", () => HttpResponse.json(recorded)),
+        http.get("*/api/calls/:room/recording", () =>
+          status === 200 ? new HttpResponse(new Uint8Array([79, 103, 103, 83]), { headers: { "Content-Type": "audio/ogg" } }) : HttpResponse.json({ detail: "Nope." }, { status }),
+        ),
+      );
+
+    it("plays, seeks from the transcript and changes speed", async () => {
+      serveAudio();
+      const user = userEvent.setup();
+      renderWithProviders(<CallsPage />, { route: `/calls?${RANGE}&room=call-7f3a` });
+      const panel = await screen.findByRole("dialog");
+      const play = await within(panel).findByRole("button", { name: "Play" });
+      expect(within(panel).getByText("Paused")).toBeInTheDocument();
+      expect(within(panel).getByText("00:00 / 02:14")).toBeInTheDocument();
+      expect(within(panel).getByText("2 turns")).toBeInTheDocument();
+      expect(within(panel).getByRole("link", { name: "Download recording" })).toHaveAttribute("href", "/api/calls/call-7f3a/recording?download=1");
+
+      await user.click(play);
+      expect(await within(panel).findByRole("button", { name: "Pause" })).toBeInTheDocument();
+      expect(within(panel).getAllByText("Playing").length).toBeGreaterThan(0);
+
+      const audio = panel.querySelector("audio")!;
+      await user.click(within(panel).getByRole("button", { name: "Play from 00:09" }));
+      expect(audio.currentTime).toBe(9);
+      const line = within(panel).getByText("हाँ, बोलिए।").closest("[data-line]");
+      expect(line).toHaveAttribute("aria-current", "true");
+
+      const slider = within(panel).getByRole("slider", { name: "Seek" });
+      slider.focus();
+      await user.keyboard("{ArrowRight}");
+      expect(audio.currentTime).toBe(14);
+
+      await user.click(within(panel).getByRole("button", { name: "Playback speed 1x" }));
+      await user.click(within(panel).getByRole("menuitemradio", { name: "1.5x" }));
+      expect(audio.playbackRate).toBe(1.5);
+      expect(within(panel).getByRole("button", { name: "Playback speed 1.5x" })).toBeInTheDocument();
+    });
+
+    it("says when the recording can't load and tries again", async () => {
+      serveAudio(500);
+      const user = userEvent.setup();
+      renderWithProviders(<CallsPage />, { route: `/calls?${RANGE}&room=call-7f3a` });
+      expect(await screen.findByText("Couldn't load this recording.")).toBeInTheDocument();
+      serveAudio();
+      await user.click(screen.getByRole("button", { name: "Try again" }));
+      expect(await screen.findByRole("button", { name: "Play" })).toBeInTheDocument();
+    });
+
+    it("the table shows a play button, processing and no recording", async () => {
+      server.use(
+        http.get("*/api/calls", () =>
+          HttpResponse.json({
+            ...callPage,
+            count: 3,
+            results: [
+              { ...callRow, has_recording: true, recording_status: "complete" },
+              { ...callRow, room: "call-2", caller: "+919820111984", recording_status: "processing" },
+              { ...callRow, room: "call-3", caller: "+919820111985" },
+            ],
+          }),
+        ),
+      );
+      const user = userEvent.setup();
+      renderWithProviders(<CallsPage />, { route: `/calls?${RANGE}` });
+      const play = await screen.findByRole("button", { name: "Play recording of call from +91 80 4718 2290" });
+      expect(screen.getByText("Processing")).toBeInTheDocument();
+      expect(screen.getByText("No recording")).toBeInTheDocument();
+      await user.click(play);
+      expect(lastUrl(router.push)).toBe(`/calls?${RANGE}&room=call-7f3a`);
+    });
   });
 
   it("slide-over falls back to the reason, hides empty steps and answers, and explains an empty transcript", async () => {

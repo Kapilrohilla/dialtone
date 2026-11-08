@@ -44,6 +44,27 @@ if (typeof globalThis.DOMMatrixReadOnly === "undefined") {
   } as unknown as typeof DOMMatrixReadOnly;
 }
 
+// jsdom can't play media or make blob URLs: play/pause just fire their events, so players can be driven in tests.
+if (typeof HTMLMediaElement !== "undefined") {
+  Object.defineProperty(HTMLMediaElement.prototype, "play", {
+    configurable: true,
+    value(this: HTMLMediaElement) {
+      Object.defineProperty(this, "paused", { configurable: true, value: false });
+      this.dispatchEvent(new Event("play"));
+      return Promise.resolve();
+    },
+  });
+  Object.defineProperty(HTMLMediaElement.prototype, "pause", {
+    configurable: true,
+    value(this: HTMLMediaElement) {
+      Object.defineProperty(this, "paused", { configurable: true, value: true });
+      this.dispatchEvent(new Event("pause"));
+    },
+  });
+}
+if (!URL.createObjectURL) URL.createObjectURL = () => "blob:http://localhost:3000/recording";
+if (!URL.revokeObjectURL) URL.revokeObjectURL = () => {};
+
 beforeAll(() => server.listen({ onUnhandledFrame: "error" }));
 afterEach(() => {
   cleanup();

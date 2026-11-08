@@ -10,9 +10,11 @@ export type MenuProps = {
   label?: string;
   items: MenuItem[];
   className?: string;
+  /** Where the popup opens. `"right"` pins it beside the trigger, bottom-aligned, so it never extends below it. */
+  placement?: "bottom" | "right";
 };
 
-export function Menu({ label = "More actions", items, className }: MenuProps) {
+export function Menu({ label = "More actions", items, className, placement = "bottom" }: MenuProps) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -68,7 +70,7 @@ export function Menu({ label = "More actions", items, className }: MenuProps) {
         <Ellipsis size={20} strokeWidth={1.75} aria-hidden="true" />
       </button>
       {open && (
-        <div id={menuId} role="menu" aria-label={label} className={styles.menu} onKeyDown={onKeyDown}>
+        <div id={menuId} role="menu" aria-label={label} className={cx(styles.menu, placement === "right" && styles.right)} onKeyDown={onKeyDown}>
           {items.map((item, i) => (
             <button
               key={item.label}

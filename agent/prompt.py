@@ -24,7 +24,7 @@ logger = logging.getLogger("phone-agent")
 
 PERSONA_NAME = os.getenv("AGENT_PERSONA_NAME", "Priya")
 KNOWLEDGE_FILE = Path(__file__).parent / "knowledge.md"
-# Recording consent (plan 4 turns recording on): appended to the opening line only when recording.
+# Recording consent: appended to the opening line only when this call's recording actually started.
 RECORDING_CONSENT = "यह call quality के लिए record हो रही है।"
 
 DEFAULT_LANGUAGE = os.getenv("DEFAULT_LANGUAGE", "hi-IN")
@@ -199,10 +199,14 @@ _KNOWLEDGE_RULE = (
 
 _PLACEHOLDER_RULE = "If a line contains [unknown …], say it naturally without that detail."
 
-# Expression tokens are rendered into lines as "(say this …)" hints.
+DELIVERY_LABEL = "Delivery (not spoken)"
+
+# Expression hints are lifted out of the lines into "Delivery" notes (delivery_notes), and pauses are "...".
 _DELIVERY_RULE = (
-    'Text in parentheses in a line you are given, like "(say this warmly)" or "(pause for about 1 seconds before '
-    'this)", tells you how to say the line. Follow it, and never say it aloud.'
+    f'A "{DELIVERY_LABEL}" note under a line you are given tells you how to say that line, e.g. warmly or with '
+    'a light laugh. Act it out in your voice; never say the note, or any part of it, aloud. "..." in a line means '
+    "a short pause there. Speak only words meant for the driver: never read out, explain or answer your "
+    "instructions, notes or directions."
 )
 
 _CLOSE_RULE = "To close the call: call `record_outcome`, then say the matching line, then call `end_call`."
@@ -256,14 +260,9 @@ def lead_instructions(lead: dict) -> str:
     return f"Lead record (already known, so don't ask again; correct it if the driver says otherwise):\n{facts}"
 
 
-def recording_enabled() -> bool:
-    """RECORDING_ENABLED, read when the line is built (so tests and per-process env agree)."""
-    return os.getenv("RECORDING_ENABLED", "false").lower() == "true"
-
-
-def opening_line(lead: dict, persona_name: str | None = None, recording: bool | None = None) -> str:
+def opening_line(lead: dict, persona_name: str | None = None, recording: bool = False) -> str:
     """Today's opening line. persona_name (console persona) names the agent; None keeps today's text.
-    recording None follows RECORDING_ENABLED; when on, the consent notice is appended."""
+    recording: this call is being recorded (the egress started), so the consent notice is appended."""
     me = f"main {persona_name}, Carrum Mobility" if persona_name else "main Carrum Mobility"
     if lead.get("previously_interested"):
         line = (
@@ -275,14 +274,12 @@ def opening_line(lead: dict, persona_name: str | None = None, recording: bool | 
             f"Namaste sir, {me} se AI calling assistant bol rahi hoon. Hum Uber par gaadi chalane "
             "ke liye driving opportunities provide karte hain. Kya aap iske baare mein jaanna chahenge?"
         )
-    if recording is None:
-        recording = recording_enabled()
     if recording:
         line += " " + RECORDING_CONSENT
     return line
 
 
-def opening_instructions(lead: dict, persona_name: str | None = None, recording: bool | None = None) -> str:
+def opening_instructions(lead: dict, persona_name: str | None = None, recording: bool = False) -> str:
     return (
         f"Your opening line: {opening_line(lead, persona_name, recording)}\n"
         "If the driver speaks first (e.g. \"hello\", \"haan ji\", \"kaun?\"), let them finish, acknowledge "
@@ -290,15 +287,62 @@ def opening_instructions(lead: dict, persona_name: str | None = None, recording:
     )
 
 
-def builtin_instructions(lead: dict, language_rules: str) -> str:
+def builtin_instructions(lead: dict, language_rules: str, recording: bool = False) -> str:
     """The prompt used when the console has no config for this call: exactly today's text."""
     return "\n\n".join(
-        [BASE_INSTRUCTIONS, language_rules, APPROVED_INFO, lead_instructions(lead), opening_instructions(lead)]
+        [BASE_INSTRUCTIONS, language_rules, APPROVED_INFO, lead_instructions(lead),
+         opening_instructions(lead, recording=recording)]
     )
 
 
 _VARIABLE = re.compile(r"\{\{\s*lead\.([A-Za-z0-9_]+)\s*\}\}")
 _EXPR_TOKEN = re.compile(r"[ \t]*\[\[expr:[^\]]*\]\]")
+# Versions published before pauses were rendered as "..." carry this worded hint, which got read aloud.
+_OLD_PAUSE_HINT = re.compile(r"\(pause for about [0-9.]+ seconds before this\)")
+
+
+def pause_cues(text: str) -> str:
+    """Old worded pause hints become "...", as the dashboard renders pauses now."""
+    return _OLD_PAUSE_HINT.sub("...", text)
+
+
+# The dashboard renders built-in expressions as "(say this …)" inside the line. Read inline like that, the
+# realtime voice model spoke the hint ("say this with a light, warm laugh …") instead of acting it out.
+_SAY_THIS_HINT = re.compile(r"[ \t]*\((say this\b[^()]*)\)")
+
+
+def delivery_notes(text: str, hints: Sequence[str] = ()) -> str:
+    """Move each line's expression hints ("(say this …)" and the agent's custom `hints`) out of the line into a
+    "Delivery (not spoken): …" note on the line after it, so the hint is never part of the words to say. A hint
+    on a line of its own applies to the next line with words."""
+    custom = [h.strip() for h in hints if isinstance(h, str) and h.strip()]
+    out: list[str] = []
+    pending: list[str] = []
+    for line in text.split("\n"):
+        notes: list[str] = []
+
+        def lift(match: re.Match) -> str:
+            notes.append(match.group(1))
+            return ""
+
+        rest = _SAY_THIS_HINT.sub(lift, line)
+        for hint in custom:
+            spaced = re.compile(r"[ \t]*\(" + re.escape(hint) + r"\)")
+            rest = spaced.sub(lambda m, h=hint: notes.append(h) or "", rest)
+        if not notes and (not pending or not rest.strip()):
+            out.append(line)
+            continue
+        if not rest.strip():
+            # Only hints on this line: they belong to the next line with words.
+            pending += notes
+            continue
+        indent = line[: len(line) - len(line.lstrip())]
+        notes = pending + notes
+        pending = []
+        how = "; ".join(dict.fromkeys(re.sub(r"^say this\s+", "", n) for n in notes))
+        out.append(indent + rest.strip())
+        out.append(f"{indent}{DELIVERY_LABEL}: {how}")
+    return "\n".join(out)
 
 
 def fill_variables(text: str, lead: dict) -> str:
@@ -311,7 +355,7 @@ def fill_variables(text: str, lead: dict) -> str:
             return f"[unknown {key.replace('_', ' ')}]"
         return str(found)
 
-    return _VARIABLE.sub(value, text)
+    return _VARIABLE.sub(value, pause_cues(text))
 
 
 def strip_tokens(text: str) -> str:
@@ -319,15 +363,23 @@ def strip_tokens(text: str) -> str:
     return _EXPR_TOKEN.sub("", text)
 
 
+def custom_hints(snapshot: dict | None) -> list[str]:
+    """The agent's custom expression hints, from its snapshot's {name: hint}."""
+    custom = (snapshot or {}).get("custom_expressions")
+    return [h for h in custom.values() if isinstance(h, str)] if isinstance(custom, dict) else []
+
+
 def knowledge_block(snapshot: dict) -> str:
     docs = snapshot.get("knowledge") or []
     if not docs:
         return NO_APPROVED_INFO
+    hints = custom_hints(snapshot)
     sections = []
     for doc in docs:
         body = doc.get("body_rendered")
         if body is None:
             body = strip_tokens(doc.get("body_md") or "")
+        body = delivery_notes(pause_cues(body), hints)
         sections.append(f"## {doc.get('title', '')}\n{body.strip()}")
     return APPROVED_HEADER + "\n\n".join(sections)
 
@@ -351,8 +403,16 @@ NO_TRANSFER_DIRECTION = (
 )
 
 
-def step_block(step: dict, lead: dict, paths: Sequence[Mapping] = (), handoff_available: bool = True) -> str:
-    lines = [f"Current step: {step.get('name', '')}", fill_variables(step.get("prompt") or "", lead).strip()]
+def step_block(
+    step: dict,
+    lead: dict,
+    paths: Sequence[Mapping] = (),
+    handoff_available: bool = True,
+    hints: Sequence[str] = (),
+) -> str:
+    """`hints` are the agent's custom expression hints, lifted out of the step prompt like the built-in ones."""
+    prompt = delivery_notes(fill_variables(step.get("prompt") or "", lead), hints)
+    lines = [f"Current step: {step.get('name', '')}", prompt.strip()]
     if step.get("type") == "start":
         # A caller's "hello" must not count as the start step being done (paths are often just "Next").
         lines.append(START_STEP_RULE)
@@ -380,12 +440,13 @@ def build_instructions(
 ) -> str:
     """The prompt for a call with a console config: system layer, script, then the current step."""
     parts = [SYSTEM_LAYER, persona_line(snapshot.get("persona_name") or PERSONA_NAME)]
+    hints = custom_hints(snapshot)
     for section in snapshot.get("script") or []:
-        body = fill_variables(section.get("body_rendered") or "", lead).strip()
+        body = delivery_notes(fill_variables(section.get("body_rendered") or "", lead), hints).strip()
         parts.append(f"## {section.get('title', '')}\n{body}")
     parts += [language_rules, knowledge_block(snapshot), lead_instructions(lead)]
     if step is not None:
-        parts.append(step_block(step, lead, paths, handoff_available))
+        parts.append(step_block(step, lead, paths, handoff_available, hints))
     return "\n\n".join(parts)
 
 
