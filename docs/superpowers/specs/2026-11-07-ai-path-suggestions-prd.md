@@ -147,7 +147,7 @@ Daily limit: `SUGGEST_DAILY_LIMIT` (default 20) runs per workspace per calendar 
 
 ## Generation (dashboard/workflows/suggest.py)
 
-- Client: `google-genai`, model `SUGGEST_LLM_MODEL` (default `gemini-2.5-flash`), key `GOOGLE_API_KEY`. Add both to `.env.example` and the dashboard service in `docker-compose.yml`.
+- Client: `google-genai`, model `SUGGEST_LLM_MODEL` (default `gemini-3.6-flash`; `gemini-2.5-flash` is no longer available to new API keys), key `GOOGLE_API_KEY`. Add both to `.env.example` and the dashboard service in `docker-compose.yml`.
 - Structured output: `response_mime_type="application/json"` with a `response_schema` matching the payloads above, `temperature` 0.4.
 - Input per step: name, type, prompt (tokens kept), `field`, outgoing paths (label, examples, target name), the list of all step names and ids with types, the workflow name, the allowed expression names (built-ins + the published agent's custom expressions), and the agent's language from the workflow content.
 - Prompt rules: Hindi/Hinglish phrases as callers actually speak them (Devanagari and Latin both fine); do not repeat an answer an existing path already covers; prefer existing steps; propose a new step only when no step fits; never paths out of end steps; expressions only add tokens, never change words; at most 5 answers per step; return nothing rather than filler.

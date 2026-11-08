@@ -33,7 +33,7 @@ AGENT_NAME = os.getenv("AGENT_NAME", "phone-agent")
 LIVEKIT_PUBLIC_URL = os.getenv("LIVEKIT_PUBLIC_URL", "ws://localhost:7880")
 # Workflow builder "Suggest with AI": Gemini proposes other caller answers and expressions (workflows/suggest.py).
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
-SUGGEST_LLM_MODEL = os.getenv("SUGGEST_LLM_MODEL", "gemini-2.5-flash")
+SUGGEST_LLM_MODEL = os.getenv("SUGGEST_LLM_MODEL", "gemini-3.6-flash")
 SUGGEST_DAILY_LIMIT = int(os.getenv("SUGGEST_DAILY_LIMIT", "20"))  # runs per workspace per day; failed runs don't count
 
 INSTALLED_APPS = [
