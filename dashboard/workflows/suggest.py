@@ -228,8 +228,11 @@ def call_gemini(prompt: str, timeout_s: float) -> tuple[dict, dict]:
         response_json_schema=RESPONSE_SCHEMA,
         temperature=0.4,
     )
+    # Keep a run well inside the 30 s budget: with default thinking a batch can take longer than the whole run.
     if "flash" in model and "2.5" in model:
-        config.thinking_config = types.ThinkingConfig(thinking_budget=0)  # keep a run well inside the 30 s budget
+        config.thinking_config = types.ThinkingConfig(thinking_budget=0)
+    elif model.startswith("gemini-3"):
+        config.thinking_config = types.ThinkingConfig(thinking_level=types.ThinkingLevel.LOW)
     resp = client.models.generate_content(model=model, contents=prompt, config=config)
     data = json.loads(resp.text or "{}")
     if not isinstance(data, dict):
@@ -372,7 +375,7 @@ def generate(set_id: int) -> None:
             try:
                 return _call_with_budget(prompt, deadline)
             except Exception as e:  # noqa: BLE001 - a failed batch is dropped, never fatal
-                logger.warning("suggest: a batch failed: %s", type(e).__name__)
+                logger.warning("suggest: a batch failed: %s: %.300s", type(e).__name__, e)
                 return None
 
         if prompts:
