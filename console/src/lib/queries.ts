@@ -25,6 +25,9 @@ import type {
   TeamMember,
   VoicesResponse,
   Graph,
+  SuggestionSet,
+  SuggestKind,
+  SuggestScope,
   Workflow,
   WorkflowListItem,
   Workspace,
@@ -478,7 +481,13 @@ export function useCreateWorkflow() {
   });
 }
 
-export type WorkflowUpdate = { name?: string; graph?: Graph; dead_air_enabled?: boolean };
+export type WorkflowUpdate = {
+  name?: string;
+  graph?: Graph;
+  dead_air_enabled?: boolean;
+  /** "Suggest with AI" items accepted into this graph; they are marked accepted with the save. */
+  accepted_suggestions?: number[];
+};
 
 /** PATCH the name or the whole graph. A saved graph is toasted with what happens next; `errors` in the answer
  *  are the server's checks of the saved graph. Signed out keeps the draft on the page. `onSaved` runs with the
@@ -492,6 +501,8 @@ export function useSaveWorkflow(id: number, onSaved?: (wf: Workflow, sent: Workf
     onSuccess: async (wf, sent) => {
       onSaved?.(wf, sent);
       qc.setQueryData(workflowKey(id), wf);
+      // Saved graphs re-check the draft suggestions (accepted, out of date).
+      if (sent.graph) qc.invalidateQueries({ queryKey: suggestionsKey(id) });
       qc.invalidateQueries({ queryKey: workflowsKey });
       // A rename changes nothing callers hear; the graph and the dead-air switch are published with agents.
       if (!sent.graph && sent.dead_air_enabled === undefined) return;
@@ -505,6 +516,57 @@ export function useSaveWorkflow(id: number, onSaved?: (wf: Workflow, sent: Workf
     },
     onError: (e) =>
       toast.show(isSignedOut(e) ? "You were signed out. Sign in again in another tab, then save." : e instanceof ApiError ? e.detail : "Could not save.", "bad"),
+  });
+}
+
+// ---- suggest with AI ----
+
+export const suggestionsKey = (workflowId: number) => ["workflow", workflowId, "suggestions"] as const;
+
+/** Checked again every 1.5 s while a run is going. */
+export const SUGGEST_POLL_MS = 1500;
+
+/** The workflow's open "Suggest with AI" draft, or null when there is none. Polls while the run is going. */
+export function useCurrentSuggestions(workflowId: number) {
+  return useQuery({
+    queryKey: suggestionsKey(workflowId),
+    queryFn: async () => (await apiFetch<SuggestionSet | undefined>(`/api/workflows/${workflowId}/suggestions/current`)) ?? null,
+    refetchInterval: (q) => (q.state.data?.status === "running" ? SUGGEST_POLL_MS : false),
+  });
+}
+
+export type StartSuggestions = { scope: SuggestScope; step_id?: string; kinds: SuggestKind[] };
+
+/** Starts a run. A 429 ("Daily limit reached") comes back as the ApiError; the caller shows it in the panel. */
+export function useStartSuggestions(workflowId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: StartSuggestions) =>
+      apiFetch<SuggestionSet>(`/api/workflows/${workflowId}/suggestions`, { method: "POST", json: body }),
+    onSuccess: (set) => qc.setQueryData(suggestionsKey(workflowId), set),
+  });
+}
+
+export type SuggestionPatch = { id: number; edited_payload?: unknown; status?: "pending" | "dismissed" };
+
+/** Saves an edit to the draft, or dismisses / restores an item. Field errors come back as the ApiError's fields. */
+export function usePatchSuggestion(workflowId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: SuggestionPatch) =>
+      apiFetch<SuggestionSet>(`/api/workflows/${workflowId}/suggestions/${id}`, { method: "PATCH", json: body }),
+    onSuccess: (set) => qc.setQueryData(suggestionsKey(workflowId), set),
+  });
+}
+
+/** "Discard all" / "Discard draft": dismisses every pending item and closes the draft. */
+export function useCloseSuggestions(workflowId: number) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  return useMutation({
+    mutationFn: (setId: number) => apiFetch<void>(`/api/workflows/${workflowId}/suggestions/${setId}/close`, { method: "POST" }),
+    onSuccess: () => qc.setQueryData(suggestionsKey(workflowId), null),
+    onError: (e) => toast.show(e instanceof ApiError ? e.detail : "Could not discard the suggestions.", "bad"),
   });
 }
 

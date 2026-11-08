@@ -154,7 +154,7 @@ def test_transfer_leaf_and_fallback_path():
     run.take("go_to_explain_the_plan", "y")
     run.take("go_to_transfer_to_a_telecaller")
     ps = run.paths_from_current()
-    assert [p.description for p in ps] == ["transfer failed"] and not ps[0].takes_value
+    assert [p.description for p in ps] == ["call me later | transfer failed"] and not ps[0].takes_value
     assert run.take(ps[0].name).entered.name == "Schedule a call back"
 
 
@@ -226,7 +226,7 @@ def test_duplicate_paths_same_target_single_tool():
     run = WorkflowRun(g)
     run.start()
     ps = run.paths_from_current()
-    assert len(ps) == 1 and ps[0].description == "next"
+    assert len(ps) == 1 and ps[0].description == "next | again"
 
 
 def test_all_path_tools_every_target_once_in_graph_order():
@@ -239,7 +239,7 @@ def test_all_path_tools_every_target_once_in_graph_order():
     assert names == [run._names[s] for s in ("s2", "s3", "e1", "s4", "e2", "e3", "e4", "t1")]
     assert len(set(names)) == len(names)
     by = {t.to: t for t in tools}
-    assert by["s2"].description == "next" and by["s2"].takes_value is False
+    assert by["s2"].description == "next | ask the city again" and by["s2"].takes_value is False
     assert by["s3"].takes_value is True and by["e1"].takes_value is True  # from collect step s2
     assert by["e3"].takes_value is False
 
@@ -269,3 +269,40 @@ def test_cap_stops_the_engine():
     for bad in ["yes", 1, None, []]:
         restored = WorkflowRun.from_state(loop_graph(), {**state, "stopped": bad})
         assert restored.stopped is False and restored.take("go_to_z").ok
+
+
+def test_path_examples_describe_the_tool():
+    g = driver_graph()
+    g["paths"][2]["examples"] = ["  Mumbai mein hoon ", "दिल्ली नहीं", "Mumbai mein hoon", "", 7, "x" * 41,
+                                 "a", "b", "c", "d"]
+    run = WorkflowRun(g)
+    run.start()
+    run.take("go_to_ask_city")
+    by = {p.to: p.description for p in run.paths_from_current()}
+    assert by["s3"] == "in city"  # a single path without examples keeps its label exactly
+    assert by["e1"] == 'other city. Caller might say: "Mumbai mein hoon", "दिल्ली नहीं", "a", "b", "c".'
+    assert {t.to: t.description for t in run.all_path_tools()}["e1"] == by["e1"]
+
+
+def test_every_path_into_a_step_describes_it():
+    g = driver_graph()
+    g["paths"].append({"id": "p9", "from": "s3", "to": "e4", "label": "Licence applied, not received",
+                       "examples": ["apply किया है"]})
+    g["paths"].append(path("p10", "s2", "e4", "call me later"))  # same label again: de-duplicated
+    g["paths"].append(path("p11", "e1", "e4", "from an end step"))  # ignored
+    want = 'call me later | Licence applied, not received. Caller might say: "apply किया है".'
+    assert {t.to: t.description for t in WorkflowRun(g).all_path_tools()}["e4"] == want
+    run = WorkflowRun(g)
+    run.start()
+    run.take("go_to_ask_city")
+    run.take("go_to_ask_licence_and_experience", "Delhi")
+    assert {p.to: p.description for p in run.paths_from_current()}["e4"] == want
+
+
+def test_description_is_capped():
+    g = loop_graph()
+    g["paths"][0]["examples"] = ["y" * 40, "z" * 40]
+    for i in range(40):
+        g["paths"].append({"from": "b", "to": "b", "label": f"label {i} " + "q" * 30})
+    run = WorkflowRun(g)
+    assert all(len(t.description) <= 1000 for t in run.all_path_tools())
