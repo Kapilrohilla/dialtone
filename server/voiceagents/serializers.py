@@ -96,9 +96,19 @@ class DeadAirSerializer(serializers.Serializer):
         return d
 
 
+# Optional per-agent text the agent worker reads from settings; blank or null means unset (key omitted).
+TEXT_SETTINGS = {"company_name": 80, "name_pronunciation": 200, "consent_line": 300}
+
+
 class SettingsSerializer(serializers.Serializer):
     mood_adaptation = StrictBooleanField()
     dead_air = DeadAirSerializer()
+    company_name = serializers.CharField(
+        max_length=TEXT_SETTINGS["company_name"], required=False, allow_blank=True, allow_null=True)
+    name_pronunciation = serializers.CharField(
+        max_length=TEXT_SETTINGS["name_pronunciation"], required=False, allow_blank=True, allow_null=True)
+    consent_line = serializers.CharField(
+        max_length=TEXT_SETTINGS["consent_line"], required=False, allow_blank=True, allow_null=True)
 
 
 def merge_settings(current, incoming):
@@ -107,7 +117,7 @@ def merge_settings(current, incoming):
         raise serializers.ValidationError({"settings": ["Settings must be an object."]})
     base = default_settings()
     if isinstance(current, dict):
-        base.update({k: v for k, v in current.items() if k in base})
+        base.update({k: v for k, v in current.items() if k in base or k in TEXT_SETTINGS})
         if isinstance(current.get("dead_air"), dict):
             base["dead_air"] = {**default_settings()["dead_air"], **current["dead_air"]}
     for key, value in incoming.items():
@@ -118,7 +128,12 @@ def merge_settings(current, incoming):
     s = SettingsSerializer(data=base)
     if not s.is_valid():
         raise serializers.ValidationError({"settings": s.errors})
-    return {"mood_adaptation": s.validated_data["mood_adaptation"], "dead_air": dict(s.validated_data["dead_air"])}
+    out = {"mood_adaptation": s.validated_data["mood_adaptation"], "dead_air": dict(s.validated_data["dead_air"])}
+    for key in TEXT_SETTINGS:
+        value = strip_nul(s.validated_data.get(key) or "").strip()
+        if value:
+            out[key] = value
+    return out
 
 
 class AgentWriteSerializer(serializers.Serializer):
@@ -126,7 +141,7 @@ class AgentWriteSerializer(serializers.Serializer):
     description = serializers.CharField(required=False, allow_blank=True, max_length=2000)
     phone_number = serializers.CharField(max_length=32, required=False, allow_blank=True)
     language = serializers.CharField(max_length=60, required=False)
-    persona_name = serializers.CharField(max_length=60, required=False)
+    persona_name = serializers.CharField(max_length=60, required=False, allow_blank=True)
     voice_id = serializers.CharField(max_length=120, required=False, allow_blank=True)
     settings = serializers.JSONField(required=False)
     script = serializers.JSONField(required=False)

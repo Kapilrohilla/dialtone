@@ -81,7 +81,7 @@ def test_config_by_number(client, workspace, other_workspace, number):
     assert res.status_code == 200
     snapshot = {**version.snapshot,
                 "account": {"dead_air_enabled": True, "recording": {"enabled": False, "reason": "off"}}}
-    assert res.json() == {"version_id": version.id, "workspace": "carrum", "snapshot": snapshot}
+    assert res.json() == {"version_id": version.id, "workspace": "northwind", "snapshot": snapshot}
 
 
 def test_config_unmatched_number_404s_when_numbers_set(client, workspace):
@@ -222,15 +222,29 @@ def test_report_sets_agent_version(client, workspace):
 # --- migration --------------------------------------------------------------------------------------
 
 
-def test_existing_calls_assigned_to_carrum(workspace):
-    """Run calls/0004's data step against the historical models."""
+def _calls_0004():
     migration = importlib.import_module("calls.migrations.0004_runtime")
-    executor = MigrationExecutor(connection)
-    apps = executor.loader.project_state(("calls", "0004_runtime")).apps
+    apps = MigrationExecutor(connection).loader.project_state(("calls", "0004_runtime")).apps
+    return migration, apps
+
+
+def test_existing_calls_assigned_to_the_existing_workspace(workspace, other_workspace):
+    """Run calls/0004's data step against the historical models: the oldest workspace gets them."""
+    migration, apps = _calls_0004()
     Call.objects.create(room="old-1")
     Call.objects.create(room="old-2")
     migration.assign_existing_calls(apps, None)
-    assert set(Call.objects.values_list("workspace__slug", flat=True)) == {"carrum"}
+    assert set(Call.objects.values_list("workspace__slug", flat=True)) == {"northwind"}
+
+
+def test_existing_calls_get_a_default_workspace_when_there_is_none():
+    from django.apps import apps as current_apps
+
+    # Current models: the test database has the later workspace columns, which 0004's state lacks.
+    migration, _ = _calls_0004()
+    Call.objects.create(room="old-1")
+    migration.assign_existing_calls(current_apps, None)
+    assert set(Call.objects.values_list("workspace__slug", flat=True)) == {"default"}
 
 
 # --- fix round 1: every call gets a workspace (R18) ------------------------------------------------

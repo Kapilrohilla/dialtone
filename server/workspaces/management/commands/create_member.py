@@ -15,14 +15,24 @@ class Command(BaseCommand):
         parser.add_argument("email")
         parser.add_argument("--name", default="")
         parser.add_argument("--role", default=Membership.EDITOR, choices=[r for r, _ in Membership.ROLES])
-        parser.add_argument("--workspace", default="carrum")
+        parser.add_argument(
+            "--workspace", default=None,
+            help="Workspace slug (default: the only workspace, if there is exactly one)",
+        )
 
     def handle(self, *args, email, name, role, workspace, **opts):
         User = get_user_model()
-        try:
-            ws = Workspace.objects.get(slug=workspace)
-        except Workspace.DoesNotExist:
-            raise CommandError(f"No workspace with slug '{workspace}'.")
+        if workspace is None:
+            only = list(Workspace.objects.order_by("id")[:2])
+            if len(only) != 1:
+                slugs = ", ".join(Workspace.objects.order_by("id").values_list("slug", flat=True)) or "none"
+                raise CommandError(f"Pass --workspace SLUG (workspaces: {slugs}).")
+            ws = only[0]
+        else:
+            try:
+                ws = Workspace.objects.get(slug=workspace)
+            except Workspace.DoesNotExist:
+                raise CommandError(f"No workspace with slug '{workspace}'.")
         if User.objects.filter(email__iexact=email).exists():
             raise CommandError(f"A user with email {email} already exists.")
         password = getpass("Password: ")

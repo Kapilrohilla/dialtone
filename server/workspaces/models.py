@@ -2,6 +2,10 @@ from django.conf import settings
 from django.db import models
 
 
+DEFAULT_WORKSPACE_SLUG = "default"
+DEFAULT_WORKSPACE_NAME = "Default workspace"
+
+
 class Workspace(models.Model):
     name = models.CharField(max_length=120)
     slug = models.SlugField(unique=True)
@@ -12,6 +16,15 @@ class Workspace(models.Model):
 
     def __str__(self):
         return self.name
+
+    @classmethod
+    def ensure_default(cls):
+        """Create the default workspace if there are no workspaces at all. Returns (workspace, created);
+        workspace is the oldest one when some already exist."""
+        existing = cls.objects.order_by("id").first()
+        if existing is not None:
+            return existing, False
+        return cls.objects.get_or_create(slug=DEFAULT_WORKSPACE_SLUG, defaults={"name": DEFAULT_WORKSPACE_NAME})
 
 
 class Membership(models.Model):

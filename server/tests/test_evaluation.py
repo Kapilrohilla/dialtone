@@ -5,7 +5,7 @@ from calls.evaluation import align_predictions, score
 from calls.models import CallReport, TurnLabel
 
 TURNS = [
-    {"role": "assistant", "text": "Namaste, main Carrum se bol rahi hoon.", "at_s": 0.5},
+    {"role": "assistant", "text": "Hi, this is Maya from Northwind Car Rentals.", "at_s": 0.5},
     {"role": "user", "text": "haan boliye", "at_s": 3.0},
     {"role": "assistant", "text": "Aapki gaadi ke baare mein...", "at_s": 4.0},
     {"role": "user", "text": "kitni baar call karoge", "at_s": 10.0},

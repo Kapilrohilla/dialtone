@@ -20,7 +20,7 @@ class Agent(models.Model):
     status = models.CharField(max_length=10, choices=STATUSES, default=DRAFT)
     phone_number = models.CharField(max_length=32, blank=True, default="")
     language = models.CharField(max_length=60, default="Hindi + Hinglish")
-    persona_name = models.CharField(max_length=60, default="Priya")
+    persona_name = models.CharField(max_length=60, blank=True, default="")
     voice_id = models.CharField(max_length=120, blank=True, default="")
     settings = models.JSONField(default=default_settings)
     script = models.JSONField(default=list)  # [{"id", "title", "body"}]

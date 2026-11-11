@@ -12,10 +12,42 @@ from workspaces.permissions import CanEdit, CanManageTeam, WorkspaceScopedMixin,
 pytestmark = pytest.mark.django_db
 
 
-def test_data_migration_creates_carrum():
-    ws = Workspace.objects.get(slug="carrum")
-    assert ws.name == "Carrum Mobility"
-    assert Workspace.objects.filter(slug="carrum").count() == 1
+def test_migrations_create_no_workspace():
+    assert not Workspace.objects.exists()
+
+
+def test_ensure_default_workspace_creates_one_when_empty():
+    from io import StringIO
+
+    from django.core.management import call_command
+
+    out = StringIO()
+    call_command("ensure_default_workspace", stdout=out)
+    call_command("ensure_default_workspace", stdout=out)
+    ws = Workspace.objects.get()
+    assert (ws.slug, ws.name) == ("default", "Default workspace")
+    assert "Created the default workspace" in out.getvalue()
+
+
+def test_ensure_default_workspace_keeps_existing(workspace):
+    from django.core.management import call_command
+
+    call_command("ensure_default_workspace", stdout=None)
+    assert list(Workspace.objects.all()) == [workspace]
+
+
+def test_create_member_uses_the_only_workspace(workspace, monkeypatch):
+    from django.core.management import CommandError, call_command
+
+    monkeypatch.setattr("workspaces.management.commands.create_member.getpass", lambda prompt: "a-Long-pw-1234")
+    call_command("create_member", "new@example.com", "--role", "owner")
+    m = Membership.objects.get(user__email="new@example.com")
+    assert m.workspace == workspace and m.role == "owner"
+    Workspace.objects.create(slug="second", name="Second")
+    with pytest.raises(CommandError, match="--workspace"):
+        call_command("create_member", "other@example.com")
+    call_command("create_member", "other@example.com", "--workspace", "second")
+    assert Membership.objects.get(user__email="other@example.com").workspace.slug == "second"
 
 
 def _request(user):

@@ -42,6 +42,7 @@ def me_payload(user, membership):
         "email": user.email,
         "phone": pref.phone,
         "role": membership.role,
+        "is_superuser": bool(user.is_superuser),  # may edit instance-wide settings (/api/instance)
         "workspace": workspace_payload(ws),
         "preferences": PreferencesSerializer(pref).data,
     }

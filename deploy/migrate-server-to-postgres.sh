@@ -36,6 +36,7 @@ for m in (Call, CallReport, TurnLabel, User):
 }
 
 run python manage.py migrate --noinput
+run python manage.py ensure_default_workspace  # the copy assigns old calls to the only workspace
 
 # Deploys copy automatically at server start and then write the marker; after that, only compare.
 if run test -e "$MARKER"; then

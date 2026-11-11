@@ -30,7 +30,7 @@ def test_create_and_list_shape(member):
     r = create(c, description="Qualifies driver leads", phone_number="+911234567890")
     assert r.status_code == 201, r.content
     body = r.json()
-    assert body["status"] == "draft" and body["language"] == "Hindi + Hinglish" and body["persona_name"] == "Priya"
+    assert body["status"] == "draft" and body["language"] == "Hindi + Hinglish" and body["persona_name"] == ""
     assert body["settings"] == {"mood_adaptation": True,
                                 "dead_air": {"enabled": True, "nudge_s": 4, "second_nudge_s": 9, "hang_up_s": 15}}
     assert body["script"] == [] and body["custom_expressions"] == {} and body["knowledge"] == []
@@ -93,6 +93,31 @@ def test_patch_validation(member, workspace, other_workspace):
         assert r.status_code == 400, (payload, r.content)
     agent = Agent.objects.get(pk=pk)
     assert agent.script == SCRIPT and agent.custom_expressions == CUSTOM and agent.workflow is None
+
+
+@pytest.mark.django_db
+def test_settings_text_fields_kept_trimmed_and_cleared(member):
+    c = member("editor")
+    pk = ready(c)
+    r = c.patch(f"/api/agents/{pk}", {"settings": {
+        "company_name": "  Northwind Car Rentals ", "name_pronunciation": "NORTH-wind",
+        "consent_line": "This call may be recorded.",
+    }}, format="json")
+    assert r.status_code == 200, r.content
+    s = r.json()["settings"]
+    assert s["company_name"] == "Northwind Car Rentals" and s["name_pronunciation"] == "NORTH-wind"
+    assert s["consent_line"] == "This call may be recorded."
+    # Other saves keep them.
+    s = c.patch(f"/api/agents/{pk}", {"settings": {"dead_air": {"nudge_s": 5}}}, format="json").json()["settings"]
+    assert s["company_name"] == "Northwind Car Rentals" and s["consent_line"] == "This call may be recorded."
+    # Blank or null unsets (the key is dropped).
+    s = c.patch(f"/api/agents/{pk}", {"settings": {"company_name": "  ", "consent_line": None}},
+                format="json").json()["settings"]
+    assert "company_name" not in s and "consent_line" not in s and s["name_pronunciation"] == "NORTH-wind"
+    for key, limit in (("company_name", 80), ("name_pronunciation", 200), ("consent_line", 300)):
+        r = c.patch(f"/api/agents/{pk}", {"settings": {key: "x" * (limit + 1)}}, format="json")
+        assert r.status_code == 400, key
+        assert c.patch(f"/api/agents/{pk}", {"settings": {key: "x" * limit}}, format="json").status_code == 200
 
 
 @pytest.mark.django_db

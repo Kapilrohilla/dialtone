@@ -13,7 +13,7 @@ class Migration(migrations.Migration):
     dependencies = [
         ('knowledge', '0001_initial'),
         ('workflows', '0001_initial'),
-        ('workspaces', '0002_carrum_workspace'),
+        ('workspaces', '0002_default_workspace'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 

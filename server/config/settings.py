@@ -44,6 +44,8 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
+    "drf_spectacular",
+    "instance",
     "calls",
     "workspaces",
     "voiceagents",
@@ -127,6 +129,18 @@ REST_FRAMEWORK = {
         "workspaces.permissions.IsMember",
     ],
     "DEFAULT_THROTTLE_RATES": {"login": "10/min", "set_password": "10/min"},
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+}
+
+# OpenAPI schema served at /api/schema/ and written to docs/openapi.json
+# (python manage.py spectacular --format openapi-json --file ../docs/openapi.json).
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Dialtone API",
+    "DESCRIPTION": "REST API of the Dialtone server: auth, workspace, agents, knowledge, workflows, calls and runtime.",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+    "SERVE_PERMISSIONS": ["rest_framework.permissions.AllowAny"],
+    "SERVE_AUTHENTICATION": [],
 }
 
 LANGUAGE_CODE = "en-us"

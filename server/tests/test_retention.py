@@ -59,7 +59,7 @@ def test_integration_request_saved(member):
     assert r.status_code == 201
     assert set(r.json()) == {"id", "tool", "note", "created_at"}
     row = IntegrationRequest.objects.get()
-    assert row.tool == "HubSpot" and row.user == c.user and row.workspace.slug == "carrum"
+    assert row.tool == "HubSpot" and row.user == c.user and row.workspace.slug == "northwind"
     assert c.post("/api/integrations/requests", {"note": "x"}, format="json").status_code == 400
     assert c.post("/api/integrations/requests", {"tool": "x" * 101}, format="json").status_code == 400
     assert c.post("/api/integrations/requests", {"tool": "Zoho"}, format="json").status_code == 201

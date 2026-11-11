@@ -97,12 +97,12 @@ def test_answer_with_a_new_step():
 
 def test_expression_may_only_add_tokens():
     g = driver_graph()
-    before = g["steps"][0]["prompt"]  # "Namaste! [[expr:happy]] I am calling from Carrum."
+    before = g["steps"][0]["prompt"]  # "Namaste! [[expr:happy]] I am calling from Northwind."
     ok = {"before": before, "after": "[[expr:pause:0.6]] " + before, "reason": "warmer"}
     assert validate_expression(ok, g, "s1")["after"] == ok["after"]
-    assert reason(validate_expression, {**ok, "after": "Namaste! I am calling from Carrum Mobility."}, g, "s1") == \
+    assert reason(validate_expression, {**ok, "after": "Namaste! I am calling from Northwind Car Rentals."}, g, "s1") == \
         "This would change the agent's words."
-    assert reason(validate_expression, {**ok, "after": "Namaste! I am calling from Carrum."}, g, "s1") == \
+    assert reason(validate_expression, {**ok, "after": "Namaste! I am calling from Northwind."}, g, "s1") == \
         "This would remove an expression the step already has."
     assert reason(validate_expression, {**ok, "after": before}, g, "s1") == "This adds no expressions."
     assert reason(validate_expression, {**ok, "before": "old words"}, g, "s1") == \

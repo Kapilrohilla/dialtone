@@ -60,7 +60,7 @@ def test_publish_snapshot_contents(workspace):
     assert agent.status == Agent.PUBLISHED and agent.published_version == v
     s = v.snapshot
     assert s["agent_id"] == agent.id and s["version"] == 1
-    assert s["name"] == "Driver lead qualifier" and s["persona_name"] == "Priya"
+    assert s["name"] == "Driver lead qualifier" and s["persona_name"] == ""
     assert s["language"] == "Hindi + Hinglish" and s["voice_id"] == "v-1" and s["phone_number"] == "+911234567890"
     assert s["settings"]["dead_air"] == {"enabled": True, "nudge_s": 4, "second_nudge_s": 9, "hang_up_s": 15}
     rendered = s["script"][0]["body_rendered"]
@@ -74,7 +74,7 @@ def test_publish_snapshot_contents(workspace):
                             "body_rendered": "Plan A details"}]
     assert s["workflow"]["id"] == wf.id and s["workflow"]["revision"] == 1
     prompts = {st["id"]: st["prompt"] for st in s["workflow"]["graph"]["steps"]}
-    assert prompts["s1"] == "Namaste! (say this warmly and cheerfully) I am calling from Carrum."
+    assert prompts["s1"] == "Namaste! (say this warmly and cheerfully) I am calling from Northwind."
     assert "(say this softly, as if sharing something personal)" in prompts["s4"]
     assert "{{lead.name}}" in prompts["s4"]
     # The stored workflow revision itself is untouched.

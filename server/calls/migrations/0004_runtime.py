@@ -5,14 +5,17 @@ from django.db import migrations, models
 
 
 def assign_existing_calls(apps, schema_editor):
-    """Every call recorded before workspaces existed belongs to Carrum (the only workspace)."""
+    """Calls recorded before workspaces existed go to the oldest workspace (creating a default one if
+    there is none), matching the single-workspace setup those installs had."""
     Call = apps.get_model("calls", "Call")
     Workspace = apps.get_model("workspaces", "Workspace")
     unassigned = Call.objects.filter(workspace__isnull=True)
     if not unassigned.exists():
         return
-    carrum, _ = Workspace.objects.get_or_create(slug="carrum", defaults={"name": "Carrum Mobility"})
-    unassigned.update(workspace=carrum)
+    workspace = Workspace.objects.order_by("id").first()
+    if workspace is None:
+        workspace = Workspace.objects.create(slug="default", name="Default workspace")
+    unassigned.update(workspace=workspace)
 
 
 class Migration(migrations.Migration):
@@ -20,7 +23,7 @@ class Migration(migrations.Migration):
     dependencies = [
         ('calls', '0003_turnlabel'),
         ('voiceagents', '0001_initial'),
-        ('workspaces', '0002_carrum_workspace'),
+        ('workspaces', '0002_default_workspace'),
     ]
 
     operations = [

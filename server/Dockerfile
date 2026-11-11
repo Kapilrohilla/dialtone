@@ -16,5 +16,6 @@ RUN DJANGO_SECRET_KEY=collectstatic-only POSTGRES_PASSWORD=collectstatic-only py
 
 USER dashboard
 # exec: uvicorn becomes PID 1 and gets SIGTERM directly, so `docker compose down` stops it promptly.
+# A fresh install gets a default workspace (no-op once any workspace exists).
 # Cutover from the old SQLite file runs here, before the server accepts webhooks (no-op once copied).
-CMD ["sh", "-c", "python manage.py migrate --noinput && python manage.py copy_from_sqlite --if-needed && exec uvicorn config.asgi:application --host ${DASHBOARD_HOST:-127.0.0.1} --port ${DASHBOARD_PORT:-8787}"]
+CMD ["sh", "-c", "python manage.py migrate --noinput && python manage.py ensure_default_workspace && python manage.py copy_from_sqlite --if-needed && exec uvicorn config.asgi:application --host ${DASHBOARD_HOST:-127.0.0.1} --port ${DASHBOARD_PORT:-8787}"]

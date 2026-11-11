@@ -139,26 +139,27 @@ class AgentPublishView(_Base):
 
 
 class _StateView(_Base):
-    action = None
+    # Not named `action`: DRF and drf-spectacular reserve that attribute for viewset actions.
+    transition = None
 
     def post(self, request, pk):
         try:
-            self.action(self.agent(pk))
+            self.transition(self.agent(pk))
         except pub.StateError as e:
             return Response({"detail": e.detail}, status=400)
         return Response(_detail(self.agent(pk)))
 
 
 class AgentUnpublishView(_StateView):
-    action = staticmethod(pub.unpublish)
+    transition = staticmethod(pub.unpublish)
 
 
 class AgentArchiveView(_StateView):
-    action = staticmethod(pub.archive)
+    transition = staticmethod(pub.archive)
 
 
 class AgentRestoreView(_StateView):
-    action = staticmethod(pub.restore)
+    transition = staticmethod(pub.restore)
 
 
 class AgentDuplicateView(_Base):

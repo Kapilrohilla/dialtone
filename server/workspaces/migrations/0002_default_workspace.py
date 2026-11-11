@@ -1,11 +1,12 @@
 from django.db import migrations
 
 
-def create_carrum(apps, schema_editor):
-    Workspace = apps.get_model("workspaces", "Workspace")
-    Workspace.objects.get_or_create(slug="carrum", defaults={"name": "Carrum Mobility"})
-
-
 class Migration(migrations.Migration):
+    """Formerly created a hard-coded workspace. Workspaces are now seeded by the
+    `ensure_default_workspace` management command (run at server startup), so this
+    is a no-op kept for the migration graph. `replaces` makes databases that applied
+    the old name treat this one as applied too."""
+
+    replaces = [("workspaces", "0002_carrum_workspace")]
     dependencies = [("workspaces", "0001_initial")]
-    operations = [migrations.RunPython(create_carrum, migrations.RunPython.noop)]
+    operations = []

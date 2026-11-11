@@ -161,7 +161,7 @@ def test_workflow_simulate_minimal_snapshot(member, workspace, other_workspace, 
 
     assert r.status_code == 200, r.content
     snap = captured[0]["payload"]["snapshot"]
-    assert snap["persona_name"] == "Priya" and snap["script"] == []
+    assert snap["persona_name"] == "Maya" and snap["script"] == []
     assert [k["title"] for k in snap["knowledge"]] == ["FAQ"]
     assert snap["knowledge"][0]["body_rendered"].startswith("Deposit is (say this")
     assert "[[expr" not in snap["knowledge"][0]["body_rendered"] and unused.title not in str(snap)

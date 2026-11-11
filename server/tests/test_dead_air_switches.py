@@ -19,8 +19,8 @@ pytestmark = pytest.mark.django_db
 
 def test_account_switch_defaults_on_and_shows_in_me(member):
     c = member("viewer")
-    assert c.get("/api/workspace").json() == {"id": c.get("/api/me").json()["workspace"]["id"], "name": "Carrum Mobility",
-                                              "slug": "carrum", "dead_air_enabled": True,
+    assert c.get("/api/workspace").json() == {"id": c.get("/api/me").json()["workspace"]["id"], "name": "Northwind Car Rentals",
+                                              "slug": "northwind", "dead_air_enabled": True,
                                               "recording_enabled": False}
     assert c.get("/api/me").json()["workspace"]["dead_air_enabled"] is True
 

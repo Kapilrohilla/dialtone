@@ -29,7 +29,7 @@ SIM_IDENTITY = "console-sim"
 SIM_TIMEOUT_S = 20
 MAX_MESSAGES = 200
 MAX_TEXT = 2000
-WORKFLOW_PERSONA = "Priya"
+WORKFLOW_PERSONA = "Maya"
 
 DOWN = {"detail": "The test simulator isn't running."}
 FAILED = {"detail": "The test simulator failed."}
@@ -106,7 +106,7 @@ def _proxy(messages: list, state: dict | None, snapshot: dict) -> Response:
 
 
 def workflow_snapshot(workflow: Workflow) -> dict:
-    """A minimal snapshot around a workflow: persona Priya, no script, the current revision's graph with
+    """A minimal snapshot around a workflow: persona Maya, no script, the current revision's graph with
     step prompts rendered (no custom expressions) and the knowledge its knowledge steps use."""
     rev = workflow.revisions.order_by("-number").first()
     graph = copy.deepcopy(rev.graph) if rev and isinstance(rev.graph, dict) else {"steps": [], "paths": []}

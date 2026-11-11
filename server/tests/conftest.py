@@ -29,7 +29,7 @@ import pytest  # noqa: E402
 def workspace(db):
     from workspaces.models import Workspace
 
-    return Workspace.objects.get_or_create(slug="carrum", defaults={"name": "Carrum Mobility"})[0]
+    return Workspace.objects.get_or_create(slug="northwind", defaults={"name": "Northwind Car Rentals"})[0]
 
 
 @pytest.fixture

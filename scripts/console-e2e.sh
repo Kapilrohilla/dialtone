@@ -2,7 +2,7 @@
 # End-to-end smoke run of the console against a real, disposable Django + Postgres.
 #
 # Needs `make test-db` (Postgres on 127.0.0.1:55432), server/.venv and console/node_modules.
-# Drops and re-creates the database `console_e2e`, seeds it, creates the owner e2e@carrum.test,
+# Drops and re-creates the database `console_e2e`, seeds it, creates the owner (and superuser) e2e@example.test,
 # starts Django on 127.0.0.1:8788 and the built console on 127.0.0.1:3100, then runs Playwright.
 # LiveKit and the agent simulator are deliberately not running: the run checks the console copes.
 #
@@ -32,7 +32,7 @@ done
 if [[ -z "${E2E_PASSWORD:-}" ]]; then
   E2E_PASSWORD="e2e-$(openssl rand -hex 12)"
 fi
-export E2E_PASSWORD E2E_EMAIL=e2e@carrum.test
+export E2E_PASSWORD E2E_EMAIL=e2e@example.test
 
 # Harmless local values only. LiveKit and the simulator point at closed ports so calls fail fast.
 export DJANGO_SECRET_KEY="console-e2e-not-a-secret" DJANGO_DEBUG=false
@@ -76,7 +76,7 @@ docker exec "$PG_CONTAINER" psql -U postgres -q -c "CREATE DATABASE console_e2e;
 
 cd "$root/server"
 .venv/bin/python manage.py migrate --noinput >"$log_dir/migrate.log"
-.venv/bin/python manage.py seed_carrum --knowledge "$root/console/e2e/fixtures/knowledge.md"
+.venv/bin/python manage.py seed_demo --knowledge "$root/console/e2e/fixtures/knowledge.md"
 .venv/bin/python manage.py shell -c '
 import os
 from django.contrib.auth import get_user_model
@@ -85,11 +85,12 @@ from voiceagents.publish import publish
 from workspaces.models import Membership, UserPreference, Workspace
 email = os.environ["E2E_EMAIL"]
 user = get_user_model().objects.create_user(username=email, email=email, first_name="E2E Owner",
-                                            password=os.environ["E2E_PASSWORD"])
-Membership.objects.create(user=user, workspace=Workspace.objects.get(slug="carrum"), role=Membership.OWNER)
+                                            password=os.environ["E2E_PASSWORD"],
+                                            is_superuser=True, is_staff=True)  # renames the project (Settings > General)
+Membership.objects.create(user=user, workspace=Workspace.objects.order_by("id").first(), role=Membership.OWNER)
 UserPreference.objects.get_or_create(user=user)
-publish(Agent.objects.get(name="Driver lead qualifier"), user)  # the seed leaves it a draft
-print(f"Created {email} as owner; published the seeded agent.")
+publish(Agent.objects.get(name="Rental enquiry assistant"), user)  # the seed leaves it a draft
+print(f"Created {email} as owner and superuser; published the seeded agent.")
 '
 
 echo "Starting Django on 127.0.0.1:${DJANGO_PORT}..."
