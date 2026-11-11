@@ -1,4 +1,4 @@
-"""Load the published agent config from the Carrum Voice console, with disk cache and built-in fallback."""
+"""Load the published agent config from the Dialtone console, with disk cache and built-in fallback."""
 
 import asyncio
 import json

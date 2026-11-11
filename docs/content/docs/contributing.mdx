@@ -1,0 +1,102 @@
+---
+title: Contributing
+description: Set up a development environment, run the tests and open a pull request.
+---
+
+Contributions are welcome. The full guide is
+[CONTRIBUTING.md](https://github.com/Kapilrohilla/dialtone/blob/main/CONTRIBUTING.md); this page is the short
+version. Please also read the
+[Code of Conduct](https://github.com/Kapilrohilla/dialtone/blob/main/CODE_OF_CONDUCT.md), and report security
+issues privately as described in
+[SECURITY.md](https://github.com/Kapilrohilla/dialtone/blob/main/SECURITY.md).
+
+## Repository layout
+
+| Path | What |
+|---|---|
+| `agent/` | Python LiveKit Agents worker and text simulator (pytest, `agent/tests`) |
+| `server/` | Django + DRF server (pytest-django on PostgreSQL, `server/tests`) |
+| `console/` | Next.js console (Vitest, ESLint, TypeScript, Playwright e2e) |
+| `deploy/` | Compose file, VM bootstrap, deploy script, optional Terraform |
+| `scripts/` | `init.sh`, SIP setup, LiveKit CLI wrapper, CI check, shell script tests |
+| `docs/` | This site (Fumadocs, static export to GitHub Pages) |
+| `examples/` | Example agents (script and knowledge) |
+
+## Development setup
+
+You need Python 3.12+, Node 22, Docker and `make`. The full stack needs Linux; the unit tests run anywhere
+Docker runs.
+
+```bash
+# Python virtualenvs used by `make test`
+python3 -m venv agent/.venv  && agent/.venv/bin/pip install -r agent/requirements-dev.txt
+python3 -m venv server/.venv && server/.venv/bin/pip install -r server/requirements-dev.txt
+
+# Console
+(cd console && npm ci)
+```
+
+Iterate on one part:
+
+```bash
+make agent-dev        # agent in LiveKit dev mode (point LIVEKIT_URL in .env at a LiveKit server)
+make console-dev      # console on :3000, proxying /api to the server on :8787
+```
+
+The agent needs its model files once: `cd agent && .venv/bin/python -m livekit.agents download-files`.
+
+## Tests
+
+```bash
+make test             # agent + server pytest, console tests/typecheck/lint, shell script tests
+scripts/ci-check.sh   # what CI runs: make test + a production console build
+```
+
+`make test` starts a disposable PostgreSQL for the server tests (`make test-db`, container
+`dialtone-test-pg` on `127.0.0.1:55432`). To use another server, set `TEST_POSTGRES_HOST`,
+`TEST_POSTGRES_PORT`, `TEST_POSTGRES_USER` and `TEST_POSTGRES_PASSWORD`.
+
+Console end-to-end smoke run (Playwright, against a disposable Django + Postgres):
+
+```bash
+cd console && npx playwright install chromium    # first time
+make test-db && make console-e2e                 # extra args go to Playwright: scripts/console-e2e.sh --grep Knowledge
+```
+
+The e2e run re-creates the database `console_e2e` on the test Postgres, seeds it, creates the owner
+(and superuser) `e2e@example.test` with a random password (or `E2E_PASSWORD`), starts Django on 127.0.0.1:8788
+and a production build of the console on 127.0.0.1:3100, and walks every screen with Playwright
+(`console/e2e/smoke.spec.ts`). LiveKit and the simulator are not started, so it also checks that the console
+says so. The build goes to `console/.next/e2e`. Screenshots land in `console/test-results/light/` and
+`console/test-results/dark/`, server logs in `console/test-results/servers/`, the HTML report in
+`console/playwright-report/`.
+
+To try the production console image locally: `docker build -t dialtone-console:local console`, then on
+Linux `docker run --rm --network host dialtone-console:local` (serves http://127.0.0.1:3000). On macOS,
+Docker Desktop's host network is its VM's, so use
+`docker run --rm -p 3000:3000 -e HOSTNAME=0.0.0.0 dialtone-console:local` instead.
+
+The agent tests (`agent/tests`, configured by `agent/pytest.ini`) need no running services. The server tests
+run on PostgreSQL; pytest-django creates and drops `test_dashboard` on the test server.
+
+## Docs
+
+```bash
+cd docs
+npm ci
+npm run dev       # http://localhost:3000/dialtone/docs
+npm run build     # static export to docs/out
+```
+
+Pages live in `docs/content/docs/` (MDX, sidebar order in `meta.json`). The API reference is generated
+from `docs/openapi.json` before every dev/build run by `docs/scripts/generate-openapi.mjs`. Regenerate the
+schema from the server when endpoints change.
+
+## Pull requests
+
+- Branch from `main`, keep each PR to one change, and describe what and why.
+- Run `scripts/ci-check.sh` (or at least `make test`) before pushing; CI runs it on every PR.
+- Add or update tests with behaviour changes, and update these docs when you change setup, settings or
+  behaviour users see.
+- Add a line under `## [Unreleased]` in `CHANGELOG.md` for user-visible changes.
+- Never commit secrets, `.env`, real phone numbers or call data.

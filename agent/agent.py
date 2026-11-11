@@ -1,4 +1,8 @@
-"""Carrum Mobility phone agent: qualifies driver-partner leads in Hindi/Hinglish.
+"""Dialtone phone agent: qualifies driver-partner leads in Hindi/Hinglish.
+
+Who it speaks for (company, persona, pronunciation, recording notice) comes from the published agent or
+the AGENT_COMPANY_NAME / AGENT_PERSONA_NAME / AGENT_NAME_PRONUNCIATION / AGENT_CONSENT_LINE env vars; see
+prompt.identity().
 
 Two pipelines, picked with AGENT_PIPELINE:
 - gemini-live (default): Gemini Live speech-to-speech. One model listens, thinks
@@ -57,12 +61,13 @@ from metrics import LatencyStats
 from mood import MoodReading, MoodTracker
 from prompt import BASE_INSTRUCTIONS, SCRIPT_FALLBACK, SYSTEM_LAYER  # noqa: F401  (layers live in prompt.py)
 from prompt import (
-    PERSONA_NAME,
+    Identity,
     build_instructions,
     builtin_instructions,
     custom_hints,
     end_step_check,
     end_step_refusal,
+    identity,
     opening_instructions,
 )
 from prompt import (  # noqa: F401  (re-exported: tests and callers use agent.X)
@@ -269,6 +274,7 @@ class PhoneAgent(Agent):
         self.snapshot: dict | None = None
         self.workflow: WorkflowRun | None = None
         self.persona_name: str | None = None
+        self.identity: Identity | None = None
         # Sends call events (step_entered, field_captured); the entrypoint points it at the EventSink.
         self.emit = lambda type, payload: None
         # The current caller-mood note (cascaded pipelines), kept across workflow step changes.
@@ -289,14 +295,15 @@ class PhoneAgent(Agent):
         snapshot = cfg.snapshot if cfg is not None else None
         if snapshot is not None:
             try:
-                persona = snapshot.get("persona_name")
-                persona = persona if isinstance(persona, str) and persona.strip() else PERSONA_NAME
+                # Company, persona, pronunciation and consent line: the snapshot's, else the env's.
+                who = identity(snapshot)
+                persona = who.persona
                 workflow = self._start_workflow(snapshot)
                 step = workflow.current if workflow else None
                 paths = workflow.paths_from_current() if workflow else []
-                self.snapshot, self.persona_name = snapshot, persona
+                self.snapshot, self.persona_name, self.identity = snapshot, persona, who
                 self.base_instructions = self._snapshot_instructions(step, paths)
-                self.opening = opening_line(lead, persona, recording)
+                self.opening = opening_line(lead, persona, recording, who)
                 # Every path tool of the graph, registered once: tools never change mid-call (on Gemini
                 # Live a tool update reconnects the session). The engine refuses paths not valid here.
                 path_tools = [self._path_tool(p) for p in workflow.all_path_tools()] if workflow else []
@@ -304,7 +311,7 @@ class PhoneAgent(Agent):
             except Exception:
                 # A call must never fail because of console data: run today's built-in agent instead.
                 logger.warning("console config unusable, using the built-in prompt", exc_info=True)
-                self.snapshot = self.workflow = self.persona_name = None
+                self.snapshot = self.workflow = self.persona_name = self.identity = None
                 self.base_instructions = builtin_instructions(lead, language_rules, recording)
                 self.opening = opening_line(lead, recording=recording)
                 path_tools = []
@@ -339,7 +346,7 @@ class PhoneAgent(Agent):
             self._path_labels(paths),
             handoff_available=bool(HANDOFF_SIP_URI),
         )
-        return f"{text}\n\n{opening_instructions(self.lead, self.persona_name, self.recording)}"
+        return f"{text}\n\n{opening_instructions(self.lead, self.persona_name, self.recording, self.identity)}"
 
     def _path_tool(self, tool: PathTool):
         async def take_path(raw_arguments: dict) -> str:
@@ -427,7 +434,7 @@ class PhoneAgent(Agent):
         main_question: str = "",
         do_not_call: bool = False,
     ) -> str:
-        """Record the call's outcome for Carrum's telecalling team. Call it before your closing line, and
+        """Record the call's outcome for the telecalling team. Call it before your closing line, and
         again if the outcome changes. Fill only what the driver actually said; leave the rest empty.
 
         Args:
@@ -501,7 +508,7 @@ class PhoneAgent(Agent):
 
     @function_tool
     async def transfer_to_telecaller(self, ctx: RunContext) -> str:
-        """Connect the driver to a person on Carrum's telecalling team right now. Use only when the
+        """Connect the driver to a person on the telecalling team right now. Use only when the
         driver agreed to talk to a person now. Call record_outcome first. If this returns that transfer
         isn't available, offer a callback instead."""
         if not HANDOFF_SIP_URI:

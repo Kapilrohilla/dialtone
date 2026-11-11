@@ -10,15 +10,24 @@ import { Shell } from "./Shell";
 const open = (route = "/") => renderWithProviders(<Shell><p>Page body</p></Shell>, { route });
 
 describe("shell", () => {
-  it("shows the workspace, the user and the page", async () => {
+  it("shows the project, the workspace, the user and the page", async () => {
     open();
     expect(await screen.findByText("Page body")).toBeInTheDocument();
-    expect(screen.getByText("Carrum Mobility")).toBeInTheDocument();
+    expect(await screen.findByText("Northwind Voice")).toBeInTheDocument();
+    expect(screen.getByText("NV")).toBeInTheDocument();
+    expect(await screen.findByText("Northwind Car Rentals")).toBeInTheDocument();
     expect(screen.getByText("Kapil Rohilla")).toBeInTheDocument();
     expect(screen.getByText("Soon")).toBeInTheDocument();
-    expect(screen.getByText("CM")).toBeInTheDocument();
     expect(screen.getByText("KR")).toBeInTheDocument();
     expect(screen.getByText("Owner")).toBeInTheDocument();
+  });
+
+  it("calls the project Dialtone while the name can't be loaded", async () => {
+    server.use(http.get("*/api/instance/", () => HttpResponse.json({ detail: "boom" }, { status: 500 })));
+    const view = open();
+    await waitFor(() => expect(view.queryClient.getQueryState(["instance"])?.status).toBe("error"));
+    expect(screen.getByText("Dialtone")).toBeInTheDocument();
+    expect(screen.getByText("D")).toBeInTheDocument();
   });
 
   it("sidebar shows the live count only when calls are live", async () => {

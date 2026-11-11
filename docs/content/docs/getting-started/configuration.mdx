@@ -1,0 +1,159 @@
+---
+title: Configuration
+description: Every setting in .env, grouped by what it affects.
+---
+
+All configuration lives in one `.env` file at the repo root. `make init` creates it from `.env.example` and
+generates the secrets. The compose file (`deploy/docker-compose.yml`) passes it to the server, the agent and
+the simulator; LiveKit, SIP and egress get their settings from it through compose variables.
+
+<Callout type="warn">
+  The stack needs a **Linux** host: every service uses host networking (SIP/RTP and WebRTC need large UDP
+  port ranges). Docker Desktop on macOS or Windows won't work.
+</Callout>
+
+After changing `.env`, restart what reads it: `make up` for the server, console and media services,
+`make agent` for the agent and simulator. The console's `DJANGO_URL` is baked in at build time, so a
+`DASHBOARD_PORT` change needs `make up` (which rebuilds).
+
+## Provider keys (all optional)
+
+Set only the keys your `AGENT_PIPELINE` and the features you use need.
+
+| Variable | Enables |
+|---|---|
+| `GOOGLE_API_KEY` | Google AI (Gemini): the `gemini-live` pipeline, the console's *Try it* / *Test call* simulator, *Suggest with AI* in the workflow builder, and mood classification on `gemini-live`. |
+| `SARVAM_API_KEY` | Sarvam speech-to-text (`sarvam` and `elevenlabs` pipelines) and Sarvam TTS (`sarvam`). |
+| `OPENAI_API_KEY` | The LLM of the `sarvam` and `elevenlabs` pipelines, and mood classification on them. |
+| `ELEVEN_API_KEY` | ElevenLabs text-to-speech (`elevenlabs` pipeline). |
+
+## Compose project and versions
+
+| Variable | Default | Notes |
+|---|---|---|
+| `COMPOSE_PROJECT_NAME` | unset (`dialtone`) | Leave unset on new installs. Installs created before the Dialtone rename set `ai-calling` to keep their Docker volumes. |
+| `LIVEKIT_VERSION` | `v1.13.9` | `livekit/livekit-server` image tag. |
+| `SIP_VERSION` | `v1.18.0` | `livekit/sip` image tag. |
+| `LK_CLI_VERSION` | `v2.18.8` | LiveKit CLI used by `scripts/lk.sh` and `make lk`. |
+| `EGRESS_VERSION` | `v1.15.0` | `livekit/egress` (call recording). Check it against `LIVEKIT_VERSION`. |
+
+Versions are pinned on purpose: bump them deliberately, test on a staging host, never use `:latest`. The
+agent's Python dependencies are pinned in `agent/requirements.txt` (`livekit-agents` 1.8.5).
+
+## Server
+
+| Variable | Default | Notes |
+|---|---|---|
+| `DASHBOARD_PORT` | `8787` | Django server port, on 127.0.0.1 only. LiveKit's webhook and the console's `DJANGO_URL` follow it. |
+| `DJANGO_SECRET_KEY` | generated | Keep it secret; changing it logs everyone out. |
+| `DJANGO_DEBUG` | `false` | Never `true` on a server: debug pages show settings and caller data. |
+| `CONSOLE_URL` | `http://localhost:3000/` | Where the server's `/` redirects. |
+| `CSRF_EXTRA_TRUSTED_ORIGINS` | empty | Extra origins allowed to POST, comma-separated, beyond `http://localhost:3000` and `http://127.0.0.1:3000`. |
+| `DIALTONE_PROJECT_NAME` | `Dialtone` | Optional, not in `.env.example`. Starting value of the install's project name; see [Branding](/docs/guides/branding-and-project-name). |
+| `RECORDING_MIN_FREE_GB` | `2` | Optional, not in `.env.example`. Recordings are refused when the disk has less free space. |
+
+### Database (PostgreSQL)
+
+| Variable | Default | Notes |
+|---|---|---|
+| `POSTGRES_DB` | `dashboard` | |
+| `POSTGRES_USER` | `dashboard` | |
+| `POSTGRES_PASSWORD` | generated | Set before the first `make up`: the database is created with it. |
+| `POSTGRES_HOST` | `127.0.0.1` | |
+| `POSTGRES_PORT` | `5432` | |
+
+## LiveKit
+
+| Variable | Default | Notes |
+|---|---|---|
+| `LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET` | generated | Shared by LiveKit, SIP, egress, the server and the agent. |
+| `LIVEKIT_URL` | `ws://127.0.0.1:7880` | Where the agent and server reach LiveKit. Agents on other VMs use the media VM's private IP. |
+| `LIVEKIT_PUBLIC_URL` | `ws://localhost:7880` | The URL the **browser** connects to for Voice test. `make tunnel` forwards 7880, so the default works from your laptop. |
+| `REDIS_PORT` | `6380` | Non-default so it never clashes with another Redis on the host. |
+
+## SIP trunk
+
+| Variable | Default | Notes |
+|---|---|---|
+| `SIP_NUMBERS` | `+91XXXXXXXXXX` | Your numbers, comma-separated, E.164. |
+| `SIP_ALLOWED_ADDRESSES` | empty | IPs/CIDRs your provider sends calls from, comma-separated. Required by `make sip`. |
+| `SIP_AUTH_USERNAME` / `SIP_AUTH_PASSWORD` | empty | Optional digest auth, if your provider uses it for inbound calls. |
+| `SIP_LOG_LEVEL` | `info` | |
+| `AGENT_SIP_HOST` | empty | Public IP of the SIP server; `scripts/test-call.sh` dials it directly. |
+
+## Agent worker
+
+| Variable | Default | Notes |
+|---|---|---|
+| `AGENT_NAME` | `phone-agent` | Worker name; the SIP dispatch rule and Voice test dispatch this name. |
+| `AGENT_PIPELINE` | `gemini-live` | `gemini-live`, `sarvam` or `elevenlabs`. |
+| `AGENT_COMPANY_NAME` | empty | Optional, not in `.env.example`. Company the built-in agent speaks for when the published agent doesn't set one. Empty: no company is named. |
+| `AGENT_PERSONA_NAME` | `Priya` | Name the agent introduces itself with when the published agent doesn't set one. Empty: no name. |
+| `AGENT_NAME_PRONUNCIATION` | empty | Optional, not in `.env.example`. Free-text guidance for saying the company name. |
+| `AGENT_CONSENT_LINE` | built-in | Optional, not in `.env.example`. Recording notice added to the opening of a recorded call. Set it to an empty string to turn the notice off. |
+| `NUM_IDLE_PROCESSES` | `3` | Warm processes ready for new calls. `1` on small VMs (e2-medium), `3+` on 4+ vCPU. |
+| `LOAD_THRESHOLD` | `0.75` | Worker load above which LiveKit stops sending it new calls. |
+| `BACKGROUND_AMBIENCE` | `none` | `none`, `office`, `callcenter`, `city` or a path to your own audio file (relative to `agent/`). Avoid `office`: callers hear its voices as someone else on the line. |
+| `BACKGROUND_VOLUME` | empty | Override the ambience level (each built-in has a tuned default). |
+
+Values set on the published agent in the console (company, persona, pronunciation, consent line) win over
+these environment variables.
+
+### Gemini Live
+
+| Variable | Default | Notes |
+|---|---|---|
+| `GEMINI_LIVE_MODEL` | `gemini-3.8-live` | |
+| `GEMINI_VOICE` | `Kore` | |
+| `GEMINI_AFFECTIVE_DIALOG` | `false` | Tone follows the caller's emotion (Gemini v1alpha), if your model supports it. |
+
+### Sarvam / OpenAI / ElevenLabs
+
+| Variable | Default | Notes |
+|---|---|---|
+| `LLM_MODEL` | `gpt-4.1-mini` | OpenAI model of the `sarvam` and `elevenlabs` pipelines. |
+| `DEFAULT_LANGUAGE` | `hi-IN` | Reply language until the caller's language is detected. |
+| `TTS_SPEAKER` | `priya` | Sarvam voice. |
+| `ELEVENLABS_VOICE_ID` | `EXAVITQu4vr4xnSDxMaL` | Sarah (premade). Library voices need a paid ElevenLabs plan over the API. |
+| `ELEVENLABS_MODEL` | `eleven_flash_v2_5` | |
+
+### Call behaviour
+
+| Variable | Default | Notes |
+|---|---|---|
+| `DEAD_AIR_ENABLED` | `true` | Check in on a silent caller. |
+| `DEAD_AIR_NUDGE_S` | `4` | First check-in after this many seconds of silence. |
+| `DEAD_AIR_SECOND_NUDGE_S` | `9` | Second check-in. |
+| `DEAD_AIR_HANG_UP_S` | `15` | Polite goodbye and hang-up. "Ek minute", "ruko", "wait"… triple these for that pause. |
+| `MOOD_ENABLED` | `false` | Classify each caller turn and adapt tone (and pace on `sarvam`/`elevenlabs`). See [Mood evaluation](/docs/guides/mood-evaluation). |
+| `SENTIMENT_MODEL` | empty | Empty: `gemini-flash-lite-latest` on `gemini-live`, `gpt-4.1-mini` otherwise. |
+| `MOOD_EVAL_CAPTURE` | `false` | Keep caller turn text in reports for labelling. Turn off after the evaluation. |
+| `HANDOFF_SIP_URI` | empty | `tel:+91…` or `sip:…`. Live transfer of an upset caller who agrees; needs a trunk that supports REFER. Empty: the agent offers a callback. |
+| `RECORDING_ENABLED` | `true` | Master switch. `true`: phone calls are recorded when the workspace's **Record calls** switch (Settings → Calls) is on. `false`: nothing is recorded. |
+
+### Server connection
+
+| Variable | Default | Notes |
+|---|---|---|
+| `DASHBOARD_URL` | `http://127.0.0.1:8787` | Where the agent fetches the published agent and posts live events (`/api/runtime/*`). Set it **empty** on agent-only VMs. |
+| `DASHBOARD_REPORT_URL` | empty | Where the agent posts each call's report. On the media VM: `http://127.0.0.1:8787/api/report`. |
+| `CONFIG_CACHE_DIR` | `/cache` | Last good published config per number (the `agent-cache` volume). |
+
+## Simulator and AI helpers
+
+| Variable | Default | Notes |
+|---|---|---|
+| `SIM_PORT` | `8790` | Port of `dialtone-agent-sim` (text *Try it* / *Test call*). |
+| `SIM_LLM_MODEL` | `gemini-2.5-flash` | Model the simulator uses (`GOOGLE_API_KEY`). |
+| `AGENT_SIM_URL` | `http://127.0.0.1:8790` | Where the server reaches the simulator. |
+| `SUGGEST_LLM_MODEL` | `gemini-3.6-flash` | Model behind the workflow builder's *Suggest with AI*. |
+| `SUGGEST_DAILY_LIMIT` | `20` | Suggestion runs per workspace per day (failed runs don't count). |
+
+## Deploy-time variables (not in `.env`)
+
+`make deploy` and `make tunnel` read these from your shell: `GCP_PROJECT` (required), `VM` (default
+`dialtone`), `GCP_ZONE` (default `asia-south1-c`), `REMOTE_DIR` (default `dialtone`), `FORCE=1`,
+`ROLLBACK=1`. See [Deploy to a VM](/docs/guides/deploy-to-a-vm).
+
+The server tests read `TEST_POSTGRES_HOST`, `TEST_POSTGRES_PORT`, `TEST_POSTGRES_USER` and
+`TEST_POSTGRES_PASSWORD` (default `127.0.0.1:55432`, `postgres`/`postgres`).

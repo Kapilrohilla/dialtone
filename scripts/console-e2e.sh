@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # End-to-end smoke run of the console against a real, disposable Django + Postgres.
 #
-# Needs `make test-db` (Postgres on 127.0.0.1:55432), dashboard/.venv and console/node_modules.
-# Drops and re-creates the database `console_e2e`, seeds it, creates the owner e2e@carrum.test,
+# Needs `make test-db` (Postgres on 127.0.0.1:55432), server/.venv and console/node_modules.
+# Drops and re-creates the database `console_e2e`, seeds it, creates the owner (and superuser) e2e@example.test,
 # starts Django on 127.0.0.1:8788 and the built console on 127.0.0.1:3100, then runs Playwright.
 # LiveKit and the agent simulator are deliberately not running: the run checks the console copes.
 #
@@ -12,7 +12,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 root=$(pwd)
 
-PG_CONTAINER=ai-calling-test-pg
+PG_CONTAINER=dialtone-test-pg
 DJANGO_PORT=8788
 CONSOLE_PORT=3100
 DIST_DIR=.next/e2e   # inside console/; keeps the normal .next build untouched
@@ -20,7 +20,7 @@ log_dir="$root/console/test-results/servers"
 
 docker ps --filter "name=^${PG_CONTAINER}$" --format '{{.Names}}' | grep -q . \
   || { echo "Postgres for tests is not running; run: make test-db" >&2; exit 1; }
-[[ -x dashboard/.venv/bin/python ]] || { echo "dashboard/.venv missing" >&2; exit 1; }
+[[ -x server/.venv/bin/python ]] || { echo "server/.venv missing" >&2; exit 1; }
 [[ -d console/node_modules ]] || { echo "console/node_modules missing; run: cd console && npm ci" >&2; exit 1; }
 for port in $DJANGO_PORT $CONSOLE_PORT; do
   if curl -s -o /dev/null --max-time 1 "http://127.0.0.1:${port}/"; then
@@ -32,7 +32,7 @@ done
 if [[ -z "${E2E_PASSWORD:-}" ]]; then
   E2E_PASSWORD="e2e-$(openssl rand -hex 12)"
 fi
-export E2E_PASSWORD E2E_EMAIL=e2e@carrum.test
+export E2E_PASSWORD E2E_EMAIL=e2e@example.test
 
 # Harmless local values only. LiveKit and the simulator point at closed ports so calls fail fast.
 export DJANGO_SECRET_KEY="console-e2e-not-a-secret" DJANGO_DEBUG=false
@@ -74,9 +74,9 @@ echo "Re-creating database console_e2e..."
 docker exec "$PG_CONTAINER" psql -U postgres -q -c "DROP DATABASE IF EXISTS console_e2e WITH (FORCE);"
 docker exec "$PG_CONTAINER" psql -U postgres -q -c "CREATE DATABASE console_e2e;"
 
-cd "$root/dashboard"
+cd "$root/server"
 .venv/bin/python manage.py migrate --noinput >"$log_dir/migrate.log"
-.venv/bin/python manage.py seed_carrum --knowledge "$root/console/e2e/fixtures/knowledge.md"
+.venv/bin/python manage.py seed_demo --knowledge "$root/console/e2e/fixtures/knowledge.md"
 .venv/bin/python manage.py shell -c '
 import os
 from django.contrib.auth import get_user_model
@@ -85,11 +85,12 @@ from voiceagents.publish import publish
 from workspaces.models import Membership, UserPreference, Workspace
 email = os.environ["E2E_EMAIL"]
 user = get_user_model().objects.create_user(username=email, email=email, first_name="E2E Owner",
-                                            password=os.environ["E2E_PASSWORD"])
-Membership.objects.create(user=user, workspace=Workspace.objects.get(slug="carrum"), role=Membership.OWNER)
+                                            password=os.environ["E2E_PASSWORD"],
+                                            is_superuser=True, is_staff=True)  # renames the project (Settings > General)
+Membership.objects.create(user=user, workspace=Workspace.objects.order_by("id").first(), role=Membership.OWNER)
 UserPreference.objects.get_or_create(user=user)
-publish(Agent.objects.get(name="Driver lead qualifier"), user)  # the seed leaves it a draft
-print(f"Created {email} as owner; published the seeded agent.")
+publish(Agent.objects.get(name="Rental enquiry assistant"), user)  # the seed leaves it a draft
+print(f"Created {email} as owner and superuser; published the seeded agent.")
 '
 
 echo "Starting Django on 127.0.0.1:${DJANGO_PORT}..."

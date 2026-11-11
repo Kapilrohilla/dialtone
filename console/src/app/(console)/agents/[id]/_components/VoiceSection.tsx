@@ -4,7 +4,7 @@ import { Play } from "lucide-react";
 import { useRef, useState } from "react";
 import { Button, Field } from "@/components/ui";
 import { useVoices, type AgentUpdate } from "@/lib/queries";
-import type { Agent } from "@/lib/types";
+import type { Agent, AgentTextSetting } from "@/lib/types";
 import { groupOf } from "./useAgentSaves";
 import styles from "./editor.module.css";
 
@@ -45,6 +45,7 @@ export function VoiceSection({ agent, readOnly, save, markInvalid }: PanelSectio
         label="Agent's name"
         value={persona}
         maxLength={60}
+        hint="Optional. Leave blank and the agent won't give a name."
         readOnly={readOnly}
         onChange={(e) => setPersona(e.target.value)}
         onBlur={() => {
@@ -54,6 +55,9 @@ export function VoiceSection({ agent, readOnly, save, markInvalid }: PanelSectio
           else markInvalid(groupOf({ persona_name: next }), null);
         }}
       />
+      <TextSetting agent={agent} readOnly={readOnly} save={save} markInvalid={markInvalid} setting="name_pronunciation" label="How to say the agent's name" hint="Spelled as it sounds. Leave blank to use the name as written." />
+      <TextSetting agent={agent} readOnly={readOnly} save={save} markInvalid={markInvalid} setting="company_name" label="Company name" hint="The company the agent says it calls from." />
+      <TextSetting agent={agent} readOnly={readOnly} save={save} markInvalid={markInvalid} setting="consent_line" label="Consent line" control="textarea" hint="Said at the start of every call. Leave blank for none." />
       <Field
         control="select"
         label="Voice"
@@ -80,5 +84,32 @@ export function VoiceSection({ agent, readOnly, save, markInvalid }: PanelSectio
       )}
       {data && <p className={styles.panelNote}>Voices for {pipelineLabel(data.pipeline)}.</p>}
     </div>
+  );
+}
+
+/** One optional free-text setting, saved on its own when the field loses focus. Blank unsets it. */
+function TextSetting({
+  agent,
+  readOnly,
+  save,
+  markInvalid,
+  setting,
+  label,
+  hint,
+  control,
+}: PanelSectionProps & { markInvalid: MarkInvalid; setting: AgentTextSetting; label: string; hint: string; control?: "textarea" }) {
+  const saved = agent.settings[setting] ?? "";
+  const [value, setValue] = useState(saved);
+  const onBlur = () => {
+    const next = value.trim();
+    // Back to the saved value: nothing to send, and an earlier failure no longer applies.
+    if (next !== saved) void save({ settings: { [setting]: next } }, setting);
+    else markInvalid(setting, null);
+  };
+  const common = { label, hint, value, readOnly, onBlur };
+  return control === "textarea" ? (
+    <Field {...common} control="textarea" rows={2} onChange={(e) => setValue(e.target.value)} />
+  ) : (
+    <Field {...common} onChange={(e) => setValue(e.target.value)} />
   );
 }

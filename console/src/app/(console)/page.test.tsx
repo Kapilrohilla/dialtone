@@ -110,9 +110,9 @@ describe("dashboard", () => {
   });
 
   it("shows the live agent line, or how to publish one", async () => {
-    serve({ ...dashboard, live_agent: { id: 1, name: "Priya", phone_number: "+918047182290" } });
+    serve({ ...dashboard, live_agent: { id: 1, name: "Maya", phone_number: "+918047182290" } });
     const first = renderWithProviders(<DashboardPage />);
-    expect(await screen.findByText("Priya")).toBeInTheDocument();
+    expect(await screen.findByText("Maya")).toBeInTheDocument();
     expect(screen.getByText("Live")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Manage agents" })).toHaveAttribute("href", "/agents");
     first.unmount();

@@ -17,7 +17,7 @@ def path(id, a, b, label):
 def driver_graph():
     return {
         "steps": [
-            step("s1", "Greeting", "start", prompt="Namaste! [[expr:happy]] I am calling from Carrum."),
+            step("s1", "Greeting", "start", prompt="Namaste! [[expr:happy]] I am calling from Northwind Car Rentals."),
             step("s2", "Ask city", "collect", field="city"),
             step("s3", "Ask licence and experience", "collect", field="licence"),
             step("s4", "Explain the plan", "prompt", prompt="Here is the plan."),

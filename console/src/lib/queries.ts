@@ -8,10 +8,12 @@ import { ApiError, apiFetch, isSignedOut } from "@/lib/api";
 import type {
   Agent,
   AgentListItem,
+  AgentTextSetting,
   CallDetail,
   CallPage,
   Dashboard,
   Expression,
+  Instance,
   KnowledgeDoc,
   KnowledgeListItem,
   LiveCall,
@@ -73,6 +75,47 @@ export function useLogout() {
       router.replace("/sign-in");
     },
     onError: (e) => toast.show(e instanceof ApiError ? e.detail : "Could not sign out. Check your connection and try again.", "bad"),
+  });
+}
+
+// ---- instance ----
+
+/** What the console calls itself when the server can't say. */
+export const DEFAULT_PROJECT_NAME = "Dialtone";
+
+export const instanceKey = ["instance"] as const;
+
+/** This install's name. Public: the sign-in and set-password screens read it too, so a failure never redirects. */
+export function useInstance() {
+  return useQuery({
+    queryKey: instanceKey,
+    queryFn: () => apiFetch<Instance>("/api/instance/", { signInRedirect: false }),
+    staleTime: 5 * 60_000,
+  });
+}
+
+/** The project name to show: the saved one, or "Dialtone" while loading or when the server can't be reached. */
+export function useProjectName(): string {
+  return useInstance().data?.project_name || DEFAULT_PROJECT_NAME;
+}
+
+/** The tab title with `from` swapped for `to`: "Agents - Old" → "Agents - New", "Old" → "New". Any other title becomes `to`. */
+export function retitle(title: string, from: string, to: string): string {
+  if (title === from) return to;
+  const suffix = ` - ${from}`;
+  return title.endsWith(suffix) ? title.slice(0, -suffix.length) + ` - ${to}` : to;
+}
+
+/** Renames the install (superusers only). The sidebar and the open tab's title change at once; field errors stay on the error. */
+export function useUpdateInstance() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Instance) => apiFetch<Instance>("/api/instance/", { method: "PATCH", json: body }),
+    onSuccess: (saved) => {
+      const before = qc.getQueryData<Instance>(instanceKey)?.project_name || DEFAULT_PROJECT_NAME;
+      qc.setQueryData(instanceKey, saved);
+      document.title = retitle(document.title, before, saved.project_name);
+    },
   });
 }
 
@@ -256,7 +299,7 @@ export type AgentUpdate = Partial<
   Pick<Agent, "name" | "description" | "language" | "persona_name" | "voice_id" | "script" | "custom_expressions" | "knowledge" | "workflow" | "phone_number">
 > & {
   /** Deep-merged over the saved settings by the server, so send only what changed. */
-  settings?: { mood_adaptation?: boolean; dead_air?: Partial<Agent["settings"]["dead_air"]> };
+  settings?: { mood_adaptation?: boolean; dead_air?: Partial<Agent["settings"]["dead_air"]> } & Partial<Pick<Agent["settings"], AgentTextSetting>>;
 };
 
 /** PATCH only the fields that changed. `signInRedirect: false` leaves a signed-out error to the screen
