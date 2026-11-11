@@ -10,7 +10,8 @@ from dead_air import DeadAirConfig
 from prompt import builtin_instructions, opening_line
 from workflow import PathTool
 
-CONSENT = "यह call quality के लिए record हो रही है।"
+CONSENT = prompt.DEFAULT_CONSENT_LINE
+COMPANY = "Northwind Car Rentals"
 LEAD = {"lead_id": "L1", "name": "Ramesh"}
 
 GRAPH = {
@@ -31,8 +32,8 @@ def snapshot(workflow=None, **overrides) -> dict:
         "agent_id": 1,
         "version": 2,
         "name": "Leads",
-        "persona_name": "Anjali",
-        "settings": {},
+        "persona_name": "Maya",
+        "settings": {"company_name": COMPANY},
         "script": [{"title": "Your job", "body_rendered": "Qualify the driver."}],
         "knowledge": [],
         "workflow": workflow,
@@ -43,6 +44,14 @@ def snapshot(workflow=None, **overrides) -> dict:
 
 def console(snap: dict) -> Config:
     return Config("console", snap, 7)
+
+
+@pytest.fixture(autouse=True)
+def demo_identity(monkeypatch):
+    # Independent of the local .env: the built-in prompt speaks for the demo company, default consent line.
+    for var in ("AGENT_PERSONA_NAME", "AGENT_NAME_PRONUNCIATION", "AGENT_CONSENT_LINE"):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setenv("AGENT_COMPANY_NAME", COMPANY)
 
 
 @pytest.fixture(autouse=True)
@@ -140,10 +149,18 @@ def test_opening_line_consent_only_when_recording():
 
 
 def test_opening_line_uses_persona():
-    assert "main Anjali, Carrum Mobility" in opening_line({}, persona_name="Anjali")
-    assert "main Anjali, Carrum Mobility" in opening_line({"previously_interested": True}, persona_name="Anjali")
-    # No persona given: exactly today's text.
-    assert opening_line({}).startswith("Namaste sir, main Carrum Mobility se AI calling assistant")
+    assert "main Maya, Northwind Car Rentals se" in opening_line({}, persona_name="Maya")
+    assert "main Maya, Northwind Car Rentals ki" in opening_line({"previously_interested": True}, persona_name="Maya")
+    # No persona given: the company only.
+    assert opening_line({}).startswith("Namaste sir, main Northwind Car Rentals se AI calling assistant")
+
+
+def test_snapshot_identity_wins_over_env():
+    snap = snapshot(settings={"company_name": "Contoso Fleet", "consent_line": "Recorded for training."})
+    a = agent.PhoneAgent(LEAD, agent.GEMINI_LANGUAGE_RULES, console(snap), recording=True)
+    assert a.opening.startswith("Namaste sir, main Maya, Contoso Fleet se AI calling assistant")
+    assert a.opening.endswith(" Recorded for training.")
+    assert "Northwind" not in a.instructions and "for Contoso Fleet." in a.instructions
 
 
 def test_builtin_when_no_snapshot():
@@ -159,10 +176,10 @@ def test_builtin_when_no_snapshot():
 def test_snapshot_without_workflow_uses_script_and_persona_opening():
     a = agent.PhoneAgent(LEAD, agent.GEMINI_LANGUAGE_RULES, console(snapshot()))
     assert a.workflow is None
-    assert "You are Anjali" in a.instructions and "Qualify the driver." in a.instructions
-    assert "Your opening line: Namaste sir, main Anjali, Carrum Mobility" in a.instructions
+    assert "You are Maya" in a.instructions and "Qualify the driver." in a.instructions
+    assert "Your opening line: Namaste sir, main Maya, Northwind Car Rentals" in a.instructions
     assert "If the driver speaks first" in a.instructions
-    assert a.opening == opening_line(LEAD, persona_name="Anjali")
+    assert a.opening == opening_line(LEAD, persona_name="Maya", who=a.identity)
 
 
 def test_snapshot_workflow_starts_and_registers_path_tools():
