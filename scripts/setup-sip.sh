@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Creates the inbound SIP trunk and the dispatch rule that sends every call
 # to the agent. Idempotent: reuses the trunk/rule if they already exist.
-# Run on the media VM after `docker compose up -d`.
+# Run on the media VM after `make up`.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

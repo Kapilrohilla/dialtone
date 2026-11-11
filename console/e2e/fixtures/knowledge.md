@@ -1,12 +1,12 @@
-# Driver partner programme
+# Rental programme
 
-Carrum Mobility leases electric cars to driver partners in Delhi NCR.
+Northwind Car Rentals rents compact cars, family cars and vans from its city branches.
 
-## Who can join
+## Who can rent
 
-- A valid commercial driving licence
-- At least one year of driving experience
+- A full driving licence in the renter's own name
+- Renters must be at least 21 years old
 
 ## What it costs
 
-The weekly rent and the deposit are confirmed by the onboarding team at the office visit.
+The daily rate and the deposit are confirmed by the booking team at pick-up.

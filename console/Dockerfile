@@ -1,4 +1,4 @@
-# Carrum Voice console: Next.js standalone server. Listens on 127.0.0.1:3000 (host networking, like the
+# Dialtone console: Next.js standalone server. Listens on 127.0.0.1:3000 (host networking, like the
 # dashboard) and proxies /api/* to Django at DJANGO_URL, which is baked in at build time.
 # The build needs network access: npm ci, and next/font/google downloads the fonts.
 

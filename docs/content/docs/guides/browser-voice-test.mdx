@@ -1,0 +1,45 @@
+---
+title: Browser voice test
+description: Talk to a draft agent through your microphone, with no phone line.
+---
+
+**Voice test** in the agent editor lets you talk to the agent through your microphone, with no phone call,
+so you can test without a SIP trunk or call charges. It is a real voice call over WebRTC: the same agent
+worker joins with the same pipeline (`AGENT_PIPELINE`), voice, dead-air handling, mood and workflow as a
+phone call. (**Test call**, by contrast, is text only.)
+
+## How it works
+
+1. The console asks the server for a token (`POST /api/agents/<id>/web-call`, editors and above).
+2. The server signs a LiveKit token for a new `web-<agent id>-<random>` room. The token tells LiveKit to
+   dispatch the `AGENT_NAME` worker into the room, with the metadata `{"web_test": {"agent_id": <id>}}`.
+3. The browser joins the room and publishes your microphone. The agent joins and fetches the agent's
+   **saved draft** from `/api/runtime/config?agent=<id>`, not the published version, so you hear your edits
+   without publishing. The server serves drafts only to `web-…` rooms, and the agent never caches them, so a
+   phone call never gets a draft.
+4. The call appears in call history with the caller `Web test`. Its outcome, mood and latency are reported
+   like a phone call's.
+
+The agent hangs up as usual (end of the conversation or dead air). **Hang up** in the panel ends the call
+from your side.
+
+## Requirements
+
+- The agent worker is running (`make agent`).
+- The browser can reach LiveKit's signalling port, 7880, at `LIVEKIT_PUBLIC_URL` (default
+  `ws://localhost:7880`). `make tunnel` forwards it; if you opened your tunnel by hand, add
+  `-L 7880:127.0.0.1:7880`.
+- The browser can reach the host's media ports: UDP 50000-60000, or TCP 7881 as a fallback. The Terraform
+  example's firewall already allows them.
+- The console is opened on `http://localhost:3000` or over HTTPS. Browsers only allow the microphone on
+  secure origins, and `localhost` counts as one.
+
+## Troubleshooting
+
+| Symptom | Likely cause |
+|---|---|
+| "Can't reach LiveKit" | Port 7880 not forwarded, or `LIVEKIT_PUBLIC_URL` points somewhere the browser can't reach |
+| Connects, but no audio either way | UDP 50000-60000 and TCP 7881 blocked between your browser and the host |
+| Connects, agent never joins | Worker not running, or its `AGENT_NAME` differs from the server's |
+| Agent joins but stays silent | The pipeline's provider key is missing (check `make logs s=dialtone-agent`) |
+| Microphone blocked | Console opened on a non-localhost `http://` URL |

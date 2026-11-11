@@ -1,0 +1,55 @@
+---
+title: Mood evaluation
+description: Turn on caller-mood adaptation only after measuring it on your own calls.
+---
+
+With `MOOD_ENABLED=true`, a small model labels each caller reply: `interested`, `confused`, `frustrated`,
+`rushed`, `suspicious`, `angry`, `disengaged` or `neutral`. Once two replies agree (or one is clearly
+angry), the agent adjusts: shorter and calmer when the caller is frustrated, slower and simpler when
+confused, straight to the point when rushed. On `sarvam`/`elevenlabs` it also changes the speaking pace. It
+never tells the caller it noticed their mood.
+
+The classifier is `SENTIMENT_MODEL`; empty means `gemini-flash-lite-latest` on `gemini-live`
+(`GOOGLE_API_KEY`) and `gpt-4.1-mini` otherwise (`OPENAI_API_KEY`). Mood adaptation also needs the
+published agent's mood setting on.
+
+Keep `MOOD_ENABLED=false` until labelled calls show the readings are good enough.
+
+## 1. Capture a week of calls
+
+Set `MOOD_ENABLED=true` and `MOOD_EVAL_CAPTURE=true`, then `make agent`. Reports now include the caller's
+turns, and each caller turn becomes a row to label.
+
+## 2. Create labeller accounts
+
+In `/admin/auth/user/` create accounts with **Staff status** on and only the `calls | turn label` "Can view"
+and "Can change" permissions. (`/admin/` is on the server port, 8787, reachable through `make tunnel`.)
+
+## 3. Label 300+ turns
+
+Labellers open `/admin/calls/turnlabel/`, pick the mood from the dropdown in the list and press **Save** at
+the bottom of the page. Use `unclear` when they can't tell; those turns are not scored.
+
+## 4. Score
+
+```bash
+docker compose -f deploy/docker-compose.yml --env-file .env exec dialtone-server python manage.py mood_eval
+docker compose -f deploy/docker-compose.yml --env-file .env exec dialtone-server python manage.py mood_eval --since 2026-11-10
+```
+
+It prints accuracy, precision and recall per mood, a confusion matrix and a PASS/FAIL line.
+
+**Go-live gate:** precision of at least 0.7 for `angry`, `frustrated` and `confused`. Below that, tighten
+the classifier prompt (`CLASSIFIER_PROMPT` in `agent/sentiment.py`) and re-score, or keep
+`MOOD_ENABLED=false`.
+
+## 5. Clean up
+
+Set `MOOD_EVAL_CAPTURE=false` and delete the captured speech, because the turns hold what callers said:
+
+```bash
+docker compose -f deploy/docker-compose.yml --env-file .env exec dialtone-server python manage.py purge_turns
+```
+
+Also compare the `CDRP` and `NI` rates of calls with mood on and off, using the admin's outcome and mood
+filters.

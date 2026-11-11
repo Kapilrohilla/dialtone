@@ -1,0 +1,68 @@
+name: Bug report
+description: Something doesn't work as documented.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Please remove phone numbers, API keys, `.env` secrets and caller data from
+        everything you paste. Security problems go to a [private report](https://github.com/Kapilrohilla/dialtone/security/advisories/new) instead.
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options:
+        - agent (calls, voice, pipelines)
+        - server (API, admin, webhooks)
+        - console (web UI)
+        - SIP / LiveKit / media
+        - deploy, scripts or compose
+        - docs
+        - not sure
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. make up && make agent
+        2. In the console, ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: e.g. `make logs s=dialtone-agent`, `make logs s=dialtone-server`, `make logs s=sip`, or the browser console.
+      render: shell
+  - type: input
+    id: version
+    attributes:
+      label: Dialtone version or commit
+      placeholder: v0.1.0 or a commit SHA
+    validations:
+      required: true
+  - type: dropdown
+    id: pipeline
+    attributes:
+      label: AGENT_PIPELINE
+      options:
+        - gemini-live
+        - sarvam
+        - elevenlabs
+        - not relevant
+  - type: input
+    id: environment
+    attributes:
+      label: Host
+      description: OS and Docker version, and where it runs (laptop, GCP, other cloud).
+      placeholder: Ubuntu 24.04, Docker 28.1, GCP e2-standard-4

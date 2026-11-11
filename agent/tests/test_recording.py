@@ -8,12 +8,19 @@ import pytest
 from livekit import api
 
 import agent
+import prompt
 import recording
 from console_config import Config
 from recording import RecordingHandle, recording_path, recording_wanted, report_field, start_recording
 from report import build_report
 
-CONSENT = "यह call quality के लिए record हो रही है।"
+CONSENT = prompt.DEFAULT_CONSENT_LINE
+
+
+@pytest.fixture(autouse=True)
+def default_consent(monkeypatch):
+    # Independent of the local .env: the default consent line.
+    monkeypatch.delenv("AGENT_CONSENT_LINE", raising=False)
 ON = {"account": {"recording": {"enabled": True, "reason": None}}}
 
 
@@ -128,7 +135,7 @@ def test_report_field():
 
 @pytest.mark.parametrize("cfg", [
     Config("builtin", None, None),
-    Config("console", {"agent_id": 1, "version": 1, "name": "x", "persona_name": "Anjali", "settings": {},
+    Config("console", {"agent_id": 1, "version": 1, "name": "x", "persona_name": "Maya", "settings": {},
                        "script": [{"title": "Job", "body_rendered": "Qualify."}], "knowledge": [],
                        "workflow": None}, 3),
 ])

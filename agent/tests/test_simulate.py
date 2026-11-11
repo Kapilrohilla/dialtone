@@ -31,8 +31,8 @@ def snapshot(workflow=True) -> dict:
     return {
         "agent_id": 1,
         "version": 0,
-        "persona_name": "Anjali",
-        "settings": {},
+        "persona_name": "Maya",
+        "settings": {"company_name": "Northwind Car Rentals"},
         "script": [{"title": "Your job", "body_rendered": "Qualify the driver."}],
         "knowledge": [],
         "workflow": {"id": 3, "revision": 1, "graph": GRAPH} if workflow else None,
@@ -118,7 +118,7 @@ async def test_sim_requires_console_sim_token(make_client):
 
 
 async def test_sim_greeting_turn_returns_reply_and_start_step(make_client):
-    model = FakeModel(ModelTurn(text="Namaste sir, main Anjali bol rahi hoon."))
+    model = FakeModel(ModelTurn(text="Namaste sir, main Maya bol rahi hoon."))
     client = await make_client(model)
     try:
         r = await post(client, body())
@@ -126,7 +126,7 @@ async def test_sim_greeting_turn_returns_reply_and_start_step(make_client):
         data = await r.json()
     finally:
         await client.close()
-    assert data["reply"] == "Namaste sir, main Anjali bol rahi hoon."
+    assert data["reply"] == "Namaste sir, main Maya bol rahi hoon."
     assert data["step"] == {"id": "s1", "name": "Greet"}
     assert data["outcome"] is None and data["ended"] is False
     assert data["state"]["current_step_id"] == "s1" and data["state"]["visits"] == {"s1": 1}
@@ -134,9 +134,9 @@ async def test_sim_greeting_turn_returns_reply_and_start_step(make_client):
     [first] = model.calls
     assert first["messages"] == []
     text = first["instructions"]
-    assert "You are Anjali" in text and "Qualify the driver." in text
+    assert "You are Maya" in text and "Qualify the driver." in text
     assert "Current step: Greet" in text and "Greet Ramesh." in text
-    assert "Your opening line: Namaste sir, main Anjali, Carrum Mobility se AI calling assistant" in text
+    assert "Your opening line: Namaste sir, main Maya, Northwind Car Rentals se AI calling assistant" in text
     names = {t["name"] for t in first["tools"]}
     assert {"record_outcome", "end_call", "transfer_to_telecaller", "go_to_city", "go_to_greet",
             "go_to_not_interested"} <= names
@@ -495,7 +495,7 @@ async def test_sim_start_step_path_waits_until_the_agent_has_spoken(make_client)
     # Like the live call: a caller's "hello" first must not let the model skip the greeting.
     model = FakeModel(
         ModelTurn(tool_calls=[call("go_to_city")]),
-        ModelTurn(text="Ji, hello sir! Namaste, main Anjali bol rahi hoon.", tool_calls=[call("go_to_city")]),
+        ModelTurn(text="Ji, hello sir! Namaste, main Maya bol rahi hoon.", tool_calls=[call("go_to_city")]),
         ModelTurn(text="Sir, aap kis city mein rehte hain?"),
     )
     client = await make_client(model)
@@ -504,8 +504,8 @@ async def test_sim_start_step_path_waits_until_the_agent_has_spoken(make_client)
     finally:
         await client.close()
     results = [m["output"] for m in model.calls[2]["messages"] if m["role"] == "tool_result"]
-    assert "Ji, hello sir" in results[0] and "Namaste sir, main Anjali, Carrum Mobility" in results[0]
+    assert "Ji, hello sir" in results[0] and "Namaste sir, main Maya, Northwind Car Rentals" in results[0]
     # Once the agent has said something in this reply, the path goes ahead.
     assert results[1] == "Now at step City."
     assert data["step"] == {"id": "s2", "name": "City"}
-    assert data["reply"] == "Ji, hello sir! Namaste, main Anjali bol rahi hoon. Sir, aap kis city mein rehte hain?"
+    assert data["reply"] == "Ji, hello sir! Namaste, main Maya bol rahi hoon. Sir, aap kis city mein rehte hain?"

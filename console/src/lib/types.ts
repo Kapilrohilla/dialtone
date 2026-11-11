@@ -3,7 +3,7 @@
 export type Role = "owner" | "admin" | "editor" | "viewer";
 export type Appearance = "light" | "dark" | "system";
 
-// dashboard/workspaces/serializers.py
+// server/workspaces/serializers.py
 export type Preferences = {
   appearance: Appearance;
   notify_needs_person: boolean;
@@ -28,8 +28,15 @@ export type Me = {
   email: string;
   phone: string;
   role: Role;
+  /** Django superuser: may rename the install (Settings → General). */
+  is_superuser: boolean;
   workspace: Workspace;
   preferences: Preferences;
+};
+
+/** This install. GET /api/instance/ (public); PATCH by a superuser. */
+export type Instance = {
+  project_name: string;
 };
 
 export type TeamMember = {
@@ -40,7 +47,7 @@ export type TeamMember = {
   last_login: string | null;
 };
 
-// dashboard/knowledge/serializers.py
+// server/knowledge/serializers.py
 export type KnowledgeListItem = {
   id: number;
   title: string;
@@ -59,7 +66,7 @@ export type Revision = {
   body_md?: string;
 };
 
-// dashboard/workflows (api.py detail + graph.py)
+// server/workflows (api.py detail + graph.py)
 export type StepType = "start" | "prompt" | "collect" | "knowledge" | "transfer" | "end";
 
 export type Step = {
@@ -98,13 +105,22 @@ export type Workflow = WorkflowListItem & {
   errors: string[];
 };
 
-// dashboard/voiceagents/serializers.py
+// server/voiceagents/serializers.py
 export type AgentStatus = "draft" | "published" | "archived";
 
 export type AgentSettings = {
   mood_adaptation: boolean;
   dead_air: { enabled: boolean; nudge_s: number; second_nudge_s: number; hang_up_s: number };
+  /** The company the agent says it calls from. Blank or missing: unset. */
+  company_name?: string;
+  /** How the agent's name is spoken, e.g. "Maa-yaa". Blank or missing: unset. */
+  name_pronunciation?: string;
+  /** Read out at the start of the call, e.g. a recording notice. Blank or missing: unset. */
+  consent_line?: string;
 };
+
+/** The optional free-text agent settings (blank = unset). */
+export type AgentTextSetting = "company_name" | "name_pronunciation" | "consent_line";
 
 export type ScriptSection = { id: string; title: string; body: string };
 
@@ -144,7 +160,7 @@ export type Expression = { name: string; hint: string; builtin: boolean };
 export type Voice = { id: string; name: string; description: string; sample: string | null };
 export type VoicesResponse = { pipeline: string; voices: Voice[] };
 
-// dashboard/calls/serializers.py and api.py
+// server/calls/serializers.py and api.py
 export type OutcomeGroup = "Interested" | "Call back" | "Not interested" | "Dropped" | "Not reached";
 
 export type CallRow = {
@@ -220,7 +236,7 @@ export type SimResponse = {
   ended: boolean;
 };
 
-// dashboard/workflows (suggestions_api.py): "Suggest with AI" drafts
+// server/workflows (suggestions_api.py): "Suggest with AI" drafts
 export type SuggestKind = "answers" | "expressions";
 export type SuggestScope = "step" | "workflow";
 

@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -7,9 +7,15 @@ import type { Editor } from "@tiptap/core";
 import { fromEditor } from "./markdown";
 import { TokenEditor, type TokenEditorProps } from "./TokenEditor";
 
-/** The SCRIPT section bodies seeded by dashboard/voiceagents/management/commands/seed_carrum.py (tests run from console/). */
+/** The SCRIPT section bodies seeded by the demo seed command in server/voiceagents/management/commands/ (tests run from console/). */
+const COMMANDS = resolve(process.cwd(), "../server/voiceagents/management/commands");
+const SEED_SOURCE = readdirSync(COMMANDS)
+  .filter((f) => /^seed_.*\.py$/.test(f))
+  .map((f) => readFileSync(resolve(COMMANDS, f), "utf-8"))
+  .find((src) => src.includes("\nSCRIPT = ["));
+if (!SEED_SOURCE) throw new Error(`no seed command with a SCRIPT in ${COMMANDS}`);
 const SEED_BODIES = [
-  ...readFileSync(resolve(process.cwd(), "../dashboard/voiceagents/management/commands/seed_carrum.py"), "utf-8")
+  ...SEED_SOURCE
     .split("\nSCRIPT = [")[1]
     .split("\n]\n")[0]
     .matchAll(/"body": """([\s\S]*?)"""/g),

@@ -1,0 +1,12 @@
+{
+  "title": "Guides",
+  "pages": [
+    "agents-and-workflows",
+    "sip-telephony",
+    "browser-voice-test",
+    "mood-evaluation",
+    "branding-and-project-name",
+    "deploy-to-a-vm",
+    "scaling"
+  ]
+}
