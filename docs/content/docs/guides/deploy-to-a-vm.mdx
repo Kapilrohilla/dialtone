@@ -1,0 +1,125 @@
+---
+title: Deploy to a VM
+description: Run Dialtone on a cloud VM, ship changes with make deploy, and roll back.
+---
+
+Phase 1 is one Linux VM running everything, good for a few concurrent calls. A 4 vCPU / 8 GB VM (Ubuntu
+24.04 or Debian 12+) with a static public IP, close to your callers, is a comfortable size; an e2-medium
+(2 vCPU / 4 GB) works for testing with `NUM_IDLE_PROCESSES=1`.
+
+## 1. Create the VM
+
+Any Linux host with Docker works. For GCP, `deploy/terraform/` is an optional example that creates the VM,
+a static IP and firewall rules for media (and SIP once you set `sip_provider_cidrs`):
+
+```bash
+cd deploy/terraform
+cp terraform.tfvars.example terraform.tfvars   # set project_id
+terraform init && terraform apply
+```
+
+See `deploy/terraform/README.md` for auth, resizing and state. Elsewhere, open the ports listed in
+[SIP telephony](/docs/guides/sip-telephony#what-you-need).
+
+## 2. Bootstrap and start
+
+On the VM:
+
+```bash
+git clone https://github.com/Kapilrohilla/dialtone.git && cd dialtone
+sudo deploy/bootstrap-server.sh <provider-signalling-ip> [<more-ips>]   # then log out and in (docker group)
+make init        # creates .env; fill in SIP_* and GOOGLE_API_KEY (or the sarvam keys)
+make up
+make sip         # trunk + dispatch rule; prints the SIP URI for your provider
+make agent
+```
+
+`bootstrap-server.sh` installs Docker, `make` and `git`, adds you to the `docker` group, installs the daily
+`dialtone-purge` systemd timer (deletes call data older than 90 days; logs: `journalctl -u dialtone-purge`)
+and, if you pass provider IPs, enables `ufw` with SIP open to them only. Without IPs it skips `ufw` (e.g. on
+GCP, where VPC firewall rules are used). Set `REMOTE_DIR` if your checkout isn't `~/dialtone`.
+
+Then seed and create logins as in the [Quickstart](/docs/getting-started/quickstart#3-seed-the-demo-agent-and-create-your-logins).
+
+## 3. Open the console
+
+The server (8787) and console (3000) listen on the VM's localhost only, because they show caller phone
+numbers. From your laptop:
+
+```bash
+make tunnel GCP_PROJECT=my-project      # console http://localhost:3000, server :8787, LiveKit :7880
+```
+
+On other clouds use plain SSH port forwarding:
+`ssh -N -L 3000:127.0.0.1:3000 -L 8787:127.0.0.1:8787 -L 7880:127.0.0.1:7880 you@vm`.
+
+## Shipping changes: `make deploy`
+
+From your laptop, after committing:
+
+```bash
+make deploy GCP_PROJECT=my-project              # ships HEAD to the VM, rebuilds, waits for agent, server, console
+ROLLBACK=1 make deploy GCP_PROJECT=my-project   # back to the previous version
+```
+
+- `GCP_PROJECT` is required; `VM` (default `dialtone`), `GCP_ZONE` (default `asia-south1-c`) and
+  `REMOTE_DIR` (checkout under the VM user's home, default `dialtone`) are optional.
+- It deploys only committed code (`FORCE=1` overrides). The VM keeps its own `.env`, its generated SIP config
+  and its Docker volumes. `agent/knowledge.md` is shipped even if you keep it out of git.
+- It runs `scripts/init.sh` on the VM, so settings newer code needs (e.g. `DJANGO_SECRET_KEY`) are added
+  without touching existing values.
+- It refuses to run while a call is in progress, because restarting the agent drops the call (`FORCE=1`
+  overrides).
+- New images are built one at a time while the old containers keep serving. The agent is still offline for
+  about 20 s while it restarts (`stop_grace_period` lets running calls finish first).
+- It waits for the agent to register, the server to answer (`deploy/wait-server.sh`) and the console's
+  `/sign-in` to answer (`deploy/wait-console.sh`), each within about 60 s, and fails with their last log
+  lines otherwise. The previous code stays in `~/dialtone.prev` for `ROLLBACK=1`.
+
+`make deploy` uses `gcloud compute ssh/scp`. On other clouds, the manual equivalent is `git pull` on the VM
+followed by `make up && make agent`.
+
+## Prebuilt images
+
+Tagged releases publish `ghcr.io/kapilrohilla/dialtone-agent`, `dialtone-server` and `dialtone-console`.
+The compose file builds images locally by default; the console image bakes in
+`DJANGO_URL=http://127.0.0.1:8787`, so use it only with the default `DASHBOARD_PORT`.
+
+## Backups
+
+Call history lives in PostgreSQL (the `postgres-data` volume), recordings in `dashboard-data`, SIP trunks and
+dispatch rules in Redis (`redis-data`). Back up the database with:
+
+```bash
+docker compose -f deploy/docker-compose.yml --env-file .env exec postgres pg_dump -U dashboard dashboard > backup.sql
+```
+
+## Upgrading from ai-calling
+
+Installs created before the Dialtone rename (checkout `~/ai-calling`, compose project `ai-calling`):
+
+1. Deploy with `REMOTE_DIR=ai-calling`: `make deploy GCP_PROJECT=my-project REMOTE_DIR=ai-calling`. The
+   deploy pins `COMPOSE_PROJECT_NAME=ai-calling` in the VM's `.env` (if the old volumes exist), so call history,
+   Redis and recordings are kept, and removes the containers with the old service names. On a manual
+   install, add `COMPOSE_PROJECT_NAME=ai-calling` to `.env` yourself.
+2. Once, on the VM: `sudo REMOTE_DIR=ai-calling deploy/bootstrap-server.sh` to replace the old
+   `ai-calling-purge` timer with `dialtone-purge`.
+3. Migrations run when the server starts; to run them by hand:
+   `docker compose -f deploy/docker-compose.yml --env-file .env exec dialtone-server python manage.py migrate`.
+
+### Older dashboards (SQLite)
+
+Earlier versions kept call history in `/data/dashboard.sqlite3`. When the server container starts it runs
+`migrate`, then `copy_from_sqlite --if-needed`: that copies only if the SQLite file exists, the marker
+`/data/.copied-to-postgres` does not, and PostgreSQL has no calls, then writes the marker. If PostgreSQL
+already has calls and there is no marker, it logs a WARNING and skips (it never overwrites). The SQLite file
+stays in the `dashboard-data` volume as a backup. Rehearse against a copy first:
+
+```bash
+docker compose -f deploy/docker-compose.yml --env-file .env run --rm --no-deps -v /path/to/copy-dir:/old:ro \
+  dialtone-server python manage.py copy_from_sqlite --path /old/dashboard.sqlite3 --dry-run
+```
+
+`deploy/migrate-server-to-postgres.sh` is an optional manual check (`COPY_ARGS=--dry-run` supported) that
+prints counts from both sides. History from the even older aiohttp dashboard (`/data/calls.db`) is imported
+once with `python manage.py import_legacy_calls --path /data/calls.db` (re-running creates no duplicates).

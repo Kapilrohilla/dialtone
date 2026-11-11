@@ -1,0 +1,59 @@
+---
+title: Branding and project name
+description: Name your install, and set who your agents speak for.
+---
+
+There are two separate names in Dialtone:
+
+- the **project name** of the install, shown to your team in the console, and
+- the **company and persona** an agent uses on calls, heard by callers.
+
+## Project name (console)
+
+Every install has one project name, **Dialtone** by default. The console shows it in the sidebar, on the
+sign-in page and in the browser tab title (e.g. "Agents - Northwind").
+
+**Change it:** sign in to the console as a Django **superuser** and open **Settings → General**. Other
+members see the page read-only. Names are 1-60 characters.
+
+<Callout>
+  The console signs in workspace members, so the superuser must also be a member. Create the member first
+  with `create_member` (it refuses an email that already has a user), then either tick **Superuser status**
+  on that user in `/admin/` (signed in with the account from `make server-admin`), or run:
+
+  ```bash
+  docker compose -f deploy/docker-compose.yml --env-file .env exec dialtone-server python manage.py shell -c \
+    "from django.contrib.auth import get_user_model as U; U().objects.filter(email='you@example.com').update(is_superuser=True, is_staff=True)"
+  ```
+</Callout>
+
+**Set the starting value:** `DIALTONE_PROJECT_NAME` in `.env` (at most 60 characters; longer values are ignored) is used when
+the setting is first created, on the first start of the server. After that, the value saved in the console wins;
+changing the variable later has no effect.
+
+**API:** `GET /api/instance/` returns `{"project_name": "..."}` to anyone; `PATCH /api/instance/` with the
+same body is allowed only for superusers (others get 403).
+
+## Company and persona (calls)
+
+What callers hear comes from the **published agent** first, then the worker's environment, then a generic
+default:
+
+| What | Agent setting (console) | Worker env | Default |
+|---|---|---|---|
+| Company the agent calls for | Company name | `AGENT_COMPANY_NAME` | none: no company is named |
+| Name the agent introduces itself with | Persona name | `AGENT_PERSONA_NAME` | none: the agent gives no name |
+| Pronunciation guidance | How to say the agent's name | `AGENT_NAME_PRONUNCIATION` | no rule |
+| Recording notice on recorded calls | Consent line | `AGENT_CONSENT_LINE` | built-in notice |
+
+An agent setting counts only when it is non-blank. Setting `AGENT_CONSENT_LINE` to an empty string turns
+the spoken recording notice off for agents that don't set their own. The environment values matter mostly
+for the built-in fallback agent (no published agent, or the server unreachable); restart the worker with
+`make agent` after changing them.
+
+## Voice
+
+Pick the voice in the agent editor's voice section. If the worker's pipeline can't speak the chosen voice
+(or none is chosen), it falls back to the worker's environment: `GEMINI_VOICE` on `gemini-live`,
+`TTS_SPEAKER` on `sarvam` and `ELEVENLABS_VOICE_ID` on `elevenlabs`. See
+[Configuration](/docs/getting-started/configuration).

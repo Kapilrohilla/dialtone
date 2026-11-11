@@ -1,0 +1,17 @@
+# deps
+/node_modules
+
+# generated content
+.source
+# API reference pages, generated from openapi.json by scripts/generate-openapi.mjs
+/content/docs/reference/api/
+
+# build
+/.next/
+/out/
+*.tsbuildinfo
+next-env.d.ts
+
+# misc
+.DS_Store
+npm-debug.log*

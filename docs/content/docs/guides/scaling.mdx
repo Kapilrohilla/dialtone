@@ -1,0 +1,46 @@
+---
+title: Scaling
+description: Grow from one VM to dozens of concurrent calls by adding agent VMs.
+---
+
+The agent worker does the heavy lifting (audio processing, provider streams), so you scale by adding agent
+workers on more VMs, while one **media VM** keeps LiveKit, SIP, egress, Redis, PostgreSQL, the server and
+the console.
+
+## Phase 2: ~50 concurrent calls
+
+- **Media VM:** keep it as is (4-8 vCPU).
+- **Agent VMs:** add 2-3 of them (4-8 vCPU each). On each one, clone the repo, create `.env` and run only the
+  agent:
+
+  ```bash
+  # .env on an agent VM:
+  #   LIVEKIT_URL=ws://<media-vm-private-ip>:7880
+  #   LIVEKIT_API_KEY / LIVEKIT_API_SECRET: same as the media VM
+  #   provider keys for your AGENT_PIPELINE
+  #   DASHBOARD_URL=            (empty: the server is localhost-only on the media VM)
+  #   DASHBOARD_REPORT_URL=     (empty)
+  make agent
+  ```
+
+  Then allow port 7880 (and the WebRTC media ports) from the private subnet on the media VM.
+
+  With `DASHBOARD_URL` empty, calls on these workers use the built-in agent and send no live events or
+  reports. To serve published agents from every worker, expose the server's `/api/runtime/*` and
+  `/api/report` endpoints to the private network yourself (they authenticate with LiveKit-signed tokens).
+
+- **Tune each worker:** `NUM_IDLE_PROCESSES` (warm processes; 3+ on 4+ vCPU) and `LOAD_THRESHOLD` (the
+  load above which LiveKit stops sending the worker new calls, default 0.75).
+
+## Before going to 50
+
+- Your SIP trunk has 50+ channels.
+- Your speech and LLM provider plans allow 50+ concurrent streams.
+- Load test at 10, then 25, then 50 calls.
+- Recording: each audio-only recording costs egress about 0.25 CPU; watch disk space
+  (`RECORDING_MIN_FREE_GB`).
+
+## Metrics
+
+Prometheus endpoints on the media VM: LiveKit `:6789`, SIP `:6790`, egress `:6791`. Each call's
+report (outcome, mood, dead air, latency) is in the console's call history.

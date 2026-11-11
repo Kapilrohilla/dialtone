@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://kapilrohilla.github.io/dialtone/
+    about: Setup, configuration and guides. Many questions are answered there.
+  - name: Report a security vulnerability
+    url: https://github.com/Kapilrohilla/dialtone/security/advisories/new
+    about: Please report security problems privately, never in a public issue.
