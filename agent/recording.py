@@ -40,14 +40,20 @@ def kill_switch_on() -> bool:
     return os.getenv("RECORDING_ENABLED", "false").lower() == "true"
 
 
-def recording_wanted(source: str, snapshot: dict | None, is_phone_call: bool) -> tuple[bool, str]:
-    """Whether to record this call, and why not. Only real phone calls running a fresh console config whose
-    account switch is on: a cached or built-in config has no known setting, so it never records."""
+# Config sources whose snapshot carries the live account recording switch: a published agent fetched for a
+# phone call ("console") or an agent's draft fetched for a browser voice test ("draft").
+LIVE_SOURCES = ("console", "draft")
+
+
+def recording_wanted(source: str, snapshot: dict | None, is_call: bool) -> tuple[bool, str]:
+    """Whether to record this call, and why not. Phone (SIP) calls and console voice tests (WebRTC) running a
+    fresh config from the dashboard whose account switch is on: a cached or built-in config has no known
+    setting, so it never records."""
     if not kill_switch_on():
         return False, "kill_switch"
-    if not is_phone_call:
-        return False, "not_phone_call"
-    if source != "console":
+    if not is_call:
+        return False, "not_a_call"
+    if source not in LIVE_SOURCES:
         return False, "no_live_config"
     account = snapshot.get("account") if isinstance(snapshot, dict) else None
     setting = account.get("recording") if isinstance(account, dict) else None

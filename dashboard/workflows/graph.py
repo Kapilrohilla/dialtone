@@ -10,6 +10,25 @@ DISPOSITIONS = {
 }
 STEP_TYPES = {"start", "prompt", "collect", "knowledge", "transfer", "end"}
 FIELD_RE = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
+MAX_LABEL_CHARS = 60
+MAX_EXAMPLES = 5
+MAX_EXAMPLE_CHARS = 40
+
+
+def example_errors(examples) -> list[str]:
+    """Problems with a path's optional caller phrases (``examples``); empty when they are fine."""
+    if examples is None:
+        return []
+    if not isinstance(examples, list) or not all(isinstance(e, str) for e in examples):
+        return ["Caller phrases must be a list of text."]
+    errors: list[str] = []
+    if len(examples) > MAX_EXAMPLES:
+        errors.append(f"Use at most {MAX_EXAMPLES} caller phrases.")
+    if any(not e.strip() for e in examples):
+        errors.append("A caller phrase is empty.")
+    if any(len(e.strip()) > MAX_EXAMPLE_CHARS for e in examples):
+        errors.append(f"Keep each caller phrase to {MAX_EXAMPLE_CHARS} characters.")
+    return errors
 
 
 def _label(step: dict) -> str:
@@ -113,6 +132,8 @@ def validate(graph, knowledge_ids: set[int], custom_expressions: dict[str, str] 
                 reported.add(lab)
                 errors.append(f'Step "{name}" has two paths labelled "{lab}". Labels must be different.')
             seen.add(lab)
+            for msg in example_errors(p.get("examples")):
+                errors.append(f'Path "{lab or "(no label)"}" leaving "{name}": {msg}')
 
     if len(starts) == 1:
         reached = {starts[0]["id"]}

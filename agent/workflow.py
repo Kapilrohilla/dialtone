@@ -50,6 +50,41 @@ def _str(v) -> str:
     return v if isinstance(v, str) else ""
 
 
+MAX_EXAMPLES = 5
+MAX_EXAMPLE_CHARS = 40
+MAX_DESCRIPTION_CHARS = 1000
+
+
+def _examples(v) -> tuple[str, ...]:
+    """Caller phrases on a path: trimmed, non-empty, at most 40 chars each, de-duplicated, at most 5."""
+    out: list[str] = []
+    for x in v if isinstance(v, list) else []:
+        if not isinstance(x, str):
+            continue
+        x = x.strip()
+        if x and len(x) <= MAX_EXAMPLE_CHARS and x not in out:
+            out.append(x)
+    return tuple(out[:MAX_EXAMPLES])
+
+
+def describe_paths(paths: list[tuple[str, tuple[str, ...]]]) -> str:
+    """One tool description from every path into a step: its labels and caller phrases, in order.
+
+    A single path without examples is described by its label alone (unchanged from before examples).
+    """
+    parts: list[str] = []
+    for label, examples in paths:
+        part = label.strip()
+        if examples:
+            said = ", ".join(f'"{e}"' for e in examples)
+            part = f"{part}. Caller might say: {said}." if part else f"Caller might say: {said}."
+        if part and part not in parts:
+            parts.append(part)
+    if not parts:
+        return paths[0][0] if paths else ""
+    return " | ".join(parts)[:MAX_DESCRIPTION_CHARS]
+
+
 class WorkflowRun:
     def __init__(self, graph, max_visits: int = 3, max_transitions: int = 25):
         self.max_visits = max_visits
@@ -57,7 +92,8 @@ class WorkflowRun:
         self._steps: dict[str, Step] = {}
         self._out: dict[str, list[dict]] = {}
         self._names: dict[str, str] = {}
-        self._edges: list[tuple[str, str, str]] = []  # (from, to, label) in graph order
+        self._edges: list[tuple[str, str, str, tuple[str, ...]]] = []  # (from, to, label, examples) in graph order
+        self._descriptions: dict[str, str] = {}  # target step id -> tool description
         self.current: Step | None = None
         self.path: list[str] = []
         self.captured: dict[str, str] = {}
@@ -89,7 +125,12 @@ class WorkflowRun:
                 continue
             self._out.setdefault(p["from"], []).append(
                 {"to": p["to"], "label": _str(p.get("label"))})
-            self._edges.append((p["from"], p["to"], _str(p.get("label"))))
+            self._edges.append((p["from"], p["to"], _str(p.get("label")), _examples(p.get("examples"))))
+        incoming: dict[str, list[tuple[str, tuple[str, ...]]]] = {}
+        for src, to, label, examples in self._edges:
+            if self._steps[src].type != "end":
+                incoming.setdefault(to, []).append((label, examples))
+        self._descriptions = {to: describe_paths(ps) for to, ps in incoming.items()}
         used: set[str] = set()
         for sid, st in self._steps.items():
             slug = _slug(st.name) or "step_" + (_slug(sid) or "x")
@@ -162,23 +203,24 @@ class WorkflowRun:
         for p in self._out.get(self.current.id, []):
             name = self._names[p["to"]]
             if name not in tools:
-                tools[name] = PathTool(name, p["label"], p["to"], takes)
+                tools[name] = PathTool(name, self._descriptions.get(p["to"], p["label"]), p["to"], takes)
         return list(tools.values())
 
     def all_path_tools(self) -> list[PathTool]:
         """Every path tool of the graph, one per target step, in graph order (registered once per call).
 
-        A tool takes a value when any step leading to it is a collect step; the first path's label
-        describes it. Paths out of end steps are ignored, as in paths_from_current.
+        A tool takes a value when any step leading to it is a collect step; it is described by the labels
+        and caller phrases of every path into its step. Paths out of end steps are ignored, as in
+        paths_from_current.
         """
         tools: dict[str, PathTool] = {}
-        for src, to, label in self._edges:
+        for src, to, label, _examples in self._edges:
             if self._steps[src].type == "end":
                 continue
             name = self._names[to]
             takes = self._steps[src].type == "collect"
             if name not in tools:
-                tools[name] = PathTool(name, label, to, takes)
+                tools[name] = PathTool(name, self._descriptions.get(to, label), to, takes)
             elif takes and not tools[name].takes_value:
                 t = tools[name]
                 tools[name] = PathTool(t.name, t.description, t.to, True)

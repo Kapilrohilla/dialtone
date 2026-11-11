@@ -191,3 +191,18 @@ def test_unknown_type_and_missing_id_messages():
                      "paths": []}, set())
     assert 'Step "Odd" has an unknown type "wat".' in errs
     assert 'A step is missing its id.' in errs
+
+
+def test_path_examples():
+    g = driver_graph()
+    g["paths"][2]["examples"] = ["Mumbai mein hoon", "दिल्ली नहीं"]
+    assert validate(g, set()) == []
+    for bad, msg in [
+        ("x", "Caller phrases must be a list of text."),
+        (["a", 3], "Caller phrases must be a list of text."),
+        (["a"] * 6, "Use at most 5 caller phrases."),
+        (["  "], "A caller phrase is empty."),
+        (["x" * 41], "Keep each caller phrase to 40 characters."),
+    ]:
+        g["paths"][2]["examples"] = bad
+        assert validate(g, set()) == [f'Path "other city" leaving "Ask city": {msg}']

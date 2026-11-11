@@ -25,14 +25,19 @@ def master_switch_on(monkeypatch):
 # --- whether to record ------------------------------------------------------------------------------
 
 def test_records_a_phone_call_with_the_account_switch_on():
-    assert recording_wanted("console", ON, is_phone_call=True) == (True, "")
+    assert recording_wanted("console", ON, is_call=True) == (True, "")
+
+
+def test_records_a_browser_voice_test_with_the_account_switch_on():
+    assert recording_wanted("draft", ON, is_call=True) == (True, "")
 
 
 @pytest.mark.parametrize("source,snapshot,phone,reason", [
-    ("console", ON, False, "not_phone_call"),  # browser voice test
+    ("console", ON, False, "not_a_call"),  # neither a SIP caller nor a voice test
     ("cache", ON, True, "no_live_config"),  # cached config: the setting isn't known now
     ("builtin", None, True, "no_live_config"),
-    ("draft", ON, True, "no_live_config"),
+    ("draft", {"account": {"recording": {"enabled": False, "reason": "off"}}}, True, "off"),
+    ("draft", {}, True, "off"),  # older dashboard: the draft carries no account switch
     ("console", {"account": {"recording": {"enabled": False, "reason": "off"}}}, True, "off"),
     ("console", {"account": {"recording": {"enabled": False, "reason": "disk_low"}}}, True, "disk_low"),
     ("console", {"account": {"dead_air_enabled": True}}, True, "off"),  # older dashboard

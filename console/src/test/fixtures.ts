@@ -11,6 +11,7 @@ import type {
   Me,
   PhoneNumber,
   Step,
+  SuggestionSet,
   Voice,
   Workflow,
 } from "@/lib/types";
@@ -210,4 +211,74 @@ export const onboardingGraph = (): Graph => ({
     { from: "explain_plan", to: "schedule_callback", label: "Busy" },
     { from: "explain_plan", to: "transfer", label: "Upset" },
   ],
+});
+
+// "Suggest with AI" draft for onboardingGraph (dashboard/workflows/suggestions_api.py serialize_set).
+export const suggestionSet = (over: Partial<SuggestionSet> = {}): SuggestionSet => ({
+  id: 7,
+  status: "ready",
+  scope: "workflow",
+  kinds: ["answers", "expressions"],
+  step_ids: ["greeting", "ask_city", "ask_licence", "explain_plan"],
+  total_steps: 4,
+  failed_step_ids: [],
+  error: "",
+  base_revision: 3,
+  created_by: { id: 1, name: "Kapil Rohilla" },
+  created_at: new Date().toISOString(),
+  finished_at: new Date().toISOString(),
+  items: [
+    {
+      id: 101,
+      kind: "answer",
+      step_id: "ask_licence",
+      payload: {
+        label: "Not sure which licence",
+        examples: ["पता नहीं", "शायद yellow है", "not sure ji"],
+        reason: "callers often don't know their licence type.",
+        target: {
+          new_step: {
+            name: "Explain licence types",
+            type: "prompt",
+            prompt: "[[expr:pause:0.6]] कोई बात नहीं जी।",
+            then: { step_id: "ask_licence", label: "Explained licence types" },
+          },
+        },
+      },
+      edited: false,
+      status: "pending",
+      invalid_reason: "",
+      stale: false,
+    },
+    {
+      id: 102,
+      kind: "answer",
+      step_id: "ask_licence",
+      payload: {
+        label: "Licence applied, not received",
+        examples: ["apply किया है"],
+        reason: "many drivers are waiting for their licence.",
+        target: { step_id: "schedule_callback" },
+      },
+      edited: false,
+      status: "pending",
+      invalid_reason: "",
+      stale: false,
+    },
+    {
+      id: 103,
+      kind: "expression",
+      step_id: "end_no_licence",
+      payload: {
+        before: "बिना लाइसेंस के हम आगे नहीं बढ़ पाएँगे, धन्यवाद।",
+        after: "[[expr:sad]] बिना लाइसेंस के हम आगे नहीं बढ़ पाएँगे, धन्यवाद।",
+        reason: "a softer tone when turning a driver away.",
+      },
+      edited: false,
+      status: "pending",
+      invalid_reason: "",
+      stale: false,
+    },
+  ],
+  ...over,
 });

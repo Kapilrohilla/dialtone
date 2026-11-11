@@ -1,9 +1,10 @@
 "use client";
 
-import { Plus, X } from "lucide-react";
+import { Plus, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui";
 import type { Graph, Path, Step } from "@/lib/types";
 import { pathKey } from "./graph";
+import { PhraseChips } from "./PhraseChips";
 import styles from "./workflow.module.css";
 
 export type PathRowsProps = {
@@ -13,12 +14,14 @@ export type PathRowsProps = {
   onAdd: () => void;
   onChange: (id: string, patch: Partial<Omit<Path, "id">>) => void;
   onRemove: (id: string) => void;
+  /** Shows "Suggest more answers" (editors only): asks the AI for other answers to this step. */
+  onSuggest?: () => void;
 };
 
 const nameOf = (s: Step | undefined) => (s ? s.name.trim() || "Untitled step" : "A missing step");
 
 /** "Then go to": one row per path leaving the step, label and target. End steps can't gain paths. */
-export function PathRows({ step, graph, readOnly, onAdd, onChange, onRemove }: PathRowsProps) {
+export function PathRows({ step, graph, readOnly, onAdd, onChange, onRemove, onSuggest }: PathRowsProps) {
   const paths = graph.paths.filter((p) => p.from === step.id);
   const targets = graph.steps.filter((s) => s.id !== step.id);
   if (step.type === "end" && paths.length === 0) return null;
@@ -32,9 +35,12 @@ export function PathRows({ step, graph, readOnly, onAdd, onChange, onRemove }: P
         const target = graph.steps.find((s) => s.id === p.to);
         if (readOnly) {
           return (
-            <div key={id} className={styles.pathRowReadOnly}>
-              <span>{p.label}</span>
-              <span className={styles.pathTarget}>{nameOf(target)}</span>
+            <div key={id} className={styles.pathBlockReadOnly}>
+              <div className={styles.pathRowReadOnly}>
+                <span>{p.label}</span>
+                <span className={styles.pathTarget}>{nameOf(target)}</span>
+              </div>
+              <PhraseChips label={`Caller phrases for ${p.label.trim() || `path ${i + 1}`}`} value={p.examples ?? []} readOnly onChange={() => undefined} />
             </div>
           );
         }
@@ -56,6 +62,11 @@ export function PathRows({ step, graph, readOnly, onAdd, onChange, onRemove }: P
             <button type="button" className={styles.iconButton} aria-label={`Remove path ${p.label.trim() || i + 1}`} onClick={() => onRemove(id)}>
               <X size={16} strokeWidth={1.75} aria-hidden="true" />
             </button>
+            <PhraseChips
+              label={`Caller phrases for ${p.label.trim() || `path ${i + 1}`}`}
+              value={p.examples ?? []}
+              onChange={(examples) => onChange(id, { examples: examples.length ? examples : undefined })}
+            />
           </div>
         );
       })}
@@ -64,6 +75,12 @@ export function PathRows({ step, graph, readOnly, onAdd, onChange, onRemove }: P
           <Plus size={16} strokeWidth={1.75} aria-hidden="true" />
           Add path
         </Button>
+      )}
+      {!readOnly && onSuggest && step.type !== "end" && step.type !== "transfer" && (
+        <button type="button" className={styles.linkButton} onClick={onSuggest}>
+          <Sparkles size={14} strokeWidth={1.75} aria-hidden="true" />
+          Suggest more answers
+        </button>
       )}
     </div>
   );
