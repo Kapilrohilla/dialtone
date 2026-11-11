@@ -209,6 +209,37 @@ describe("agent script editor", () => {
     await waitFor(() => expect(patches).toEqual([{ persona_name: "Asha" }]));
   });
 
+  it("opens an agent with no name and can clear the name", async () => {
+    const patches = serve({ ...baseAgent, persona_name: "" });
+    const { user } = open();
+    const field = await screen.findByRole("textbox", { name: "Agent's name" });
+    expect(field).toHaveValue("");
+    await user.type(field, "Maya");
+    await user.tab();
+    await waitFor(() => expect(patches).toEqual([{ persona_name: "Maya" }]));
+    await user.clear(field);
+    await user.tab();
+    await waitFor(() => expect(patches).toEqual([{ persona_name: "Maya" }, { persona_name: "" }]));
+  });
+
+  it("saves company name, name pronunciation and consent line under settings, trimmed", async () => {
+    const patches = serve();
+    const { user } = open();
+    await user.type(await screen.findByRole("textbox", { name: "Company name" }), " Northwind Car Rentals ");
+    await user.tab();
+    await user.type(screen.getByRole("textbox", { name: "How to say the agent's name" }), "Maa-yaa");
+    await user.tab();
+    await user.type(screen.getByRole("textbox", { name: "Consent line" }), "This call is recorded.");
+    await user.tab();
+    await waitFor(() =>
+      expect(patches).toEqual([
+        { settings: { company_name: "Northwind Car Rentals" } },
+        { settings: { name_pronunciation: "Maa-yaa" } },
+        { settings: { consent_line: "This call is recorded." } },
+      ]),
+    );
+  });
+
   it("shows the server's dead-air error under the timings", async () => {
     const patches = serve(baseAgent, (body) =>
       body.settings

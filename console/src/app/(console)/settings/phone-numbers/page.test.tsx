@@ -11,14 +11,14 @@ describe("phone numbers", () => {
     server.use(
       http.get("*/api/phone-numbers", () =>
         HttpResponse.json([
-          { number: NUMBER, trunk_name: "Carrum inbound", agent_name: "Driver lead qualifier" },
+          { number: NUMBER, trunk_name: "Northwind inbound", agent_name: "Driver lead qualifier" },
           { number: "+918047182291", trunk_name: "Spare line", agent_name: null },
         ]),
       ),
     );
     const first = renderWithProviders(<PhoneNumbersPage />, { route: "/settings/phone-numbers" });
     expect(await screen.findByText(NUMBER)).toBeInTheDocument();
-    expect(screen.getByText("Carrum inbound")).toBeInTheDocument();
+    expect(screen.getByText("Northwind inbound")).toBeInTheDocument();
     expect(screen.getByText("Driver lead qualifier")).toBeInTheDocument();
     expect(screen.getByText("No agent")).toBeInTheDocument();
     expect(screen.getByText("Numbers are set up by your admin.")).toBeInTheDocument();

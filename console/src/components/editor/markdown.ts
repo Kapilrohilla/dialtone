@@ -59,7 +59,7 @@ export const MarkdownChips = Extension.create({
           setup(md: MarkdownIt) {
             if (installed.has(md)) return;
             installed.add(md);
-            md.inline.ruler.before("link", "carrum_chip", chipRule);
+            md.inline.ruler.before("link", "token_chip", chipRule);
           },
         },
       },

@@ -28,8 +28,15 @@ export type Me = {
   email: string;
   phone: string;
   role: Role;
+  /** Django superuser: may rename the install (Settings → General). */
+  is_superuser: boolean;
   workspace: Workspace;
   preferences: Preferences;
+};
+
+/** This install. GET /api/instance/ (public); PATCH by a superuser. */
+export type Instance = {
+  project_name: string;
 };
 
 export type TeamMember = {
@@ -104,7 +111,16 @@ export type AgentStatus = "draft" | "published" | "archived";
 export type AgentSettings = {
   mood_adaptation: boolean;
   dead_air: { enabled: boolean; nudge_s: number; second_nudge_s: number; hang_up_s: number };
+  /** The company the agent says it calls from. Blank or missing: unset. */
+  company_name?: string;
+  /** How the agent's name is spoken, e.g. "Maa-yaa". Blank or missing: unset. */
+  name_pronunciation?: string;
+  /** Read out at the start of the call, e.g. a recording notice. Blank or missing: unset. */
+  consent_line?: string;
 };
+
+/** The optional free-text agent settings (blank = unset). */
+export type AgentTextSetting = "company_name" | "name_pronunciation" | "consent_line";
 
 export type ScriptSection = { id: string; title: string; body: string };
 

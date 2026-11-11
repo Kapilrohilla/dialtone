@@ -10,7 +10,7 @@ import SignInPage from "./page";
 async function signIn(route = "/sign-in") {
   const user = userEvent.setup();
   const view = renderWithProviders(<SignInPage />, { route });
-  await user.type(await screen.findByLabelText("Work email"), "kapil@carrum.example");
+  await user.type(await screen.findByLabelText("Work email"), "kapil@northwind.example");
   await user.type(screen.getByLabelText("Password"), "pw12345678");
   await user.click(screen.getByRole("button", { name: "Sign in" }));
   return view;
@@ -25,7 +25,7 @@ describe("sign in", () => {
     }));
     const { queryClient } = await signIn("/sign-in?next=/agents");
     await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/agents"));
-    expect(body).toEqual({ email: "kapil@carrum.example", password: "pw12345678" });
+    expect(body).toEqual({ email: "kapil@northwind.example", password: "pw12345678" });
     expect(queryClient.getQueryData(["me"])).toMatchObject({ email: me.email });
     expect(document.documentElement.dataset.theme).toBe("dark");
     expect(document.cookie).toContain("cv_theme=dark");
@@ -65,5 +65,16 @@ describe("sign in", () => {
     await user.click(screen.getByRole("button", { name: "Show password" }));
     expect(field).toHaveAttribute("type", "text");
     expect(screen.queryByText(/google/i)).toBeNull();
+  });
+
+  it("shows the install's project name, and Dialtone when the server can't say", async () => {
+    const first = renderWithProviders(<SignInPage />, { route: "/sign-in" });
+    expect(await screen.findByText("Northwind Voice")).toBeInTheDocument();
+    first.unmount();
+
+    server.use(http.get("*/api/instance/", () => HttpResponse.json({ detail: "boom" }, { status: 500 })));
+    const second = renderWithProviders(<SignInPage />, { route: "/sign-in" });
+    await waitFor(() => expect(second.queryClient.getQueryState(["instance"])?.status).toBe("error"));
+    expect(screen.getByText("Dialtone")).toBeInTheDocument();
   });
 });

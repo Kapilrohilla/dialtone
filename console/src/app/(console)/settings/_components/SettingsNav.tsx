@@ -3,7 +3,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Chip } from "@/components/ui";
+import { useMe } from "@/lib/queries";
 import styles from "../settings.module.css";
+
+const GENERAL = { href: "/settings/general", label: "General" };
 
 const LINKS = [
   { href: "/settings", label: "Profile" },
@@ -15,9 +18,12 @@ const LINKS = [
 
 export function SettingsNav() {
   const pathname = usePathname();
+  const { data: me } = useMe();
+  // General renames the whole install: Django superusers only.
+  const links = me?.is_superuser ? [LINKS[0], GENERAL, ...LINKS.slice(1)] : LINKS;
   return (
     <nav aria-label="Settings" className={styles.nav}>
-      {LINKS.map(({ href, label }) => (
+      {links.map(({ href, label }) => (
         <Link key={href} href={href} className={styles.link} aria-current={href === pathname ? "page" : undefined}>
           {label}
         </Link>
