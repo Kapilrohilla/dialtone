@@ -9,7 +9,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.1.0] - 2026-11-11
 
-First open-source release, as **Dialtone** (previously the internal project `ai-calling`).
+First open-source release, as **Dialtone** (previously the internal project `ai-calling`)
+([KAP-18](https://linear.app/kapil-rohilla/issue/KAP-18/open-source-as-dialtone-remove-carrum-specific-code-restructure-add-a), [#14](https://github.com/Kapilrohilla/ai-calling/pull/14)).
 
 ### Added
 
