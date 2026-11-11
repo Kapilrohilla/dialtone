@@ -3,7 +3,7 @@
 export type Role = "owner" | "admin" | "editor" | "viewer";
 export type Appearance = "light" | "dark" | "system";
 
-// dashboard/workspaces/serializers.py
+// server/workspaces/serializers.py
 export type Preferences = {
   appearance: Appearance;
   notify_needs_person: boolean;
@@ -40,7 +40,7 @@ export type TeamMember = {
   last_login: string | null;
 };
 
-// dashboard/knowledge/serializers.py
+// server/knowledge/serializers.py
 export type KnowledgeListItem = {
   id: number;
   title: string;
@@ -59,7 +59,7 @@ export type Revision = {
   body_md?: string;
 };
 
-// dashboard/workflows (api.py detail + graph.py)
+// server/workflows (api.py detail + graph.py)
 export type StepType = "start" | "prompt" | "collect" | "knowledge" | "transfer" | "end";
 
 export type Step = {
@@ -98,7 +98,7 @@ export type Workflow = WorkflowListItem & {
   errors: string[];
 };
 
-// dashboard/voiceagents/serializers.py
+// server/voiceagents/serializers.py
 export type AgentStatus = "draft" | "published" | "archived";
 
 export type AgentSettings = {
@@ -144,7 +144,7 @@ export type Expression = { name: string; hint: string; builtin: boolean };
 export type Voice = { id: string; name: string; description: string; sample: string | null };
 export type VoicesResponse = { pipeline: string; voices: Voice[] };
 
-// dashboard/calls/serializers.py and api.py
+// server/calls/serializers.py and api.py
 export type OutcomeGroup = "Interested" | "Call back" | "Not interested" | "Dropped" | "Not reached";
 
 export type CallRow = {
@@ -220,7 +220,7 @@ export type SimResponse = {
   ended: boolean;
 };
 
-// dashboard/workflows (suggestions_api.py): "Suggest with AI" drafts
+// server/workflows (suggestions_api.py): "Suggest with AI" drafts
 export type SuggestKind = "answers" | "expressions";
 export type SuggestScope = "step" | "workflow";
 

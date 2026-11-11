@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+# One-time setup for a fresh Debian/Ubuntu VM: Docker, plus an optional ufw firewall.
+# Usage: sudo deploy/bootstrap-server.sh [<provider-ip-or-cidr> ...]
+#   REMOTE_DIR  checkout directory under your home (default: dialtone; same as deploy/deploy.sh).
+# With provider IPs, ufw is enabled and only they can reach SIP port 5060.
+# Without them, ufw is skipped (e.g. on GCP, where VPC firewall rules are used).
+set -euo pipefail
+
+if [[ $EUID -ne 0 ]]; then echo "run with sudo" >&2; exit 1; fi
+
+if ! command -v docker >/dev/null; then
+  apt-get update
+  apt-get install -y ca-certificates curl
+  install -m 0755 -d /etc/apt/keyrings
+  distro=$(. /etc/os-release && echo "$ID")  # debian or ubuntu
+  curl -fsSL "https://download.docker.com/linux/${distro}/gpg" -o /etc/apt/keyrings/docker.asc
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/${distro} $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+    > /etc/apt/sources.list.d/docker.list
+  apt-get update
+  apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+fi
+apt-get install -y make git
+[[ -n "${SUDO_USER:-}" ]] && usermod -aG docker "$SUDO_USER"
+
+# Daily retention: delete transcripts and call recordings older than 90 days (and orphaned recording
+# files). Runs as root in the server container: recording files are written by the egress service.
+# Logs: journalctl -u dialtone-purge
+# Dry run: docker compose -f deploy/docker-compose.yml --env-file .env exec -T dialtone-server python manage.py purge_old_call_data --dry-run
+if [[ -n "${SUDO_USER:-}" ]]; then
+  app_dir=$(getent passwd "$SUDO_USER" | cut -d: -f6)/${REMOTE_DIR:-dialtone}
+  cat > /etc/systemd/system/dialtone-purge.service <<EOF
+[Unit]
+Description=dialtone: purge call data older than 90 days
+After=docker.service
+
+[Service]
+Type=oneshot
+User=$SUDO_USER
+WorkingDirectory=$app_dir
+ExecStart=/usr/bin/docker compose -f deploy/docker-compose.yml --env-file .env exec -T -u root dialtone-server python manage.py purge_old_call_data
+EOF
+  cat > /etc/systemd/system/dialtone-purge.timer <<EOF
+[Unit]
+Description=dialtone: daily call data purge
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+  # Replaced by dialtone-purge: the pre-rename timer runs `docker compose` against the old layout.
+  if [[ -f /etc/systemd/system/ai-calling-purge.timer ]]; then
+    systemctl disable --now ai-calling-purge.timer || true
+    rm -f /etc/systemd/system/ai-calling-purge.timer /etc/systemd/system/ai-calling-purge.service
+  fi
+  systemctl daemon-reload
+  systemctl enable --now dialtone-purge.timer
+fi
+
+if (($# == 0)); then
+  echo "no provider IPs given: skipping ufw (configure the cloud firewall instead)"
+  exit 0
+fi
+
+apt-get install -y ufw
+ufw default deny incoming
+ufw default allow outgoing
+ufw allow OpenSSH
+for src in "$@"; do
+  ufw allow from "$src" to any port 5060 proto udp comment 'SIP signalling'
+  ufw allow from "$src" to any port 5060 proto tcp comment 'SIP signalling'
+done
+ufw allow 10000:20000/udp comment 'SIP RTP media'
+ufw allow 7881/tcp comment 'WebRTC TCP'
+ufw allow 50000:60000/udp comment 'WebRTC UDP'
+# 7880 (API) is intentionally NOT public. Agents on other VMs should reach it
+# over the private network: ufw allow from <private-subnet> to any port 7880
+ufw --force enable
+ufw status verbose

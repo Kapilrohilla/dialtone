@@ -183,7 +183,7 @@ const step = (id: string, type: Step["type"], name: string, x: number, y: number
   ...extra,
 });
 
-/** The seeded "Driver onboarding" graph (dashboard/voiceagents/management/commands/seed_carrum.py). Paths carry no ids. */
+/** The seeded "Driver onboarding" graph (server/voiceagents/management/commands/seed_carrum.py). Paths carry no ids. */
 export const onboardingGraph = (): Graph => ({
   steps: [
     step("greeting", "start", "Greeting", 290, 0, { prompt: "नमस्ते, मैं Carrum से बोल रही हूँ। क्या अभी दो मिनट बात कर सकते हैं?" }),
@@ -213,7 +213,7 @@ export const onboardingGraph = (): Graph => ({
   ],
 });
 
-// "Suggest with AI" draft for onboardingGraph (dashboard/workflows/suggestions_api.py serialize_set).
+// "Suggest with AI" draft for onboardingGraph (server/workflows/suggestions_api.py serialize_set).
 export const suggestionSet = (over: Partial<SuggestionSet> = {}): SuggestionSet => ({
   id: 7,
   status: "ready",

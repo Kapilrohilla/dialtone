@@ -24,22 +24,23 @@ It's Carrum Mobility's AI calling assistant for driver-partner leads. It speaks 
 - **Greeting:** the agent listens for about a second before speaking. If the driver says "hello" first, it answers ("Ji, hello sir!") and then says its opening line, which says who it is and what Carrum does. A workflow can't leave its start step until the agent has said something, so a caller's "hello" never skips the greeting.
 - **Caller mood (off by default):** with `MOOD_ENABLED=true`, a small model labels each driver reply (interested, confused, frustrated, rushed, suspicious, angry, disengaged or neutral). Once two replies agree (or one is clearly angry), the agent adjusts: shorter and calmer when the driver is frustrated, slower and simpler when confused, straight to the point when rushed. On `sarvam`/`elevenlabs` it also changes speaking pace. It never tells the driver it noticed their mood. Leave it off until the accuracy check has passed.
 - **Live handoff (optional):** set `HANDOFF_SIP_URI` and, when mood is on and a driver is frustrated or angry, the agent offers to connect them to a telecaller and transfers the call if they agree. Your SIP trunk must support call transfer (REFER); test it by setting the URI to your own mobile first.
-- **Outcome:** every call logs one `call ended` line (`make logs s=agent`) with the disposition (INTERESTED, NI, NE, CBR, …), the reason, interest strength, the qualification answers, the summary, `do_not_call` and any dead-air check-ins. If the driver hangs up before the agent records an outcome, the call is logged as `CDRP`, or as `NOT_CONNECTED` if the driver never spoke.
+- **Outcome:** every call logs one `call ended` line (`make logs s=dialtone-agent`) with the disposition (INTERESTED, NI, NE, CBR, …), the reason, interest strength, the qualification answers, the summary, `do_not_call` and any dead-air check-ins. If the driver hangs up before the agent records an outcome, the call is logged as `CDRP`, or as `NOT_CONNECTED` if the driver never spoke.
 
 ## Layout
 
 | Path | What |
 |---|---|
-| `docker-compose.yml` | Redis, PostgreSQL, LiveKit server, LiveKit SIP, dashboard, console, and the agent + simulator (`agent` profile) |
+| `deploy/docker-compose.yml` | Redis, PostgreSQL, LiveKit server, LiveKit SIP, egress, server, console, and the agent + simulator (`agent` profile). Linux only (host networking) |
 | `.env.example` | All config: pinned versions, keys, SIP trunk, agent settings |
 | `agent/` | Python agent (`agent.py`), pinned deps, Dockerfile |
-| `dashboard/` | Calls dashboard: live calls, call history, trunks/dispatch rules; the console's API |
+| `server/` | Django server (calls dashboard): live calls, call history, trunks/dispatch rules; the console's API |
 | `console/` | Carrum Voice console (Next.js): agents, scripts, knowledge, workflows, live calls, history |
 | `scripts/init.sh` | Creates `.env` and generates the LiveKit API key/secret |
-| `scripts/bootstrap-server.sh` | Fresh Debian/Ubuntu VM: installs Docker (plus ufw if given provider IPs) |
+| `deploy/bootstrap-server.sh` | Fresh Debian/Ubuntu VM: installs Docker (plus ufw if given provider IPs) |
 | `scripts/setup-sip.sh` | Creates the inbound trunk and dispatch rule (safe to re-run) |
 | `scripts/lk.sh` | Pinned LiveKit CLI via Docker, so there's nothing to install |
-| `infra/terraform/` | GCP VM, static IP and firewall rules (see its README) |
+| `deploy/deploy.sh` | `make deploy`: ships committed code to a GCP VM and restarts it |
+| `deploy/terraform/` | Optional example: GCP VM, static IP and firewall rules (see its README) |
 
 ## Pinned versions
 
@@ -57,8 +58,8 @@ To upgrade, bump the tag in `.env` (or `agent/requirements.txt`), test on stagin
 Use a Linux VM in Mumbai (4 vCPU / 8 GB, Ubuntu 24.04) with a static public IP.
 
 ```bash
-git clone <this repo> ai-calling && cd ai-calling
-sudo scripts/bootstrap-server.sh <provider-signalling-ip> [<more-ips>]   # then log out/in for docker group
+git clone <this repo> dialtone && cd dialtone
+sudo deploy/bootstrap-server.sh <provider-signalling-ip> [<more-ips>]   # then log out/in for docker group
 make init        # creates .env; fill SIP_* and GOOGLE_API_KEY (or the sarvam keys)
 make up          # redis + livekit + sip
 make sip         # trunk + dispatch rule; prints the SIP URI for your provider
@@ -71,7 +72,7 @@ Debugging:
 
 ```bash
 make logs s=sip                # INVITEs, auth/IP rejections
-make logs s=agent              # agent sessions
+make logs s=dialtone-agent     # agent sessions
 make lk a="sip inbound list"
 make lk a="room list"
 ```
@@ -88,10 +89,11 @@ make lk a="room list"
 From your laptop, after committing:
 
 ```bash
-make deploy              # ships HEAD to the VM, rebuilds, waits for the dashboard, console and agent
-ROLLBACK=1 make deploy   # back to the previous version
+make deploy GCP_PROJECT=my-project              # ships HEAD to the VM, rebuilds, waits for the server, console and agent
+ROLLBACK=1 make deploy GCP_PROJECT=my-project   # back to the previous version
 ```
 
+- `GCP_PROJECT` is required; `VM` (default `dialtone`), `GCP_ZONE` and `REMOTE_DIR` (checkout under the VM user's home, default `dialtone`) are optional. VMs set up before the Dialtone rename live in `~/ai-calling`: pass `REMOTE_DIR=ai-calling`; the deploy then pins `COMPOSE_PROJECT_NAME=ai-calling` in the VM's `.env` so the existing volumes are kept, and removes the containers with the old service names. Re-run `sudo REMOTE_DIR=ai-calling deploy/bootstrap-server.sh` once there to replace the old `ai-calling-purge` timer.
 - It deploys only committed code. The VM keeps its own `.env` and its Docker volumes (Redis, call history).
 - It refuses to run while a call is in progress, because restarting the agent drops the call (`FORCE=1` overrides).
 - New images are built while the old containers keep serving. Even so, the agent is offline for about 20 s while it restarts.
@@ -124,23 +126,23 @@ It listens on the VM's localhost only, because it shows caller phone numbers, an
 make tunnel      # then open http://localhost:8787 and log in
 ```
 
-The dashboard is a Django app (`dashboard/`). Call history lives in PostgreSQL (the `postgres` service, data in the `postgres-data` volume, localhost only; `scripts/init.sh` generates `POSTGRES_PASSWORD` in `.env`), and `/admin/` lists and searches all calls.
+The dashboard is a Django app (`server/`). Call history lives in PostgreSQL (the `postgres` service, data in the `postgres-data` volume, localhost only; `scripts/init.sh` generates `POSTGRES_PASSWORD` in `.env`), and `/admin/` lists and searches all calls.
 
-`make deploy` adds a `DJANGO_SECRET_KEY` to the VM's `.env` if it doesn't have one. After the first deploy of the Django dashboard, run these once on the VM (from `~/ai-calling`):
+`make deploy` adds a `DJANGO_SECRET_KEY` to the VM's `.env` if it doesn't have one. After the first deploy of the Django dashboard, run these once on the VM (from the checkout, e.g. `~/dialtone`):
 
 ```bash
-make dashboard-admin            # create your /admin/ login (a Django superuser; it has no console access)
-docker compose exec dashboard python manage.py create_member you@example.com --name "Your Name" --role owner   # first console user
-docker compose cp agent/knowledge.md dashboard:/tmp/knowledge.md   # knowledge.md is not inside the dashboard image
-docker compose exec dashboard python manage.py seed_carrum --knowledge /tmp/knowledge.md
+make server-admin               # create your /admin/ login (a Django superuser; it has no console access)
+docker compose -f deploy/docker-compose.yml --env-file .env exec dialtone-server python manage.py create_member you@example.com --name "Your Name" --role owner   # first console user
+docker compose -f deploy/docker-compose.yml --env-file .env cp agent/knowledge.md dialtone-server:/tmp/knowledge.md   # knowledge.md is not inside the dashboard image
+docker compose -f deploy/docker-compose.yml --env-file .env exec dialtone-server python manage.py seed_carrum --knowledge /tmp/knowledge.md
 ```
 
-`make dashboard-admin` only creates a superuser for `/admin/`; the console API needs a workspace member, which `create_member` makes (it prompts for a password). `seed_carrum` creates the draft Carrum agent and adds the approved pricing file as a knowledge document.
+`make server-admin` only creates a superuser for `/admin/`; the console API needs a workspace member, which `create_member` makes (it prompts for a password). `seed_carrum` creates the draft Carrum agent and adds the approved pricing file as a knowledge document.
 
 Only if you are coming from the old aiohttp dashboard (`/data/calls.db`), also run once:
 
 ```bash
-docker compose exec dashboard python manage.py import_legacy_calls --path /data/calls.db
+docker compose -f deploy/docker-compose.yml --env-file .env exec dialtone-server python manage.py import_legacy_calls --path /data/calls.db
 ```
 
 The import copies the history recorded by the old dashboard and assigns every imported call to a workspace (the one whose agent has the called number, else the only workspace). Running it again creates no duplicates. "Calls today" counts from midnight India time (it used to be UTC).
@@ -150,21 +152,21 @@ The import copies the history recorded by the old dashboard and assigns every im
 Before the first deploy, make sure the VM's `.env` has `POSTGRES_PASSWORD` (`scripts/init.sh`), and rehearse the copy against a copy of the production file (never the live one):
 
 ```bash
-docker compose run --rm --no-deps -v /path/to/copy-dir:/old:ro dashboard python manage.py copy_from_sqlite --path /old/dashboard.sqlite3 --dry-run
+docker compose -f deploy/docker-compose.yml --env-file .env run --rm --no-deps -v /path/to/copy-dir:/old:ro dialtone-server python manage.py copy_from_sqlite --path /old/dashboard.sqlite3 --dry-run
 ```
 
-`--dry-run` does the whole copy inside a transaction, prints the counts and rolls back. `scripts/migrate-dashboard-to-postgres.sh` is an optional manual check (`COPY_ARGS=--dry-run` supported) that prints counts from both sides; once `/data/.copied-to-postgres` exists it only prints the counts, and a real copy it makes writes that marker.
+`--dry-run` does the whole copy inside a transaction, prints the counts and rolls back. `deploy/migrate-server-to-postgres.sh` is an optional manual check (`COPY_ARGS=--dry-run` supported) that prints counts from both sides; once `/data/.copied-to-postgres` exists it only prints the counts, and a real copy it makes writes that marker.
 
-**Rollback caveat.** `ROLLBACK=1 make deploy` returns to code that reads SQLite, so calls recorded in PostgreSQL after the deploy are not shown by the old version (the SQLite file only holds history up to the cutover). They are not lost: they stay in the `postgres-data` volume. To recover, deploy the PostgreSQL version again. To bring them into SQLite instead there is no tool; export them from PostgreSQL first (`docker compose exec postgres pg_dump -U dashboard dashboard > backup.sql`).
+**Rollback caveat.** `ROLLBACK=1 make deploy` returns to code that reads SQLite, so calls recorded in PostgreSQL after the deploy are not shown by the old version (the SQLite file only holds history up to the cutover). They are not lost: they stay in the `postgres-data` volume. To recover, deploy the PostgreSQL version again. To bring them into SQLite instead there is no tool; export them from PostgreSQL first (`docker compose -f deploy/docker-compose.yml --env-file .env exec postgres pg_dump -U dashboard dashboard > backup.sql`).
 
-**Console API.** The dashboard also serves the console's JSON API under `/api/`: auth and team, agents, knowledge, workflows, calls and live calls, the dashboard summary, settings and integration requests, plus runtime endpoints the agent calls. Management commands (run with `docker compose exec dashboard python manage.py ...`):
+**Console API.** The dashboard also serves the console's JSON API under `/api/`: auth and team, agents, knowledge, workflows, calls and live calls, the dashboard summary, settings and integration requests, plus runtime endpoints the agent calls. Management commands (run with `docker compose -f deploy/docker-compose.yml --env-file .env exec dialtone-server python manage.py ...`):
 
 - `create_member EMAIL [--name N] [--role editor] [--workspace carrum]` creates a console user (prompts for a password).
 - `seed_carrum [--knowledge PATH]` creates the Carrum workspace and a draft "Driver lead qualifier" agent; if `PATH` (default `../agent/knowledge.md`) exists it also adds that file as the "Approved pricing and rules" knowledge document. Safe to repeat; it never publishes.
 - `purge_old_call_data [--days 90] [--dry-run]` deletes transcripts older than 90 days (turn events and report `turns`) and blanks the caller's words on labelled turns, keeping the telecaller labels; outcomes, summaries, answers and metrics stay. Nothing schedules it yet; plan 4 adds a daily run.
 - `copy_from_sqlite` is the SQLite to PostgreSQL copy described above.
 
-Run the tests locally with `make test` (needs `dashboard/.venv` with `dashboard/requirements-dev.txt`). The dashboard tests run on PostgreSQL: `make test-db` starts a disposable container on `127.0.0.1:55432` (needs Docker; `make test` does it for you). To use another server set `TEST_POSTGRES_HOST`, `TEST_POSTGRES_PORT`, `TEST_POSTGRES_USER` and `TEST_POSTGRES_PASSWORD`.
+Run the tests locally with `make test` (needs `server/.venv` with `server/requirements-dev.txt`). The dashboard tests run on PostgreSQL: `make test-db` starts a disposable container on `127.0.0.1:55432` (needs Docker; `make test` does it for you). To use another server set `TEST_POSTGRES_HOST`, `TEST_POSTGRES_PORT`, `TEST_POSTGRES_USER` and `TEST_POSTGRES_PASSWORD`.
 
 The agent POSTs its report to `/api/report` when a call ends, if `DASHBOARD_REPORT_URL` is set (on the VM: `http://127.0.0.1:8787/api/report`). The request carries a LiveKit-signed token with identity `agent-report` instead of a login. A report may arrive before LiveKit's `room_finished` webhook, and a later report for the same room replaces the earlier one. `/admin/` filters calls by final mood and outcome and shows each full report.
 
@@ -172,16 +174,16 @@ The agent POSTs its report to `/api/report` when a call ends, if `DASHBOARD_REPO
 
 The Carrum Voice console (`console/`, Next.js) is where the team edits agents, scripts, knowledge and workflows, and watches live calls and call history. Its server is the only thing the browser talks to: it proxies `/api/*` to the dashboard (`DJANGO_URL`, read at build time; default `http://127.0.0.1:8787`), so there is no CORS and no token in the page. Django's `/` redirects to it (`CONSOLE_URL`).
 
-**On the server.** `make up` and `make deploy` build and start the `console` service (image `ai-calling-console:local`, about 230 MB). Like the dashboard it listens on the VM's localhost only (127.0.0.1:3000). From your laptop:
+**On the server.** `make up` and `make deploy` build and start the `dialtone-console` service (image `dialtone-console:local`, about 230 MB). Like the dashboard it listens on the VM's localhost only (127.0.0.1:3000). From your laptop:
 
 ```bash
 make tunnel      # Console: http://localhost:3000 (the dashboard stays on :8787)
 ```
 
-**First sign-in.** The console signs in workspace members, not Django superusers. Create the first owner once on the VM (from `~/ai-calling`; it prompts for the password), then sign in at http://localhost:3000 with that email:
+**First sign-in.** The console signs in workspace members, not Django superusers. Create the first owner once on the VM (from the checkout, e.g. `~/dialtone`; it prompts for the password), then sign in at http://localhost:3000 with that email:
 
 ```bash
-docker compose exec dashboard python manage.py create_member you@carrum.co.in --name "Your Name" --role owner
+docker compose -f deploy/docker-compose.yml --env-file .env exec dialtone-server python manage.py create_member you@carrum.co.in --name "Your Name" --role owner
 ```
 
 Owners and admins invite everyone else from Settings, Team.
@@ -196,7 +198,7 @@ make console-dev                 # http://localhost:3000
 cd console && npm test && npm run typecheck && npm run lint
 ```
 
-Sign in with a workspace member (`python manage.py create_member you@example.com --role owner`). To try the production image locally: `docker build -t ai-calling-console:local console`. On Linux, `docker run --rm --network host ai-calling-console:local` serves http://127.0.0.1:3000; on macOS, Docker Desktop's host network is its VM's, so use `docker run --rm -p 3000:3000 -e HOSTNAME=0.0.0.0 ai-calling-console:local` instead.
+Sign in with a workspace member (`python manage.py create_member you@example.com --role owner`). To try the production image locally: `docker build -t dialtone-console:local console`. On Linux, `docker run --rm --network host dialtone-console:local` serves http://127.0.0.1:3000; on macOS, Docker Desktop's host network is its VM's, so use `docker run --rm -p 3000:3000 -e HOSTNAME=0.0.0.0 dialtone-console:local` instead.
 
 **End-to-end smoke run.** `make test-db && make console-e2e` re-creates the database `console_e2e` on the test Postgres (127.0.0.1:55432), seeds it, creates the owner `e2e@carrum.test` with a random password (or `E2E_PASSWORD`), starts Django on 127.0.0.1:8788 and a production build of the console on 127.0.0.1:3100, and runs Playwright (`console/e2e/smoke.spec.ts`) through every screen. LiveKit and the simulator are not started, so the run also checks that the console says so. The build goes to `console/.next/e2e`, leaving `console/.next` alone. Screenshots land in `console/test-results/light/` and `console/test-results/dark/`, server logs in `console/test-results/servers/`, the HTML report in `console/playwright-report/`. First time: `cd console && npx playwright install chromium`. Extra arguments go to Playwright, e.g. `scripts/console-e2e.sh --grep Knowledge`.
 
@@ -248,8 +250,8 @@ Keep `MOOD_ENABLED=false` until telecaller labels show the mood readings are goo
 4. Score them:
 
    ```bash
-   docker compose exec dashboard python manage.py mood_eval              # all labels
-   docker compose exec dashboard python manage.py mood_eval --since 2026-11-10
+   docker compose -f deploy/docker-compose.yml --env-file .env exec dialtone-server python manage.py mood_eval              # all labels
+   docker compose -f deploy/docker-compose.yml --env-file .env exec dialtone-server python manage.py mood_eval --since 2026-11-10
    ```
 
    It prints accuracy, precision/recall per mood, a confusion matrix and a PASS/FAIL line.
@@ -259,7 +261,7 @@ Keep `MOOD_ENABLED=false` until telecaller labels show the mood readings are goo
 Afterwards, set `MOOD_EVAL_CAPTURE=false` and delete the captured speech, because the turns hold what callers said:
 
 ```bash
-docker compose exec dashboard python manage.py purge_turns
+docker compose -f deploy/docker-compose.yml --env-file .env exec dialtone-server python manage.py purge_turns
 ```
 
 Also compare the CDRP and NI rates for calls with mood on and off, using the admin's outcome and mood filters.
@@ -271,7 +273,7 @@ Also compare the CDRP and NI rates for calls with mood on and off, using the adm
 
   ```bash
   # .env: LIVEKIT_URL=ws://<media-vm-private-ip>:7880 (+ same key/secret, API keys)
-  docker compose --profile agent up -d --build agent
+  make agent   # docker compose -f deploy/docker-compose.yml --env-file .env --profile agent up -d --build dialtone-agent
   ```
 
   Then allow 7880 from the private subnet on the media VM.
@@ -299,21 +301,3 @@ The agent tests in `agent/tests` use pytest (configured by `agent/pytest.ini`) a
 cd agent && python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
 .venv/bin/pytest -q   # same command `make test` runs for the agent
 ```
-
-## Claude Code setup
-
-`.claude/settings.json` turns on two Claude Code plugins for everyone working in this repo:
-
-- [superpowers](https://github.com/obra/superpowers): skills for planning, TDD, debugging and code review (`superpowers@superpowers-marketplace`)
-- [hallmark](https://github.com/Nutlope/hallmark): a design skill for the console and dashboard UI (`hallmark@hallmark`, run it with `/hallmark:hallmark`)
-
-When you trust the folder, Claude Code asks you to install the two marketplaces and enable the plugins. To install them by hand:
-
-```text
-/plugin marketplace add obra/superpowers-marketplace
-/plugin install superpowers@superpowers-marketplace
-/plugin marketplace add Nutlope/hallmark
-/plugin install hallmark@hallmark
-```
-
-Put personal settings in `.claude/settings.local.json`. Git ignores it.

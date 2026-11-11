@@ -18,7 +18,7 @@ from livekit.protocol.models import AudioCodec
 
 logger = logging.getLogger("phone-agent")
 
-# Inside the egress container: the dashboard-data volume (docker-compose.yml), served by the dashboard.
+# Inside the egress container: the dashboard-data volume (deploy/docker-compose.yml), served by the server.
 RECORDINGS_ROOT = "/data/recordings"
 START_TIMEOUT_S = 1.0
 # Opus at 32 kbps: about 240 KB a minute, plenty for phone audio.

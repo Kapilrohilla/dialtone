@@ -7,9 +7,9 @@ import type { Editor } from "@tiptap/core";
 import { fromEditor } from "./markdown";
 import { TokenEditor, type TokenEditorProps } from "./TokenEditor";
 
-/** The SCRIPT section bodies seeded by dashboard/voiceagents/management/commands/seed_carrum.py (tests run from console/). */
+/** The SCRIPT section bodies seeded by server/voiceagents/management/commands/seed_carrum.py (tests run from console/). */
 const SEED_BODIES = [
-  ...readFileSync(resolve(process.cwd(), "../dashboard/voiceagents/management/commands/seed_carrum.py"), "utf-8")
+  ...readFileSync(resolve(process.cwd(), "../server/voiceagents/management/commands/seed_carrum.py"), "utf-8")
     .split("\nSCRIPT = [")[1]
     .split("\n]\n")[0]
     .matchAll(/"body": """([\s\S]*?)"""/g),

@@ -46,10 +46,12 @@ for kv in DASHBOARD_URL=http://127.0.0.1:8787 RECORDING_ENABLED=true EGRESS_VERS
   fi
 done
 
+# Provider keys are optional; only warn about the ones the chosen AGENT_PIPELINE uses.
 pipeline=$(grep -E "^AGENT_PIPELINE=" .env | cut -d= -f2- || true)
 case "${pipeline:-gemini-live}" in
-  sarvam) ai_keys="SARVAM_API_KEY OPENAI_API_KEY" ;;
-  *)      ai_keys="GOOGLE_API_KEY" ;;
+  sarvam)     ai_keys="SARVAM_API_KEY OPENAI_API_KEY" ;;
+  elevenlabs) ai_keys="SARVAM_API_KEY OPENAI_API_KEY ELEVEN_API_KEY" ;;
+  *)          ai_keys="GOOGLE_API_KEY" ;;
 esac
 
 missing=()
@@ -60,7 +62,7 @@ done
 
 if ((${#missing[@]})); then
   echo
-  echo "Fill these in .env before continuing: ${missing[*]}"
+  echo "Fill these in .env before taking calls (AGENT_PIPELINE=${pipeline:-gemini-live}): ${missing[*]}"
 else
   echo ".env looks complete"
 fi

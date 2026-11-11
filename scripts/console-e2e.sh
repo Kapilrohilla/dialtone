@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # End-to-end smoke run of the console against a real, disposable Django + Postgres.
 #
-# Needs `make test-db` (Postgres on 127.0.0.1:55432), dashboard/.venv and console/node_modules.
+# Needs `make test-db` (Postgres on 127.0.0.1:55432), server/.venv and console/node_modules.
 # Drops and re-creates the database `console_e2e`, seeds it, creates the owner e2e@carrum.test,
 # starts Django on 127.0.0.1:8788 and the built console on 127.0.0.1:3100, then runs Playwright.
 # LiveKit and the agent simulator are deliberately not running: the run checks the console copes.
@@ -12,7 +12,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 root=$(pwd)
 
-PG_CONTAINER=ai-calling-test-pg
+PG_CONTAINER=dialtone-test-pg
 DJANGO_PORT=8788
 CONSOLE_PORT=3100
 DIST_DIR=.next/e2e   # inside console/; keeps the normal .next build untouched
@@ -20,7 +20,7 @@ log_dir="$root/console/test-results/servers"
 
 docker ps --filter "name=^${PG_CONTAINER}$" --format '{{.Names}}' | grep -q . \
   || { echo "Postgres for tests is not running; run: make test-db" >&2; exit 1; }
-[[ -x dashboard/.venv/bin/python ]] || { echo "dashboard/.venv missing" >&2; exit 1; }
+[[ -x server/.venv/bin/python ]] || { echo "server/.venv missing" >&2; exit 1; }
 [[ -d console/node_modules ]] || { echo "console/node_modules missing; run: cd console && npm ci" >&2; exit 1; }
 for port in $DJANGO_PORT $CONSOLE_PORT; do
   if curl -s -o /dev/null --max-time 1 "http://127.0.0.1:${port}/"; then
@@ -74,7 +74,7 @@ echo "Re-creating database console_e2e..."
 docker exec "$PG_CONTAINER" psql -U postgres -q -c "DROP DATABASE IF EXISTS console_e2e WITH (FORCE);"
 docker exec "$PG_CONTAINER" psql -U postgres -q -c "CREATE DATABASE console_e2e;"
 
-cd "$root/dashboard"
+cd "$root/server"
 .venv/bin/python manage.py migrate --noinput >"$log_dir/migrate.log"
 .venv/bin/python manage.py seed_carrum --knowledge "$root/console/e2e/fixtures/knowledge.md"
 .venv/bin/python manage.py shell -c '
