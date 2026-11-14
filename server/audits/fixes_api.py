@@ -14,6 +14,7 @@ from rest_framework.views import APIView
 from calls.api import calls_of
 from voiceagents.models import Agent
 from voiceagents.serializers import display_name
+from voiceagents.webcall import web_room_agent_id
 from voiceagents.suggestions import validate_agent_item
 from workflows.models import WorkflowSuggestion, WorkflowSuggestionSet
 from workflows.suggest import custom_expressions_for
@@ -169,6 +170,14 @@ def _older(version) -> str:
     return ""
 
 
+def _web_test_agent(call) -> Agent | None:
+    """The agent whose draft a voice test call talked to, or None (not a voice test, or the agent is gone)."""
+    agent_id = web_room_agent_id(call.room)
+    if agent_id is None or call.workspace_id is None:
+        return None
+    return Agent.objects.exclude(status=Agent.ARCHIVED).filter(pk=agent_id, workspace_id=call.workspace_id).first()
+
+
 class CallFixesView(_Base):
     """GET: the call's latest run, or 204. POST: "Suggest fixes" for this call's audit."""
 
@@ -185,14 +194,21 @@ class CallFixesView(_Base):
         if audit is None or audit.status != CallAudit.READY:
             return Response({"detail": "Audit this call first."}, status=409)
         version = call.agent_version
-        if version is None or version.agent.workspace_id != call.workspace_id:
+        if version is None:
+            # A voice test (`web-…` room) talked to the agent's draft, which is what fixes change anyway.
+            agent = _web_test_agent(call)
+            if agent is None:
+                return Response({"detail": "This call didn't run on a published agent."}, status=409)
+        elif version.agent.workspace_id != call.workspace_id:
             return Response({"detail": "This call didn't run on a published agent."}, status=409)
-        older = _older(version)
-        if older:
-            return Response({"detail": older}, status=409)
+        else:
+            agent = version.agent
+            older = _older(version)
+            if older:
+                return Response({"detail": older}, status=409)
         if not gen.problems_of([audit]):
             return Response({"detail": "This audit found no problems to fix."}, status=409)
-        return _start(request, version.agent, version, [audit], Run.CALL, call)
+        return _start(request, agent, version, [audit], Run.CALL, call)
 
 
 class AgentFixesView(_Base):
