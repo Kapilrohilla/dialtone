@@ -7,6 +7,14 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Call audits**: Gemini scores the AI side of finished calls (naturalness, listening, empathy, pacing,
+  flow, accuracy) against weights and instructions set per workspace under Settings → Calls. Scores show
+  in Call history and the call slide-over; `GET`/`POST /api/calls/{room}/audit`, and an `audit_sweep`
+  management command re-runs audits a restart left stuck
+  ([KAP-17](https://linear.app/kapil-rohilla/issue/KAP-17/audit-call-recordings), [#16](https://github.com/Kapilrohilla/dialtone/pull/16)).
+
 ## [0.1.0] - 2026-11-11
 
 First open-source release, as **Dialtone** (previously the internal project `ai-calling`)

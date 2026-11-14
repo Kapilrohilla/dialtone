@@ -106,6 +106,8 @@ def call_row(call) -> dict:
         "has_recording": rec is not None and rec.status == Recording.COMPLETE,
         # No file check here (one per row would be slow); the detail view checks the file.
         "recording_status": RECORDING_STATUS.get(rec.status, "none") if rec else "none",
+        # The current audit's overall score (0–100); querysets annotate it (calls.api.with_audit_score).
+        "audit_score": getattr(call, "audit_score", None),
     }
 
 

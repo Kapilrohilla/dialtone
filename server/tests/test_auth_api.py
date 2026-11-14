@@ -43,7 +43,8 @@ def test_me_shape(member):
     body = c.get("/api/me").json()
     assert set(body) == {"id", "name", "email", "phone", "role", "is_superuser", "workspace", "preferences"}
     assert body["is_superuser"] is False
-    assert set(body["workspace"]) == {"id", "name", "slug", "dead_air_enabled", "recording_enabled"}
+    assert set(body["workspace"]) == {"id", "name", "slug", "dead_air_enabled", "recording_enabled", "audit_enabled",
+                                      "audit_sample_pct", "audit_weights", "audit_instructions"}
     assert set(body["preferences"]) == {"appearance", "notify_needs_person", "notify_daily_summary", "time_zone"}
     assert body["role"] == "admin"
     assert body["workspace"]["slug"] == "northwind"

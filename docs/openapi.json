@@ -440,6 +440,62 @@
                 }
             }
         },
+        "/api/calls/{room}/audit": {
+            "get": {
+                "operationId": "calls_audit_retrieve",
+                "description": "GET: the call's current audit, or {\"status\": \"none\"}. POST (editors): audit the call now, or re-audit.",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "room",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "calls"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "calls_audit_create",
+                "description": "GET: the call's current audit, or {\"status\": \"none\"}. POST (editors): audit the call now, or re-audit.",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "room",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "calls"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
         "/api/calls/{room}/needs-person": {
             "post": {
                 "operationId": "calls_needs_person_create",

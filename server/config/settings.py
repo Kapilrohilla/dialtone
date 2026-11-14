@@ -35,6 +35,10 @@ LIVEKIT_PUBLIC_URL = os.getenv("LIVEKIT_PUBLIC_URL", "ws://localhost:7880")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
 SUGGEST_LLM_MODEL = os.getenv("SUGGEST_LLM_MODEL", "gemini-3.6-flash")
 SUGGEST_DAILY_LIMIT = int(os.getenv("SUGGEST_DAILY_LIMIT", "20"))  # runs per workspace per day; failed runs don't count
+# Call audits: Gemini scores the AI side of finished calls (audits/run.py). Model names get retired (KAP-15), so
+# keep it configurable; it falls back to the Suggest with AI model.
+AUDIT_LLM_MODEL = os.getenv("AUDIT_LLM_MODEL", "") or SUGGEST_LLM_MODEL
+AUDIT_MAX_CONCURRENT = int(os.getenv("AUDIT_MAX_CONCURRENT") or "2")  # audits running at once per server process
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -52,6 +56,7 @@ INSTALLED_APPS = [
     "knowledge",
     "workflows",
     "runtime",
+    "audits",
 ]
 
 MIDDLEWARE = [

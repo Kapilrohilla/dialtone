@@ -1,15 +1,17 @@
-import { useEffect, useMemo, useRef, type MutableRefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { Button, SlideOver, StateBlock, useToast } from "@/components/ui";
 import { RecordingNotice, RecordingPlayer } from "@/components/recording/RecordingPlayer";
 import { useRecording, type PlaybackState } from "@/components/recording/useRecording";
 import { Transcript } from "@/components/Transcript";
 import { ApiError } from "@/lib/api";
 import { answerLabel } from "@/lib/answers";
+import { auditOffset, transcriptIndex } from "@/lib/audit";
 import { formatPhone, formatWhen } from "@/lib/format";
 import { useCall, useMarkNeedsPerson, useMe } from "@/lib/queries";
 import { activeTurn, speakerSegments, turnOffsets } from "@/lib/recording";
 import { canEdit } from "@/lib/roles";
-import type { CallDetail } from "@/lib/types";
+import type { AuditEvidence, CallDetail } from "@/lib/types";
+import { AuditSection } from "./AuditSection";
 import { OutcomeChip } from "./CallsTable";
 import styles from "../calls.module.css";
 
@@ -55,7 +57,7 @@ export function CallSlideOver({ room, timeZone, onClose, autoplay, onPlayback, c
   return (
     <SlideOver open onClose={onClose} title={title} footer={footer} wide>
       {call ? (
-        <CallBody call={call} timeZone={timeZone} autoplay={autoplay} onPlayback={onPlayback} controls={controls} />
+        <CallBody call={call} timeZone={timeZone} autoplay={autoplay} onPlayback={onPlayback} controls={controls} canRunAudit={canEdit(me?.role)} />
       ) : isError ? (
         <StateBlock
           state="error"
@@ -69,10 +71,23 @@ export function CallSlideOver({ room, timeZone, onClose, autoplay, onPlayback, c
   );
 }
 
-function CallBody({ call, timeZone, autoplay, onPlayback, controls }: { call: CallDetail } & Omit<CallSlideOverProps, "room" | "onClose">) {
+function CallBody({
+  call,
+  timeZone,
+  autoplay,
+  onPlayback,
+  controls,
+  canRunAudit = false,
+}: { call: CallDetail; canRunAudit?: boolean } & Omit<CallSlideOverProps, "room" | "onClose">) {
   const toast = useToast();
+  // The transcript line an audit moment pointed at.
+  const [focus, setFocus] = useState<{ index: number } | null>(null);
   const url = call.recording_url;
   const rec = useRecording(url, { seed: call.room, duration: call.recording_duration_s, autoplay });
+  // Once playback runs, the playing line is the highlight.
+  useEffect(() => {
+    if (rec.playing) setFocus(null);
+  }, [rec.playing]);
 
   const offsets = useMemo(() => (url ? turnOffsets(call.transcript, call.recording_started_at) : null), [url, call.transcript, call.recording_started_at]);
   const segments = useMemo(
@@ -102,6 +117,14 @@ function CallBody({ call, timeZone, autoplay, onPlayback, controls }: { call: Ca
       .catch(() => toast.show("Could not copy the link.", "bad"));
   }
 
+  const canSeek = Boolean(url) && rec.status === "ready";
+  const auditOffsetOf = (item: Pick<AuditEvidence, "at">) => (canSeek ? auditOffset(item, call.recording_started_at) : null);
+  function jumpTo(item: Pick<AuditEvidence, "at" | "speaker">) {
+    setFocus({ index: transcriptIndex(call.transcript, item) });
+    const at = auditOffsetOf(item);
+    if (at != null) rec.playFrom(at);
+  }
+
   const meta = [call.agent_name, formatWhen(call.started_at, timeZone).replace(/^Today/, "today").replace(/^Yesterday/, "yesterday")].filter(Boolean).join(", ");
 
   return (
@@ -112,6 +135,7 @@ function CallBody({ call, timeZone, autoplay, onPlayback, controls }: { call: Ca
       ) : (
         <RecordingNotice status={call.recording_status === "complete" ? "failed" : call.recording_status} notReached={call.outcome === "Not reached"} />
       )}
+      <AuditSection room={call.room} canRun={canRunAudit} offsetOf={auditOffsetOf} onJump={jumpTo} />
       <section aria-labelledby="call-what">
         <h3 id="call-what" className={styles.sectionTitle}>What happened</h3>
         <p className={styles.para}>{call.summary || call.reason || "No summary for this call."}</p>
@@ -155,6 +179,7 @@ function CallBody({ call, timeZone, autoplay, onPlayback, controls }: { call: Ca
           }
           activeIndex={active}
           playing={rec.playing}
+          focus={focus}
         />
       </section>
     </>

@@ -78,4 +78,41 @@ describe("recording switch", () => {
     await screen.findByRole("heading", { name: "Recording" });
     expect(record()).toBeDisabled();
   });
+
+  it("turns call audits on and saves scoring settings", async () => {
+    const { patches } = serve("admin");
+    const user = userEvent.setup();
+    renderWithProviders(<CallsSettingsPage />, { route: "/settings/calls" });
+    await screen.findByRole("heading", { name: "Call audits" });
+    const audits = screen.getByRole("switch", { name: "Score calls with AI" });
+    expect(audits).toHaveAttribute("aria-checked", "false");
+    await user.click(audits);
+    expect(await screen.findByText("Finished calls are scored from now on.")).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText("Calls to score"), "25% of calls");
+    await waitFor(() => expect(patches).toContainEqual({ audit_sample_pct: 25 }));
+
+    const save = screen.getByRole("button", { name: "Save scoring settings" });
+    expect(save).toBeDisabled();
+    const naturalness = screen.getByLabelText("Sounds human");
+    await user.clear(naturalness);
+    await user.type(naturalness, "40");
+    await user.type(screen.getByLabelText("Extra instructions for scoring"), "Keep it informal.");
+    await user.click(save);
+    await waitFor(() =>
+      expect(patches).toContainEqual({
+        audit_weights: { naturalness: 40, listening: 20, empathy: 15, pacing: 15, flow: 15, accuracy: 10 },
+        audit_instructions: "Keep it informal.",
+      }),
+    );
+    expect(patches[0]).toEqual({ audit_enabled: true });
+  });
+
+  it("only owners and admins change audit settings", async () => {
+    serve("editor");
+    renderWithProviders(<CallsSettingsPage />, { route: "/settings/calls" });
+    await screen.findByRole("heading", { name: "Call audits" });
+    expect(screen.getByRole("switch", { name: "Score calls with AI" })).toBeDisabled();
+    expect(screen.getByLabelText("Calls to score")).toBeDisabled();
+    expect(screen.getByLabelText("Sounds human")).toBeDisabled();
+  });
 });
