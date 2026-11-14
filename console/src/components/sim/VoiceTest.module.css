@@ -71,3 +71,6 @@
   border: 0; border-radius: 50%; background: var(--bad); color: #fff; cursor: pointer;
 }
 .pillHangUp:hover { background: color-mix(in srgb, var(--bad) 88%, var(--ink)); }
+/* After the call: your rating. Scrolls inside the dock so Call again stays in view. */
+.rate { display: flex; flex-direction: column; gap: 8px; max-height: min(52vh, 460px); overflow-y: auto; padding-top: 10px; border-top: 1px solid var(--border); }
+.rateTitle { margin: 0; color: var(--ink-2); font-size: 13px; }

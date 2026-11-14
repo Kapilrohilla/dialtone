@@ -235,6 +235,39 @@ export type CallDetail = CallRow & {
   recording_duration_s: number | null;
   /** When the recording began: transcript times minus this are offsets into the audio. */
   recording_started_at: string | null;
+  /** Caller stops speaking -> agent reply heard (agent/response_gap.py); null for calls before it was measured. */
+  response_gap: ResponseGap | null;
+};
+
+export type GapStats = { avg_ms?: number; p50_ms?: number; p95_ms?: number; max_ms?: number };
+
+/** `system`: until the agent's audio starts. `perceived`: until it is audible (adds silence at the start of
+ * the line, such as a pause cue). Replies the caller didn't wait for (the agent cut in) aren't measured. */
+export type ResponseGap = {
+  n: number;
+  system: GapStats;
+  perceived: GapStats;
+  slow_replies: number;
+  slow_threshold_ms: number;
+  agent_cut_ins: number;
+  replies: { at_s: number; system_ms: number; perceived_ms: number }[];
+};
+
+// dashboard/calls/feedback.py: a person's own rating of a call (usually after a voice test).
+export type CallFeedback = {
+  id: number;
+  author: string | null;
+  mine: boolean;
+  ratings: Partial<Record<AuditAreaKey, number>>;
+  overall: number | null;
+  remarks: string;
+  updated_at: string;
+};
+
+export type CallFeedbackInput = {
+  ratings: Partial<Record<AuditAreaKey, number>>;
+  overall: number | null;
+  remarks: string;
 };
 
 // dashboard/audits/api.py

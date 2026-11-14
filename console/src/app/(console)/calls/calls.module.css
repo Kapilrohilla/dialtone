@@ -99,3 +99,7 @@
 .moments .evidence { margin-left: 0; }
 .momentMeta { color: var(--muted); font-size: 13px; }
 .score { display: inline-flex; min-width: 36px; justify-content: center; }
+.feedbackList { margin: 0 0 10px; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.feedbackItem { display: flex; flex-direction: column; gap: 2px; }
+.feedbackHead { margin: 0; color: var(--ink); font-size: 14px; }
+.feedbackScores { margin: 0; color: var(--muted); font-size: 13px; }

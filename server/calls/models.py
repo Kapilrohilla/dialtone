@@ -399,3 +399,24 @@ class Recording(models.Model):
             self.status, self.error = self.FAILED, self.error or "no egress result after the call ended"
         self.ended_at = self.ended_at or ended
         self.save(update_fields=["status", "size_bytes", "error", "ended_at", "updated_at"])
+
+
+class CallFeedback(models.Model):
+    """A person's own rating of a call, usually right after a console voice test: 1–5 on each audit area
+    (audits.rubric.AREAS, so it sits next to the AI audit) and overall, plus free remarks. One per person per
+    call; saving again replaces it."""
+
+    call = models.ForeignKey(Call, on_delete=models.CASCADE, related_name="feedback")
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="+")
+    ratings = models.JSONField(default=dict)  # {area key: 1..5}; areas left unrated are absent
+    overall = models.PositiveSmallIntegerField(null=True, blank=True)
+    remarks = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at"]
+        constraints = [models.UniqueConstraint(fields=["call", "author"], name="uniq_call_feedback_author")]
+
+    def __str__(self) -> str:
+        return f"feedback on {self.call.room} by {self.author_id}"

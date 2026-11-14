@@ -232,6 +232,19 @@ def test_call_detail_without_report_or_bad_data(member, workspace):
         assert r.json()["answers"] == {} and r.json()["step_path"] == []
 
 
+def test_call_detail_response_gap(member, workspace):
+    gap = {"n": 2, "system": {"avg_ms": 900, "p50_ms": 800, "p95_ms": 1000, "max_ms": 1000},
+           "perceived": {"avg_ms": 1100, "p50_ms": 1000, "p95_ms": 1200, "max_ms": 1200},
+           "slow_replies": 0, "slow_threshold_ms": 2000, "agent_cut_ins": 1,
+           "replies": [{"at_s": 4.0, "system_ms": 800, "perceived_ms": 1000}]}
+    make_call(workspace, "g1", started=at(hh=10), disposition="NI", data_extra={"response_gap": gap})
+    make_call(workspace, "g0", started=at(hh=10), disposition="NI")  # before the agent measured it
+    c = member("viewer")
+    assert c.get("/api/calls/g1").json()["response_gap"] == gap
+    assert c.get("/api/calls/g0").json()["response_gap"] is None
+    assert c.get("/api/calls/g0").status_code == 200
+
+
 # --- export -----------------------------------------------------------------------------------------
 
 def test_csv_export_headers_and_devanagari(member, workspace):

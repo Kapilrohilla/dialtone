@@ -28,7 +28,8 @@ from voiceagents.models import Agent
 from workspaces.permissions import CanEdit, IsMember, workspace_for
 
 from . import livekit_state
-from .models import Call, CallEvent, Recording
+from . import feedback as call_feedback
+from .models import Call, CallEvent, CallFeedback, Recording
 from .numbers import same_number
 from .outcomes import DISPLAY_OUTCOME, DROPPED, GROUPS, NOT_REACHED, codes_for, display_outcome
 from .serializers import (
@@ -290,6 +291,30 @@ class NeedsPersonView(_Base):
         call.save(update_fields=["needs_person", "needs_person_handled_at"])
         return Response({"room": call.room, "needs_person": call.needs_person,
                          "handled_at": call.needs_person_handled_at})
+
+
+class CallFeedbackView(_Base):
+    """GET: everyone's feedback on the call, yours first. PUT: save yours (replaces it). Any member may rate a
+    call: rating it changes nothing about the call itself."""
+
+    def get_permissions(self):
+        return [IsMember()]
+
+    def get(self, request, room):
+        call = get_object_or_404(calls_of(request), room=room)
+        rows = sorted(call.feedback.select_related("author"), key=lambda f: f.author_id != request.user.id)
+        return Response([call_feedback.as_dict(f, request.user) for f in rows])
+
+    def put(self, request, room):
+        call = get_object_or_404(calls_of(request), room=room)
+        fields = call_feedback.clean(request.data)
+        fb, _ = CallFeedback.objects.update_or_create(call=call, author=request.user, defaults=fields)
+        return Response(call_feedback.as_dict(fb, request.user))
+
+    def delete(self, request, room):
+        call = get_object_or_404(calls_of(request), room=room)
+        CallFeedback.objects.filter(call=call, author=request.user).delete()
+        return Response(status=204)
 
 
 # --- dashboard --------------------------------------------------------------------------------------

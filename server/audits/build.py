@@ -138,6 +138,20 @@ def _latency(latency: dict) -> dict:
     return out
 
 
+def _response_gap(gap: dict) -> dict:
+    """The agent's measured reply gaps (caller stops -> agent heard), without the per-reply list."""
+    out = {}
+    for key in ("system", "perceived"):
+        d = _dict(gap.get(key))
+        vals = {k: d[k] for k in ("avg_ms", "p50_ms", "p95_ms", "max_ms") if _num(d.get(k)) is not None}
+        if vals:
+            out[key] = vals
+    for key in ("n", "slow_replies", "slow_threshold_ms", "agent_cut_ins"):
+        if _num(gap.get(key)) is not None:
+            out[key] = gap[key]
+    return out
+
+
 def signals_of(call, report) -> dict:
     data = _dict(report.data if report else None)
     mood = _dict(data.get("mood"))
@@ -164,6 +178,8 @@ def signals_of(call, report) -> dict:
                  "avg_sentiment": _num(mood.get("avg_sentiment")), "timeline": timeline},
         "dead_air": dead_air,
         "latency": _latency(_dict(data.get("latency"))),
+        # Measured on every pipeline; prefer it to latency["llm_ttft"], which Gemini Live reports near zero.
+        "response_gap": _response_gap(_dict(data.get("response_gap"))),
         "behavior": behavior,
         "captured": captured,
         "step_path": [s for s in _list(data.get("step_path")) if isinstance(s, str)],

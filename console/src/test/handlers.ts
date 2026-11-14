@@ -11,6 +11,7 @@ export const handlers = [
   http.get("*/api/calls", () => HttpResponse.json(callPage)),
   http.get("*/api/live", () => HttpResponse.json([liveCall])),
   http.get("*/api/calls/:room", () => HttpResponse.json(callDetail)),
+  http.get("*/api/calls/:room/feedback", () => HttpResponse.json([])),
   http.get("*/api/calls/:room/audit", () => HttpResponse.json({ status: "none", enabled: false })),
   http.get("*/api/calls/:room/audit/fixes", () => new HttpResponse(null, { status: 204 })),
   http.get("*/api/agents", () => HttpResponse.json([agentListItem])),

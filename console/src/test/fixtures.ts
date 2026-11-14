@@ -155,6 +155,7 @@ export const callDetail: CallDetail = {
   recording_status: "none",
   recording_duration_s: null,
   recording_started_at: null,
+  response_gap: null,
 };
 
 export const callPage: CallPage = { results: [callRow], count: 1, page: 1, pages: 1 };

@@ -12,6 +12,8 @@ import { activeTurn, speakerSegments, turnOffsets } from "@/lib/recording";
 import { canEdit } from "@/lib/roles";
 import type { AuditEvidence, CallDetail } from "@/lib/types";
 import { AuditSection } from "./AuditSection";
+import { FeedbackSection } from "./FeedbackSection";
+import { ResponseTimeSection } from "./ResponseTimeSection";
 import { OutcomeChip } from "./CallsTable";
 import styles from "../calls.module.css";
 
@@ -146,6 +148,8 @@ function CallBody({
           <p className={styles.steps}>{call.step_path.join(" → ")}</p>
         </section>
       )}
+      <ResponseTimeSection gap={call.response_gap} />
+      <FeedbackSection room={call.room} />
       {Object.keys(call.answers).length > 0 && (
         <section aria-labelledby="call-answers">
           <h3 id="call-answers" className={styles.sectionTitle}>Answers</h3>
