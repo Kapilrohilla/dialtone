@@ -77,7 +77,7 @@ def test_calls_list_shape_and_fields(member, workspace):
     assert body["count"] == 1 and body["page"] == 1 and body["pages"] == 1
     row = body["results"][0]
     assert set(row) == {"room", "started_at", "caller", "agent_name", "outcome", "outcome_code", "mood",
-                        "duration_s", "summary", "has_recording", "recording_status"}
+                        "duration_s", "summary", "has_recording", "recording_status", "audit_score"}
     assert row["room"] == "r1" and row["agent_name"] == "Driver lead qualifier"
     assert row["outcome"] == "Interested" and row["outcome_code"] == "INTERESTED" and row["mood"] == "happy"
     assert row["duration_s"] == 120 and row["summary"] == "Wants the weekly plan"
@@ -248,10 +248,10 @@ def test_csv_export_headers_and_devanagari(member, workspace):
     raw = b"".join(r.streaming_content) if r.streaming else r.content
     assert raw.startswith(b"\xef\xbb\xbf")
     rows = list(csv.reader(io.StringIO(raw.decode("utf-8-sig"))))
-    assert rows[0] == ["When", "Caller", "Agent", "Outcome", "Mood", "Duration", "Summary"]
-    assert rows[1][1:] == ["+919876543210", "", "Not interested", "", "", "'=HYPERLINK(1)"]
+    assert rows[0] == ["When", "Caller", "Agent", "Outcome", "Mood", "Duration", "Summary", "Score"]
+    assert rows[1][1:] == ["+919876543210", "", "Not interested", "", "", "'=HYPERLINK(1)", ""]
     assert rows[2] == ["2026-11-05 10:00", "+919876543210", "प्रिया agent", "Interested", "happy", "90",
-                       "ड्राइवर weekly plan चाहता है"]
+                       "ड्राइवर weekly plan चाहता है", ""]
     filtered = c.get("/api/calls/export.csv", {"outcome": "Interested"})
     raw = b"".join(filtered.streaming_content) if filtered.streaming else filtered.content
     assert len(list(csv.reader(io.StringIO(raw.decode("utf-8-sig"))))) == 2

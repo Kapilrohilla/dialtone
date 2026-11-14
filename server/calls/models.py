@@ -200,6 +200,10 @@ class CallReport(models.Model):
                     defaults={"caller_text": row["caller_text"], "predicted": row["predicted"]},
                 )
         Recording.from_report(call.room, report.get("recording"))
+        # Score the call once the report is saved; an audit failure never touches ingest (it never raises).
+        from audits.run import queue_after_report
+
+        transaction.on_commit(lambda call_id=call.pk: queue_after_report(call_id))
         return obj
 
 

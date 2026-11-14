@@ -9,6 +9,7 @@ import type {
   Agent,
   AgentListItem,
   AgentTextSetting,
+  CallAudit,
   CallDetail,
   CallPage,
   Dashboard,
@@ -59,7 +60,11 @@ export function useUpdateMe() {
 export function useUpdateWorkspace() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: Partial<Pick<Workspace, "dead_air_enabled" | "recording_enabled">>) => apiFetch<Workspace>("/api/workspace", { method: "PATCH", json: body }),
+    mutationFn: (
+      body: Partial<
+        Pick<Workspace, "dead_air_enabled" | "recording_enabled" | "audit_enabled" | "audit_sample_pct" | "audit_weights" | "audit_instructions">
+      >,
+    ) => apiFetch<Workspace>("/api/workspace", { method: "PATCH", json: body }),
     onSuccess: (workspace) => qc.setQueryData<Me>(meKey, (me) => (me ? { ...me, workspace } : me)),
   });
 }
@@ -158,9 +163,21 @@ export const useEndCall = () => useLiveAction("end");
 
 // ---- calls ----
 
-export type CallFilters = { q?: string; outcome?: string; agent?: string; mood?: string; city?: string; from?: string; to?: string; page?: number };
+export type CallFilters = {
+  q?: string;
+  outcome?: string;
+  agent?: string;
+  mood?: string;
+  city?: string;
+  from?: string;
+  to?: string;
+  /** Audit score range, 0–100. */
+  score_min?: string;
+  score_max?: string;
+  page?: number;
+};
 
-const FILTER_ORDER = ["q", "outcome", "agent", "mood", "city", "from", "to", "page"] as const;
+const FILTER_ORDER = ["q", "outcome", "agent", "mood", "city", "from", "to", "score_min", "score_max", "page"] as const;
 
 /** The filters as a query string (no leading "?"), empty ones left out. Shared by the list, the CSV link and the page URL. */
 export function callsQuery(filters: CallFilters): string {
@@ -207,6 +224,45 @@ export function useCall(room: string | null) {
     lastStatus.current = status;
   }, [status, qc]);
   return query;
+}
+
+const AUDIT_POLL_MS = 3_000;
+
+export const callAuditKey = (room: string | null) => ["call-audit", room] as const;
+
+/** A call's current audit. Polls every 3 s while it is queued or running. */
+export function useCallAudit(room: string | null) {
+  const qc = useQueryClient();
+  const lastStatus = useRef<string | undefined>(undefined);
+  const query = useQuery({
+    queryKey: callAuditKey(room),
+    queryFn: () => apiFetch<CallAudit>(`/api/calls/${encodeURIComponent(room ?? "")}/audit`),
+    enabled: room !== null,
+    refetchInterval: (q) => (q.state.data?.status === "queued" || q.state.data?.status === "running" ? AUDIT_POLL_MS : false),
+  });
+  // A finished audit changes the list's Score column.
+  const status = query.data?.status;
+  useEffect(() => {
+    if ((lastStatus.current === "queued" || lastStatus.current === "running") && status !== lastStatus.current) {
+      qc.invalidateQueries({ queryKey: ["calls"] });
+    }
+    lastStatus.current = status;
+  }, [status, qc]);
+  return query;
+}
+
+/** Audit a call now, or re-audit it (editors). */
+export function useRunAudit(room: string) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  return useMutation({
+    mutationFn: () => apiFetch<CallAudit>(`/api/calls/${encodeURIComponent(room)}/audit`, { method: "POST" }),
+    onSuccess: (audit) => qc.setQueryData(callAuditKey(room), audit),
+    onError: (e) => {
+      toast.show(e instanceof ApiError ? e.detail : "Could not start the audit.", "bad");
+      qc.invalidateQueries({ queryKey: callAuditKey(room) });
+    },
+  });
 }
 
 /** Marks a call for a call back; it then shows on the dashboard under "Needs a person". Marking twice is harmless. */

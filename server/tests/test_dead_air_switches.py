@@ -21,7 +21,10 @@ def test_account_switch_defaults_on_and_shows_in_me(member):
     c = member("viewer")
     assert c.get("/api/workspace").json() == {"id": c.get("/api/me").json()["workspace"]["id"], "name": "Northwind Car Rentals",
                                               "slug": "northwind", "dead_air_enabled": True,
-                                              "recording_enabled": False}
+                                              "recording_enabled": False, "audit_enabled": False,
+                                              "audit_sample_pct": 100, "audit_instructions": "",
+                                              "audit_weights": {"naturalness": 25, "listening": 20, "empathy": 15,
+                                                                "pacing": 15, "flow": 15, "accuracy": 10}}
     assert c.get("/api/me").json()["workspace"]["dead_air_enabled"] is True
 
 
