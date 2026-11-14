@@ -15,6 +15,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   management command re-runs audits a restart left stuck
   ([KAP-17](https://linear.app/kapil-rohilla/issue/KAP-17/audit-call-recordings), [#16](https://github.com/Kapilrohilla/dialtone/pull/16)).
 
+### Fixed
+
+- The *Try it* / *Test call* text simulator failed on every message because its default model,
+  `gemini-2.5-flash`, has been retired by Google. `SIM_LLM_MODEL` now defaults to `gemini-3.6-flash`
+  ([KAP-36](https://linear.app/kapil-rohilla/issue/KAP-36/simulator-replace-retired-gemini-25-flash-default-try-it-test-call)).
+
 ## [0.1.0] - 2026-11-11
 
 First open-source release, as **Dialtone** (previously the internal project `ai-calling`)

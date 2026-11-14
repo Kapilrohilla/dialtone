@@ -130,7 +130,7 @@ class GeminiChatModel:
     def __init__(self, model: str | None = None):
         from livekit.plugins import google
 
-        self._llm = google.LLM(model=model or os.getenv("SIM_LLM_MODEL", "gemini-2.5-flash"))
+        self._llm = google.LLM(model=model or os.getenv("SIM_LLM_MODEL", "gemini-3.6-flash"))
 
     async def complete(self, instructions: str, messages: list[dict], tools: list[dict]) -> ModelTurn:
         from livekit.agents import function_tool, llm
