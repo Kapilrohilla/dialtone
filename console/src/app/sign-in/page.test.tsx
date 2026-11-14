@@ -2,7 +2,7 @@ import userEvent from "@testing-library/user-event";
 import { screen, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
-import { me } from "@/test/fixtures";
+import { instance, me } from "@/test/fixtures";
 import { renderWithProviders, router } from "@/test/render";
 import { server } from "@/test/server";
 import SignInPage from "./page";
@@ -17,6 +17,19 @@ async function signIn(route = "/sign-in") {
 }
 
 describe("sign in", () => {
+  it("shows the install's logo next to its name, and no image without one", async () => {
+    server.use(http.get("*/api/instance/", () => HttpResponse.json({ ...instance, logo_url: "/api/instance/logo?v=abc" })));
+    const view = renderWithProviders(<SignInPage />, { route: "/sign-in" });
+    expect(await screen.findByText("Northwind Voice")).toBeInTheDocument();
+    await waitFor(() => expect(view.container.querySelector("img")).toHaveAttribute("src", "/api/instance/logo?v=abc"));
+    view.unmount();
+
+    server.resetHandlers();
+    const plain = renderWithProviders(<SignInPage />, { route: "/sign-in" });
+    expect(await screen.findByText("Northwind Voice")).toBeInTheDocument();
+    expect(plain.container.querySelector("img")).toBeNull();
+  });
+
   it("signs in and goes to the next page", async () => {
     let body: unknown;
     server.use(http.post("*/api/auth/login", async ({ request }) => {

@@ -14,6 +14,18 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   in Call history and the call slide-over; `GET`/`POST /api/calls/{room}/audit`, and an `audit_sweep`
   management command re-runs audits a restart left stuck
   ([KAP-17](https://linear.app/kapil-rohilla/issue/KAP-17/audit-call-recordings), [#16](https://github.com/Kapilrohilla/dialtone/pull/16)).
+- **Custom logo and theme** under Settings → General (super admins). The logo (PNG, SVG or JPG, square,
+  up to 1 MB; SVGs are sanitized) replaces the initials tile in the sidebar, shows on the sign-in and
+  set-password pages and becomes the tab icon (`POST`/`DELETE /api/instance/logo`). The theme (Saffron,
+  the default, Ocean or Forest) sets the console palette for everyone, in light and dark (`theme` on
+  `PATCH /api/instance/`); the root layout applies it on the server, so pages load without a flash
+  ([KAP-38](https://linear.app/kapil-rohilla/issue/KAP-38/settings-general-custom-logo-and-theme-saffron-ocean-forest), [#20](https://github.com/Kapilrohilla/dialtone/pull/20)).
+
+### Changed
+
+- Dark mode in the default Saffron theme is warm (page `#221F1C`) instead of cool slate, matching the
+  light theme's hue. Inputs get a 3:1 field edge, and the Saffron accent ink is `#8A5800` (was `#9A6200`)
+  so it passes WCAG AA on its pill.
 
 ### Changed
 

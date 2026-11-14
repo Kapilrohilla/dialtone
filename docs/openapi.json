@@ -613,7 +613,7 @@
         "/api/instance/": {
             "get": {
                 "operationId": "instance_retrieve",
-                "description": "GET (public): {\"project_name\": \"...\"}. PATCH (super admins): {\"project_name\": \"...\"}.",
+                "description": "GET (public): {\"project_name\", \"theme\", \"logo_url\"}. PATCH (super admins): project_name and/or theme.",
                 "tags": [
                     "instance"
                 ],
@@ -637,7 +637,7 @@
             },
             "patch": {
                 "operationId": "instance_partial_update",
-                "description": "GET (public): {\"project_name\": \"...\"}. PATCH (super admins): {\"project_name\": \"...\"}.",
+                "description": "GET (public): {\"project_name\", \"theme\", \"logo_url\"}. PATCH (super admins): project_name and/or theme.",
                 "tags": [
                     "instance"
                 ],
@@ -675,6 +675,87 @@
                             }
                         },
                         "description": ""
+                    }
+                }
+            }
+        },
+        "/api/instance/logo/": {
+            "get": {
+                "operationId": "instance_logo_retrieve",
+                "description": "GET (public): the logo file, 404 if there is none. POST (super admins): multipart `file`, PNG, SVG or JPG,\nsquare, up to 1 MB; SVGs are sanitized. DELETE (super admins): back to the initials tile.",
+                "tags": [
+                    "instance"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "image/*": {
+                                "schema": {
+                                    "type": "string",
+                                    "format": "binary"
+                                }
+                            }
+                        },
+                        "description": ""
+                    },
+                    "404": {
+                        "description": "No response body"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "instance_logo_create",
+                "description": "GET (public): the logo file, 404 if there is none. POST (super admins): multipart `file`, PNG, SVG or JPG,\nsquare, up to 1 MB; SVGs are sanitized. DELETE (super admins): back to the initials tile.",
+                "tags": [
+                    "instance"
+                ],
+                "requestBody": {
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "$ref": "#/components/schemas/LogoUpload"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Instance"
+                                }
+                            }
+                        },
+                        "description": ""
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "instance_logo_destroy",
+                "description": "GET (public): the logo file, 404 if there is none. POST (super admins): multipart `file`, PNG, SVG or JPG,\nsquare, up to 1 MB; SVGs are sanitized. DELETE (super admins): back to the initials tile.",
+                "tags": [
+                    "instance"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No response body"
                     }
                 }
             }
@@ -1439,24 +1520,64 @@
         "schemas": {
             "Instance": {
                 "type": "object",
+                "description": "GET: everything. PATCH: any of project_name and theme (at least one). The logo has its own endpoint.",
                 "properties": {
                     "project_name": {
                         "type": "string",
                         "maxLength": 60
+                    },
+                    "theme": {
+                        "$ref": "#/components/schemas/ThemeEnum"
+                    },
+                    "logo_url": {
+                        "type": "string",
+                        "readOnly": true,
+                        "nullable": true
                     }
                 },
                 "required": [
-                    "project_name"
+                    "logo_url"
+                ]
+            },
+            "LogoUpload": {
+                "type": "object",
+                "properties": {
+                    "file": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "PNG, SVG or JPG, square, up to 1 MB."
+                    }
+                },
+                "required": [
+                    "file"
                 ]
             },
             "PatchedInstance": {
                 "type": "object",
+                "description": "GET: everything. PATCH: any of project_name and theme (at least one). The logo has its own endpoint.",
                 "properties": {
                     "project_name": {
                         "type": "string",
                         "maxLength": 60
+                    },
+                    "theme": {
+                        "$ref": "#/components/schemas/ThemeEnum"
+                    },
+                    "logo_url": {
+                        "type": "string",
+                        "readOnly": true,
+                        "nullable": true
                     }
                 }
+            },
+            "ThemeEnum": {
+                "enum": [
+                    "saffron",
+                    "ocean",
+                    "forest"
+                ],
+                "type": "string",
+                "description": "* `saffron` - Saffron\n* `ocean` - Ocean\n* `forest` - Forest"
             }
         },
         "securitySchemes": {
