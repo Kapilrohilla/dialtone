@@ -18,7 +18,7 @@ networking.
 | `dialtone-server` | built from `server/` | 127.0.0.1:`DASHBOARD_PORT` (8787) | Django: console API, `/admin/`, LiveKit webhook, agent runtime API |
 | `dialtone-console` | built from `console/` | 127.0.0.1:3000 | Next.js console; proxies `/api/*` to the server |
 | `dialtone-agent` | built from `agent/` (profile `agent`) | outbound only | LiveKit Agents worker that runs calls |
-| `dialtone-agent-sim` | same image (profile `agent`) | 127.0.0.1:`SIM_PORT` (8790) | Text simulator for *Try it* / *Test call* |
+| `dialtone-agent-sim` | same image (profile `agent`) | 127.0.0.1:`SIM_PORT` (8790) | Text simulator for *Test chat* |
 
 Volumes: `postgres-data` (database), `dashboard-data` (recordings, legacy SQLite), `redis-data`,
 `agent-cache` (last published config per number).

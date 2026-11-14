@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { useToast } from "@/components/ui";
 import { ApiError, apiFetch, isSignedOut } from "@/lib/api";
+import { applyFavicon, applyPalette } from "@/lib/palette";
 import type {
   Agent,
   AgentListItem,
@@ -18,6 +19,7 @@ import type {
   Dashboard,
   Expression,
   Instance,
+  InstanceUpdate,
   KnowledgeDoc,
   KnowledgeListItem,
   LiveCall,
@@ -107,6 +109,11 @@ export function useProjectName(): string {
   return useInstance().data?.project_name || DEFAULT_PROJECT_NAME;
 }
 
+/** The logo's URL, or null for none (and while loading, so the initials tile shows until it is known). */
+export function useLogoUrl(): string | null {
+  return useInstance().data?.logo_url ?? null;
+}
+
 /** The tab title with `from` swapped for `to`: "Agents - Old" → "Agents - New", "Old" → "New". Any other title becomes `to`. */
 export function retitle(title: string, from: string, to: string): string {
   if (title === from) return to;
@@ -114,16 +121,46 @@ export function retitle(title: string, from: string, to: string): string {
   return title.endsWith(suffix) ? title.slice(0, -suffix.length) + ` - ${to}` : to;
 }
 
-/** Renames the install (superusers only). The sidebar and the open tab's title change at once; field errors stay on the error. */
-export function useUpdateInstance() {
+/** Puts a saved instance in the cache and on the open page: the sidebar, the tab title, the palette and the tab icon. */
+function useRememberInstance() {
   const qc = useQueryClient();
+  return (saved: Instance) => {
+    const before = qc.getQueryData<Instance>(instanceKey);
+    qc.setQueryData(instanceKey, saved);
+    document.title = retitle(document.title, before?.project_name || DEFAULT_PROJECT_NAME, saved.project_name);
+    applyPalette(saved.theme);
+    if (before?.logo_url !== saved.logo_url) applyFavicon(saved.logo_url);
+  };
+}
+
+/** Renames the install and / or picks its theme (superusers only). Field errors stay on the error. */
+export function useUpdateInstance() {
+  const remember = useRememberInstance();
   return useMutation({
-    mutationFn: (body: Instance) => apiFetch<Instance>("/api/instance/", { method: "PATCH", json: body }),
-    onSuccess: (saved) => {
-      const before = qc.getQueryData<Instance>(instanceKey)?.project_name || DEFAULT_PROJECT_NAME;
-      qc.setQueryData(instanceKey, saved);
-      document.title = retitle(document.title, before, saved.project_name);
+    mutationFn: (body: InstanceUpdate) => apiFetch<Instance>("/api/instance/", { method: "PATCH", json: body }),
+    onSuccess: remember,
+  });
+}
+
+/** Uploads the logo (multipart `file`; PNG, SVG or JPG, square, up to 1 MB). The API's file errors arrive as `fields.file`. */
+export function useUploadLogo() {
+  const remember = useRememberInstance();
+  return useMutation({
+    mutationFn: (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      return apiFetch<Instance>("/api/instance/logo", { method: "POST", body: form });
     },
+    onSuccess: remember,
+  });
+}
+
+/** Removes the logo: the sidebar goes back to the initials tile and the tab to favicon.ico. */
+export function useRemoveLogo() {
+  const remember = useRememberInstance();
+  return useMutation({
+    mutationFn: () => apiFetch<Instance>("/api/instance/logo", { method: "DELETE" }),
+    onSuccess: remember,
   });
 }
 
@@ -777,7 +814,7 @@ export function useAgentVersions(agentId: number) {
 export type SimMessage = { role: "caller" | "agent"; text: string };
 export type SimRequest = { messages: SimMessage[]; state: Record<string, unknown> | null };
 
-/** One turn of the text simulator ("Test call" for an agent's draft, "Try it" for a workflow). Nothing is saved. */
+/** One turn of the text simulator ("Test chat", for an agent's draft or a workflow). Nothing is saved. */
 export function useSimulate(kind: "agent" | "workflow", id: number) {
   const path = `/api/${kind === "agent" ? "agents" : "workflows"}/${id}/simulate`;
   return useMutation({ mutationFn: (body: SimRequest) => apiFetch<SimResponse>(path, { method: "POST", json: body }) });

@@ -44,10 +44,18 @@ export type Me = {
   preferences: Preferences;
 };
 
-/** This install. GET /api/instance/ (public); PATCH by a superuser. */
+/** The console palette for everyone on the install. Light / dark stays each user's own `Appearance`. */
+export type Theme = "saffron" | "ocean" | "forest";
+
+/** This install. GET /api/instance/ (public); PATCH by a superuser. The logo has its own endpoint
+ *  (POST / DELETE /api/instance/logo); `logo_url` is null when there is none. */
 export type Instance = {
   project_name: string;
+  theme: Theme;
+  logo_url: string | null;
 };
+
+export type InstanceUpdate = Partial<Pick<Instance, "project_name" | "theme">>;
 
 export type TeamMember = {
   id: number;

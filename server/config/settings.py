@@ -23,7 +23,7 @@ LIVEKIT_API_SECRET = os.getenv("LIVEKIT_API_SECRET", "")
 HANDOFF_SIP_URI = os.getenv("HANDOFF_SIP_URI", "")
 # Where Django's old "/" page sends people: the Next.js console.
 CONSOLE_URL = os.getenv("CONSOLE_URL", "http://localhost:3000/")
-# The agent container's text simulator (agent/simulate.py) behind "Try it" and "Test call".
+# The agent container's text simulator (agent/simulate.py) behind "Test chat".
 # Which voice pipeline the worker runs; decides which voices an agent may pick.
 AGENT_PIPELINE = os.getenv("AGENT_PIPELINE", "gemini-live")
 AGENT_SIM_URL = os.getenv("AGENT_SIM_URL", "http://127.0.0.1:8790")

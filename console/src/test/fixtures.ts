@@ -23,7 +23,7 @@ import type {
 export const NUMBER = "+918047182290";
 
 /** GET /api/instance/. Not "Dialtone", so a test can tell the saved name from the fallback. */
-export const instance: Instance = { project_name: "Northwind Voice" };
+export const instance: Instance = { project_name: "Northwind Voice", theme: "saffron", logo_url: null };
 
 export const me: Me = {
   id: 1,

@@ -25,10 +25,13 @@ def test_migration_seeds_the_single_row():
     assert list(InstanceSettings.objects.values_list("pk", "project_name")) == [(1, "Dialtone")]
 
 
+DEFAULTS = {"project_name": "Dialtone", "theme": "saffron", "logo_url": None}
+
+
 def test_anyone_can_read(member):
-    assert APIClient().get("/api/instance").json() == {"project_name": "Dialtone"}
-    assert APIClient().get("/api/instance/").json() == {"project_name": "Dialtone"}
-    assert member("viewer").get("/api/instance").json() == {"project_name": "Dialtone"}
+    assert APIClient().get("/api/instance").json() == DEFAULTS
+    assert APIClient().get("/api/instance/").json() == DEFAULTS
+    assert member("viewer").get("/api/instance").json() == DEFAULTS
 
 
 def test_anonymous_patch_is_403():
@@ -47,10 +50,10 @@ def test_workspace_roles_cannot_patch(member, role):
 def test_superuser_can_update(superuser):
     r = superuser.patch("/api/instance", {"project_name": "  Acme Voice  "}, format="json")
     assert r.status_code == 200, r.content
-    assert r.json() == {"project_name": "Acme Voice"}
+    assert r.json() == {**DEFAULTS, "project_name": "Acme Voice"}
     row = InstanceSettings.objects.get()
     assert row.project_name == "Acme Voice" and row.updated_by == superuser.user and row.updated_at
-    assert APIClient().get("/api/instance").json() == {"project_name": "Acme Voice"}
+    assert APIClient().get("/api/instance").json() == {**DEFAULTS, "project_name": "Acme Voice"}
 
 
 @pytest.mark.parametrize("name", ["", "   ", "x" * 61, None])
@@ -67,6 +70,33 @@ def test_sixty_chars_allowed(superuser):
 
 def test_missing_field_rejected(superuser):
     assert superuser.patch("/api/instance", {}, format="json").status_code == 400
+
+
+@pytest.mark.parametrize("theme", ["ocean", "forest", "saffron"])
+def test_superuser_can_set_theme(superuser, theme):
+    InstanceSettings.objects.update(project_name="Kept")
+    r = superuser.patch("/api/instance", {"theme": theme}, format="json")
+    assert r.status_code == 200, r.content
+    assert r.json() == {**DEFAULTS, "project_name": "Kept", "theme": theme}
+    assert APIClient().get("/api/instance").json()["theme"] == theme
+
+
+def test_name_and_theme_together(superuser):
+    r = superuser.patch("/api/instance", {"project_name": "Acme", "theme": "ocean"}, format="json")
+    assert r.status_code == 200 and r.json() == {**DEFAULTS, "project_name": "Acme", "theme": "ocean"}
+
+
+@pytest.mark.parametrize("theme", ["", "sunset", "OCEAN", None])
+def test_unknown_theme_rejected(superuser, theme):
+    r = superuser.patch("/api/instance", {"theme": theme}, format="json")
+    assert r.status_code == 400 and "theme" in r.json()
+    assert InstanceSettings.load().theme == "saffron"
+
+
+@pytest.mark.parametrize("role", ["owner", "admin", "editor", "viewer"])
+def test_workspace_roles_cannot_set_theme(member, role):
+    assert member(role).patch("/api/instance", {"theme": "ocean"}, format="json").status_code == 403
+    assert InstanceSettings.load().theme == "saffron"
 
 
 def test_singleton():

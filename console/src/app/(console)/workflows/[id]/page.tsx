@@ -268,8 +268,8 @@ function Builder({ workflow, editable, meId, accountCheckIns }: BuilderProps) {
     closeSuggestions.mutate(open.id, { onSuccess: () => setReviewing(false) });
   }
 
-  async function tryIt() {
-    // "Try it" runs the saved revision: save first, and stop if that fails (the toast says why).
+  async function testChat() {
+    // "Test chat" runs the saved revision: save first, and stop if that fails (the toast says why).
     if (dirty) {
       try {
         await saveGraph();
@@ -307,7 +307,7 @@ function Builder({ workflow, editable, meId, accountCheckIns }: BuilderProps) {
         secondary={
           editable ? (
             <>
-              <Button onClick={tryIt} disabled={save.isPending}>Try it</Button>
+              <Button onClick={testChat} disabled={save.isPending}>Test chat</Button>
               <Button onClick={() => setAsking({ scope: selected ? "step" : "workflow", stepId: selected?.id ?? null })}>
                 <Sparkles size={16} strokeWidth={1.75} aria-hidden="true" />
                 Suggest with AI

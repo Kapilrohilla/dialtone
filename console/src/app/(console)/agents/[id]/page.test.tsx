@@ -380,8 +380,8 @@ describe("agent script editor", () => {
     );
     serve();
     const { user } = open();
-    await user.click(await screen.findByRole("button", { name: "Test call" }));
-    const panel = screen.getByRole("dialog", { name: "Test call" });
+    await user.click(await screen.findByRole("button", { name: "Test chat" }));
+    const panel = screen.getByRole("dialog", { name: "Test chat" });
     expect(await within(panel).findByText("नमस्ते!")).toBeInTheDocument();
     expect(asked).toEqual([{ messages: [], state: null }]);
   });
@@ -408,7 +408,7 @@ describe("agent script editor", () => {
     const greeting = await screen.findByRole("textbox", { name: "Greeting" });
     await waitFor(() => expect(greeting).toHaveAttribute("contenteditable", "false"));
     expect(screen.queryByRole("button", { name: "Publish" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Test call" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Test chat" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Voice test" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Add section" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Section actions" })).not.toBeInTheDocument();
