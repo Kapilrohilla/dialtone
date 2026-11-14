@@ -24,6 +24,7 @@ def build_report(
     step_path: list[str] | None = None,
     captured: dict | None = None,
     recording: dict | None = None,
+    response_gap: dict | None = None,
 ) -> dict:
     """turns, when given, are {"role", "text", "at_s"}; at_s and timeline times are seconds since the call started.
     captured, when given, is the workflow's {field: value} answers (collect steps). recording, when given, is
@@ -38,6 +39,10 @@ def build_report(
         "latency": latency,
         "behavior": behavior,
     }
+    if response_gap is not None:
+        # Caller stops speaking -> agent reply heard (response_gap.py). Unlike latency["llm_ttft"], this is
+        # measured the same way on every pipeline.
+        report["response_gap"] = response_gap
     if turns is not None:
         report["turns"] = turns
     if agent_version_id is not None:

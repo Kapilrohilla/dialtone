@@ -8,6 +8,8 @@ import { ApiError, apiFetch, isSignedOut } from "@/lib/api";
 import { applyFavicon, applyPalette } from "@/lib/palette";
 import type {
   Agent,
+  CallFeedback,
+  CallFeedbackInput,
   AgentListItem,
   AgentTextSetting,
   AgentVersion,
@@ -313,6 +315,27 @@ export function useMarkNeedsPerson() {
     mutationFn: (room: string) => apiFetch<unknown>(`/api/calls/${encodeURIComponent(room)}/needs-person`, { method: "POST", json: { needs_person: true } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: dashboardKey }),
     onError: (e) => toast.show(e instanceof ApiError ? e.detail : "Could not mark this call.", "bad"),
+  });
+}
+
+export const callFeedbackKey = (room: string | null) => ["call-feedback", room] as const;
+
+/** Everyone's ratings of a call, yours first. */
+export function useCallFeedback(room: string | null) {
+  return useQuery({
+    queryKey: callFeedbackKey(room),
+    queryFn: () => apiFetch<CallFeedback[]>(`/api/calls/${encodeURIComponent(room ?? "")}/feedback`),
+    enabled: room != null,
+  });
+}
+
+/** Saves your rating of a call (replaces an earlier one). */
+export function useSaveCallFeedback(room: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CallFeedbackInput) =>
+      apiFetch<CallFeedback>(`/api/calls/${encodeURIComponent(room)}/feedback`, { method: "PUT", json: body }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: callFeedbackKey(room) }),
   });
 }
 

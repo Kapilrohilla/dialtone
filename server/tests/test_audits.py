@@ -84,7 +84,10 @@ def make_call(workspace, room="r1", lines=LINES, version=None, started=T0, repor
         CallReport.objects.create(call=call, disposition="INTERESTED", data={
             "room": room, "disposition": "INTERESTED", "mood": {"final": "happy"},
             "latency": {"llm_ttft": {"p50_ms": 420, "p95_ms": 900, "n": 3}}, "behavior": {"interruptions": 0},
-            "dead_air": [{"action": "nudge", "silence_s": 6.0}]})
+            "dead_air": [{"action": "nudge", "silence_s": 6.0}],
+            "response_gap": {"n": 3, "system": {"avg_ms": 900, "p50_ms": 850, "p95_ms": 1300, "max_ms": 1300},
+                             "perceived": {"p50_ms": "x"}, "slow_replies": 0, "agent_cut_ins": 1,
+                             "replies": [{"at_s": 1.0, "system_ms": 850, "perceived_ms": 850}]}})
     return call
 
 
@@ -129,6 +132,10 @@ def test_build_tags_agent_lines_with_their_step(workspace):
     assert inp.lines[2].at_s == 11.0 and inp.agent_turns == 3
     assert inp.signals["latency"] == {"llm_ttft": {"p50_ms": 420, "p95_ms": 900, "n": 3}}
     assert inp.signals["dead_air"] == [{"action": "nudge", "silence_s": 6.0}]
+    # Summary only (no per-reply list); non-numbers dropped.
+    assert inp.signals["response_gap"] == {
+        "system": {"avg_ms": 900, "p50_ms": 850, "p95_ms": 1300, "max_ms": 1300},
+        "n": 3, "slow_replies": 0, "agent_cut_ins": 1}
     assert [s["id"] for s in inp.workflow["steps"]][:2] == ["s1", "s2"]
     prompt = build.prompt_for(inp, "Our callers are drivers.")
     assert '"step_id": "s2"' in prompt and "Our callers are drivers." in prompt

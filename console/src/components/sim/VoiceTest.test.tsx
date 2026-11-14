@@ -360,3 +360,44 @@ describe("VoiceTest", () => {
     expect(room().disconnect).toHaveBeenCalled();
   });
 });
+
+
+describe("VoiceTest rating", () => {
+  it("asks for a rating once a call that went live ends, and saves it on that call", async () => {
+    serveToken();
+    const saved: unknown[] = [];
+    server.use(
+      http.put("*/api/calls/web-3-abcd/feedback", async ({ request }) => {
+        saved.push(await request.json());
+        return HttpResponse.json({ id: 1, author: "Asha", mine: true, ratings: { pacing: 2 }, overall: 3, remarks: "slow", updated_at: "2026-11-14T10:00:00Z" });
+      }),
+    );
+    const { user } = await call();
+    await screen.findByText("Waiting for the agent to join…");
+    expect(screen.queryByRole("form", { name: "Rate this call" })).not.toBeInTheDocument();
+    act(() => room().emit("participantConnected", { isAgent: true }));
+    await screen.findByText(/^Connected · 0:00/);
+    await user.click(screen.getByRole("button", { name: "Hang up" }));
+
+    const form = await screen.findByRole("form", { name: "Rate this call" });
+    const save = within(form).getByRole("button", { name: "Save rating" });
+    expect(save).toBeDisabled();
+    await user.click(within(within(form).getByRole("radiogroup", { name: "Overall" })).getByRole("radio", { name: "3 of 5" }));
+    const pacing = within(form).getByRole("radiogroup", { name: "Pacing and turn-taking" });
+    await user.click(within(pacing).getByRole("radio", { name: "4 of 5" }));
+    await user.click(within(pacing).getByRole("radio", { name: "2 of 5" }));
+    await user.type(within(form).getByLabelText("Remarks"), "  slow  ");
+    await user.click(save);
+    await waitFor(() => expect(saved).toEqual([{ ratings: { pacing: 2 }, overall: 3, remarks: "slow" }]));
+    expect(await within(form).findByRole("status")).toHaveTextContent("Saved");
+  });
+
+  it("doesn't ask for a rating when the agent never joined", async () => {
+    serveToken();
+    const { user } = await call();
+    await screen.findByText("Waiting for the agent to join…");
+    await user.click(screen.getByRole("button", { name: "Hang up" }));
+    expect(screen.getByText("The call ended.")).toBeInTheDocument();
+    expect(screen.queryByRole("form", { name: "Rate this call" })).not.toBeInTheDocument();
+  });
+});

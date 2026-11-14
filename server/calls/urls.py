@@ -18,6 +18,7 @@ urlpatterns += [
     path("api/calls/<str:room>", api.CallDetailView.as_view()),
     path("api/calls/<str:room>/needs-person", api.NeedsPersonView.as_view()),
     path("api/calls/<str:room>/recording", api.CallRecordingView.as_view()),
+    path("api/calls/<str:room>/feedback", api.CallFeedbackView.as_view()),
     path("api/live", api.LiveListView.as_view()),
     path("api/live/<str:room>/transfer", api.LiveTransferView.as_view()),
     path("api/live/<str:room>/end", api.LiveEndView.as_view()),

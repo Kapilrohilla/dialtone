@@ -82,6 +82,7 @@ from prompt import (  # noqa: F401  (re-exported: tests and callers use agent.X)
 import voices
 from recording import RecordingHandle, recording_wanted, report_field, start_recording
 from report import build_report, send_report
+from response_gap import GapAudioTap, ResponseGapTracker, watch_caller_speech
 from sentiment import make_classifier
 from tone import mood_message, tone_guide
 from workflow import PathTool, Step, WorkflowRun, path_tool_schema  # noqa: F401
@@ -630,10 +631,33 @@ def cascaded_session(
     return session, SarvamPhoneAgent(lead, cfg, recording=recording)
 
 
+def measure_response_gap(session: AgentSession, room: rtc.Room, vad, identity: str, gaps: ResponseGapTracker):
+    """Put the gap tap in the audio output and return the caller VAD watcher to run, or None. Measuring never
+    fails a call: anything unexpected is logged and the call goes on unmeasured."""
+    try:
+        if session.output.audio is not None:
+            session.output.audio = GapAudioTap(gaps, session.output.audio)
+    except Exception:
+        logger.warning("response gap: audio tap not installed", exc_info=True)
+        return None
+    if vad is None:
+        return None
+
+    async def watch() -> None:
+        try:
+            await watch_caller_speech(room, identity, vad, gaps)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.warning("response gap: caller VAD stopped", exc_info=True)
+
+    return watch()
+
+
 def prewarm(proc: JobProcess) -> None:
-    # Loaded once per worker process, shared by every call it handles.
-    if PIPELINE in ("sarvam", "elevenlabs"):
-        proc.userdata["vad"] = silero.VAD.load()
+    # Loaded once per worker process, shared by every call it handles. Every pipeline loads it: the cascaded
+    # ones use it for turn detection, and all of them use it to measure the response gap (response_gap.py).
+    proc.userdata["vad"] = silero.VAD.load()
 
 
 def ambient_sound() -> AudioConfig | None:
@@ -710,6 +734,7 @@ async def entrypoint(ctx: JobContext) -> None:
     tracker = MoodTracker()
     behavior = BehaviorTracker()
     call_start_wall = time.time()
+    gaps = ResponseGapTracker(call_start=call_start_wall)
     # This call's recording (egress), or why it failed to start; None/None when it wasn't attempted.
     recording: RecordingHandle | None = None
     recording_error: str | None = None
@@ -757,6 +782,7 @@ async def entrypoint(ctx: JobContext) -> None:
             latency=latency.summary(),
             behavior=behavior.features() if mood_on else None,
             turns=turns,
+            response_gap=gaps.summary(),
             agent_version_id=cfg.version_id,
             step_path=step_path(),
             captured=captured_answers(agent),
@@ -959,6 +985,7 @@ async def entrypoint(ctx: JobContext) -> None:
                 "outcome": outcome,
                 "dead_air": watcher.events,
                 "latency": latency.summary(),
+                "response_gap": {k: v for k, v in gaps.summary().items() if k != "replies"},
                 "mood": tracker.summary() if mood_on else None,
                 "behavior": behavior.features() if mood_on else None,
                 "usage": str(session.usage),
@@ -970,6 +997,9 @@ async def entrypoint(ctx: JobContext) -> None:
 
 
     await session.start(agent=agent, room=ctx.room)
+    gap_watch = measure_response_gap(session, ctx.room, ctx.proc.userdata.get("vad"), caller.identity, gaps)
+    if gap_watch is not None:
+        start_background(gap_watch)
 
     logger.info(
         "call started",

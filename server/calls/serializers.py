@@ -181,5 +181,12 @@ def call_detail(call, events) -> dict:
         "answers": answers,
         "step_path": step_path,
         "transcript": transcript(events),
+        "response_gap": response_gap_of(report),
         **recording_fields(call),
     }
+
+
+def response_gap_of(report) -> dict | None:
+    """The agent's response-gap summary (agent/response_gap.py), or None for calls from before it existed."""
+    gap = _dict(report.data if report else None).get("response_gap")
+    return gap if isinstance(gap, dict) and gap.get("n") is not None else None

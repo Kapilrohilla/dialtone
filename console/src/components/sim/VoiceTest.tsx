@@ -4,6 +4,7 @@ import { ChevronDown, ExternalLink, PhoneOff, X } from "lucide-react";
 import Link from "next/link";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Room, TextStreamReader } from "livekit-client";
+import { RateCall } from "@/components/feedback/RateCall";
 import { Button } from "@/components/ui";
 import { ApiError } from "@/lib/api";
 import { useWebCall } from "@/lib/queries";
@@ -70,6 +71,8 @@ export function VoiceTestProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [agentState, setAgentState] = useState<string | null>(null);
   const [lines, setLines] = useState<Line[]>([]);
+  /** The LiveKit room of the current call: the call's id on the Calls page, and what a rating is saved on. */
+  const [callRoom, setCallRoom] = useState<string | null>(null);
   const [muted, setMuted] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -134,6 +137,7 @@ export function VoiceTestProvider({ children }: { children: ReactNode }) {
     setError(null);
     setAgentState(null);
     setLines([]);
+    setCallRoom(null);
     setMuted(false);
     setReconnecting(false);
     setLiveSince(null);
@@ -148,6 +152,7 @@ export function VoiceTestProvider({ children }: { children: ReactNode }) {
       return;
     }
     if (!current()) return;
+    setCallRoom(access.room);
 
     const lk = await import("livekit-client");
     lkRef.current = lk;
@@ -350,6 +355,12 @@ export function VoiceTestProvider({ children }: { children: ReactNode }) {
               </div>
             )}
             {phase === "ended" && <p className={styles.endedText}>The call ended.</p>}
+            {phase === "ended" && callRoom && liveSince !== null && (
+              <div className={styles.rate}>
+                <p className={styles.rateTitle}>How did it go? Your rating shows on this call in Calls.</p>
+                <RateCall key={callRoom} room={callRoom} />
+              </div>
+            )}
             {phase === "failed" && <p className={styles.endedText}>The call didn&apos;t start.</p>}
             {error && <p role="alert" className={styles.error}>{error}</p>}
             {lines.length > 0 && (
