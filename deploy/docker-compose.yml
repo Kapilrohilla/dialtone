@@ -167,7 +167,7 @@ services:
     volumes:
       - agent-cache:/cache
 
-  # Text simulator for the console's "Try it" and "Test call" (agent/simulate.py). Same image as the
+  # Text simulator for the console's "Test chat" (agent/simulate.py). Same image as the
   # agent; listens on 127.0.0.1:${SIM_PORT:-8790} and only accepts the server's console-sim token.
   dialtone-agent-sim:
     profiles: ["agent"]

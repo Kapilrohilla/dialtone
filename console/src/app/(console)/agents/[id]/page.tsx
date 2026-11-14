@@ -70,14 +70,14 @@ function AgentEditor({ agent, editable }: { agent: Agent; editable: boolean }) {
     }
   }
 
-  async function testCall() {
+  async function testChat() {
     // The simulator runs the saved draft: save first, but a failed save still lets you try the last one.
     await saves.flushAll().catch(() => undefined);
     setTesting(true);
   }
 
   async function voiceTest() {
-    // The voice agent fetches the saved draft when it joins: save first, like Test call.
+    // The voice agent fetches the saved draft when it joins: save first, like Test chat.
     await saves.flushAll().catch(() => undefined);
     setVoiceTesting(true);
   }
@@ -107,7 +107,7 @@ function AgentEditor({ agent, editable }: { agent: Agent; editable: boolean }) {
         secondary={
           editable ? (
             <>
-              <Button onClick={testCall}>Test call</Button>
+              <Button onClick={testChat}>Test chat</Button>
               <Button onClick={voiceTest} title="Talk to the draft through your microphone; no phone call">
                 Voice test
               </Button>
