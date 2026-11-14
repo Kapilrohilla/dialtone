@@ -49,6 +49,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The *Test chat* text simulator failed on every message because its default model,
   `gemini-2.5-flash`, has been retired by Google. `SIM_LLM_MODEL` now defaults to `gemini-3.6-flash`
   ([KAP-36](https://linear.app/kapil-rohilla/issue/KAP-36/simulator-replace-retired-gemini-25-flash-default-try-it-test-call)).
+- *Suggest fixes* refused voice test calls (`web-…` rooms) with "This call didn't run on a published agent."
+  A voice test talks to the agent's draft, so its fixes are now suggested against that agent's draft
+  ([KAP-39](https://linear.app/kapil-rohilla/issue/KAP-39/im-receiving-issue-while-using-suggest-fixes-from-call-audit-scoring)).
 
 ## [0.1.0] - 2026-11-11
 

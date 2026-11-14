@@ -220,6 +220,25 @@ def test_call_needs_a_ready_audit_with_problems_on_the_latest_version(agent, wor
     assert not gemini
 
 
+def test_suggest_fixes_from_a_voice_test_call(agent, workspace, gemini, other_workspace,
+                                              django_capture_on_commit_callbacks):
+    """A voice test (`web-<agent>-…` room) ran on the draft, with no version: fixes still come from its audit."""
+    c = agent.client
+    make_audit(workspace, None, f"web-{agent.id}-0aabb8b2", moments=(PRICE, STIFF))
+    gemini.out = single_call_out
+    r = suggest_call(c, f"web-{agent.id}-0aabb8b2", django_capture_on_commit_callbacks)
+    assert r.status_code == 202, r.content
+    body = c.get(f"/api/calls/web-{agent.id}-0aabb8b2/audit/fixes").json()
+    assert body["status"] == "ready" and body["agent"]["id"] == agent.id and body["agent_version"] is None
+    assert {i["target"] for i in body["items"]} == {"agent", "workflow"}
+    # Another workspace's agent id in the room name, or no agent id at all: still refused.
+    other = make_agent(other_workspace)
+    for room in (f"web-{other.id}-1234abcd", "web-x-1234abcd", "phone-1"):
+        make_audit(workspace, None, room)
+        r = suggest_call(c, room, django_capture_on_commit_callbacks)
+        assert r.status_code == 409 and "published agent" in r.json()["detail"]
+
+
 def test_daily_limit_and_permissions(agent, workspace, member, settings, gemini, other_workspace,
                                      django_capture_on_commit_callbacks):
     c = agent.client
