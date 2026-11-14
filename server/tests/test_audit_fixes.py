@@ -465,3 +465,57 @@ def test_validate_agent_fixes(workspace):
         validate_settings({"changes": {"voice_id": "x"}, "before": {"voice_id": ""}}, a)
     with pytest.raises(AgentInvalid, match="have changed since"):
         validate_settings({"changes": {"language": "English"}, "before": {"language": "Tamil"}}, a)
+
+
+# --- review follow-ups ------------------------------------------------------------------------------
+
+def test_a_fix_the_editor_overwrote_is_not_recorded_in_the_version(agent, workspace, gemini,
+                                                                   django_capture_on_commit_callbacks):
+    c = agent.client
+    make_audit(workspace, agent.published_version, "r1", moments=(PRICE, STIFF))
+    gemini.out = single_call_out
+    run_id = suggest_call(c, "r1", django_capture_on_commit_callbacks).json()["id"]
+    items = _items(c, run_id)
+    c.post(_url(run_id, items["script"], "accept"))
+    c.post(_url(run_id, items["prompt"], "accept"))
+    # An editor with a stale copy saves over both.
+    c.patch(f"/api/agents/{agent.id}", {"script": [{"id": "s1", "title": "Opening", "body": BODY}]}, format="json")
+    from tests.test_workflow_graph import driver_graph
+    c.patch(f"/api/workflows/{agent.workflow_id}", {"graph": driver_graph()}, format="json")
+    assert c.post(f"/api/agents/{agent.id}/publish").status_code == 200
+    assert c.get(f"/api/agents/{agent.id}/versions").json()[0]["audit_fixes"] == []
+
+
+def test_fixes_for_a_workflow_the_agent_left_cant_be_accepted(agent, workspace, gemini,
+                                                               django_capture_on_commit_callbacks):
+    c = agent.client
+    make_audit(workspace, agent.published_version, "r1", moments=(PRICE, STIFF))
+    gemini.out = single_call_out
+    run_id = suggest_call(c, "r1", django_capture_on_commit_callbacks).json()["id"]
+    other = make_workflow(workspace, name="Other")
+    c.patch(f"/api/agents/{agent.id}", {"workflow": other.id}, format="json")
+    answer = _items(c, run_id)["answer"]
+    assert answer["invalid_reason"] == "The agent no longer uses this workflow."
+    r = c.post(_url(run_id, answer, "accept"))
+    assert r.status_code == 409 and agent.workflow.current.number == 1
+
+
+def test_workflow_revision_pool_spanning_versions_keeps_only_workflow_fixes(agent, workspace, gemini,
+                                                                           django_capture_on_commit_callbacks):
+    c = agent.client
+    make_audit(workspace, agent.published_version, "old", moments=(PRICE, STIFF))
+    c.patch(f"/api/agents/{agent.id}", {"name": "Renamed"}, format="json")
+    c.post(f"/api/agents/{agent.id}/publish")  # v2, same workflow revision
+    agent.refresh_from_db()
+    make_audit(workspace, agent.published_version, "new", moments=(PRICE, STIFF))
+    gemini.out = single_call_out
+    run_id = suggest_batch(c, agent, django_capture_on_commit_callbacks, by="workflow_revision").json()["id"]
+    body = c.get(f"/api/audit-fixes/{run_id}").json()
+    assert body["calls"] == 2 and {i["target"] for i in body["items"]} == {"workflow"}
+
+
+def test_malformed_audit_data_doesnt_crash(agent, workspace, gemini, django_capture_on_commit_callbacks):
+    a = make_audit(workspace, agent.published_version, "r1", flow={"score": 2, "summary": "x", "evidence": 7})
+    assert [p.area for p in fixes.problems_of([a])] == ["flow"]
+    a.scores = ["not", "a", "dict"]
+    assert fixes.lost_points(a, "flow") == 0.0 and fixes.low_areas([a]) == []

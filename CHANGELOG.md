@@ -19,7 +19,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   audit scores against the version before. Optional workspace setting **Auto-apply audit fixes to draft**
   (off by default). `/api/calls/{room}/audit/fixes`, `/api/agents/{id}/audit-fixes`, `/api/audit-fixes/…`;
   daily cap `AUDIT_FIX_DAILY_LIMIT`
-  ([KAP-37](https://linear.app/kapil-rohilla/issue/KAP-37/call-audits-suggested-fixes-turn-audit-problems-into-workflow-and)).
+  ([KAP-37](https://linear.app/kapil-rohilla/issue/KAP-37/call-audits-suggested-fixes-turn-audit-problems-into-workflow-and), [#19](https://github.com/Kapilrohilla/dialtone/pull/19)).
 - **Call audits**: Gemini scores the AI side of finished calls (naturalness, listening, empathy, pacing,
   flow, accuracy) against weights and instructions set per workspace under Settings → Calls. Scores show
   in Call history and the call slide-over; `GET`/`POST /api/calls/{room}/audit`, and an `audit_sweep`

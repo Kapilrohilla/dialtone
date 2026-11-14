@@ -214,7 +214,8 @@ def problems_of(audits: list[CallAudit]) -> list[Problem]:
         for key in AREA_KEYS:
             s = scores.get(key) if isinstance(scores.get(key), dict) else {}
             if isinstance(s.get("score"), int) and s["score"] <= LOW_SCORE:
-                raw += [{**e, "area": key} for e in s.get("evidence") or []
+                ev = s.get("evidence") if isinstance(s.get("evidence"), list) else []
+                raw += [{**e, "area": key} for e in ev
                         if isinstance(e, dict) and e.get("kind") == "problem"]
         seen = set()
         for m in raw:
@@ -242,7 +243,7 @@ def problems_of(audits: list[CallAudit]) -> list[Problem]:
 def lost_points(audit: CallAudit, area: str) -> float:
     """Overall-score points (0–100) the area cost this call: its weight share × how far below 5 it scored."""
     weights = audit.weights if isinstance(audit.weights, dict) and audit.weights else DEFAULT_WEIGHTS
-    scored = {k: v.get("score") for k, v in (audit.scores or {}).items()
+    scored = {k: v.get("score") for k, v in (audit.scores if isinstance(audit.scores, dict) else {}).items()
               if isinstance(v, dict) and isinstance(v.get("score"), int)}
     total = sum(weights.get(k, 0) for k in scored)
     s = scored.get(area)
@@ -256,7 +257,7 @@ def low_areas(audits: list[CallAudit]) -> list[dict]:
     for key in AREA_KEYS:
         scores, summaries = [], []
         for a in audits:
-            s = (a.scores or {}).get(key)
+            s = (a.scores if isinstance(a.scores, dict) else {}).get(key)
             if isinstance(s, dict) and isinstance(s.get("score"), int):
                 scores.append(s["score"])
                 if s["score"] <= LOW_SCORE and s.get("summary") and not a.quotes_purged and len(summaries) < 3:
@@ -487,6 +488,11 @@ def _finish(run_id: int, status: str, error: str = "", fixes=(), workflow=None, 
         run = AuditFixRun.objects.select_for_update().filter(pk=run_id).first()
         if run is None or run.status != AuditFixRun.RUNNING:
             return None
+        # A purge may have landed while Gemini was busy: its quotes must not be stored as evidence.
+        ids = {e["audit_id"] for f in fixes for e in f.audit["evidence"]}
+        purged = set(CallAudit.objects.filter(pk__in=ids, quotes_purged=True).values_list("pk", flat=True))
+        for f in fixes:
+            f.audit["evidence"] = [{**e, "quote": ""} if e["audit_id"] in purged else e for e in f.audit["evidence"]]
         wf_fixes = [f for f in fixes if f.target == "workflow"]
         if wf_fixes and workflow is not None and base is not None:
             sids = list(dict.fromkeys(f.step_id for f in wf_fixes))
@@ -568,6 +574,11 @@ def generate(run_id: int) -> None:
         prompt = build_prompt(agent, graph, wf.name if wf else "", audits, problems)
         data, usage = _ask(prompt, began + BUDGET_S)
         fixes, dropped = fixes_from(data, agent, graph, custom, audits, problems)
+        if any(a.agent_version_id != run.agent_version_id for a in audits):
+            # A workflow-revision pool can include calls of older agent versions, whose script and settings
+            # may be fixed already: keep only the workflow fixes.
+            kept = [f for f in fixes if f.target == "workflow"]
+            dropped, fixes = dropped + len(fixes) - len(kept), kept
         status = AuditFixRun.READY if fixes else AuditFixRun.EMPTY
         stored = _finish(run_id, status, "", fixes, wf, base, dropped, usage)
         applied = auto_apply(stored) if stored is not None and fixes else 0
@@ -618,7 +629,7 @@ def purge_fix_quotes(audit_ids) -> int:
         return 0
     n = 0
     for model in (AgentSuggestion, WorkflowSuggestion):
-        for item in model.objects.exclude(audit={}).only("id", "audit").iterator():
+        for item in model.objects.filter(audit__has_key="evidence").only("id", "audit").iterator():
             evidence = (item.audit or {}).get("evidence") or []
             if any(isinstance(e, dict) and e.get("audit_id") in ids and e.get("quote") for e in evidence):
                 item.audit["evidence"] = [{**e, "quote": ""} if isinstance(e, dict) and e.get("audit_id") in ids

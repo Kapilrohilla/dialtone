@@ -28,6 +28,7 @@ from .rubric import LABELS
 from .run import _workflow_revision
 
 Run = AuditFixRun
+NOT_USED = "The agent no longer uses this workflow."
 
 
 class _Base(APIView):
@@ -58,6 +59,8 @@ def _check(item, workflow_graph, workflow_custom, agent) -> str:
             validate_agent_item(item.kind, item.effective_payload, agent)
         elif workflow_graph is None:
             return "The workflow was removed or archived."
+        elif agent.workflow_id != item.suggestion_set.workflow_id:
+            return NOT_USED
         else:
             validate_item(item.kind, item.effective_payload, workflow_graph, item.step_id, workflow_custom)
     except Invalid as e:
@@ -67,7 +70,8 @@ def _check(item, workflow_graph, workflow_custom, agent) -> str:
 
 def _step_names(graph) -> dict[str, str]:
     steps = graph.get("steps") if isinstance(graph, dict) else None
-    return {s["id"]: s.get("name") or s["id"] for s in steps or [] if isinstance(s, dict) and isinstance(s.get("id"), str)}
+    return {s["id"]: s.get("name") or s["id"] for s in steps or []
+            if isinstance(s, dict) and isinstance(s.get("id"), str)}
 
 
 def serialize_run(run: Run) -> dict:
@@ -249,33 +253,38 @@ class FixItemView(_Base):
 
     def patch(self, request, run_id, target, item_id):
         run = self.run(run_id)
-        item = _item(run, target, item_id)
         ser = PatchSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         data = ser.validated_data
-        if item.status == item.ACCEPTED:
-            return Response({"detail": "This fix was already accepted."}, status=409)
-        if "edited_payload" in data:
-            edited = data["edited_payload"]
-            if edited is not None:
-                try:
-                    if isinstance(item, AgentSuggestion):
-                        edited = validate_agent_item(item.kind, edited, Agent.objects.get(pk=item.agent_id))
-                    else:
-                        wf = item.suggestion_set.workflow
-                        cur = wf.current
-                        if cur is None or wf.archived:
-                            return Response({"detail": "The workflow was removed or archived."}, status=409)
-                        edited = validate_item(item.kind, edited, cur.graph, item.step_id, custom_expressions_for(wf))
-                except Invalid as e:
-                    return Response({e.field: [e.reason]}, status=400)
-            item.edited_payload = edited
-        if "status" in data:
-            dismissed = data["status"] == "dismissed"
-            item.status = data["status"]
-            item.decided_by = request.user if dismissed else None
-            item.decided_at = timezone.now() if dismissed else None
-        item.save()
+        with transaction.atomic():
+            # Locked, and only the edited fields saved: an accept (or auto-apply, or a purge) landing meanwhile
+            # must not be undone.
+            item = _item(run, target, item_id)
+            item = type(item).objects.select_for_update().get(pk=item.pk)
+            if item.status == item.ACCEPTED:
+                return Response({"detail": "This fix was already accepted."}, status=409)
+            if "edited_payload" in data:
+                edited = data["edited_payload"]
+                if edited is not None:
+                    try:
+                        if isinstance(item, AgentSuggestion):
+                            edited = validate_agent_item(item.kind, edited, Agent.objects.get(pk=item.agent_id))
+                        else:
+                            wf = item.suggestion_set.workflow
+                            cur = wf.current
+                            if cur is None or wf.archived:
+                                return Response({"detail": "The workflow was removed or archived."}, status=409)
+                            edited = validate_item(item.kind, edited, cur.graph, item.step_id,
+                                                   custom_expressions_for(wf))
+                    except Invalid as e:
+                        return Response({e.field: [e.reason]}, status=400)
+                item.edited_payload = edited
+            if "status" in data:
+                dismissed = data["status"] == "dismissed"
+                item.status = data["status"]
+                item.decided_by = request.user if dismissed else None
+                item.decided_at = timezone.now() if dismissed else None
+            item.save(update_fields=["edited_payload", "status", "decided_by", "decided_at"])
         return Response(serialize_run(self.run(run_id)))
 
 

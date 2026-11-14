@@ -85,13 +85,18 @@ def apply_to_graph(graph: dict, kind: str, step_id: str, payload: dict) -> dict:
 
 def apply_workflow_item(item: WorkflowSuggestion, user, auto: bool = False) -> WorkflowRevision:
     with transaction.atomic():
-        item = WorkflowSuggestion.objects.select_for_update().select_related("suggestion_set").get(pk=item.pk)
+        item = WorkflowSuggestion.objects.select_for_update(of=("self",)).select_related(
+            "suggestion_set__audit_run").get(pk=item.pk)
         # Lock the workflow so a concurrent Save can't take the same revision number.
         wf = Workflow.objects.select_for_update().get(pk=item.suggestion_set.workflow_id)
         if item.status != WorkflowSuggestion.PENDING:
             raise ApplyError("This fix was already decided.")
         if wf.archived:
             raise ApplyError("The workflow is archived.")
+        run = item.suggestion_set.audit_run
+        if run is not None and Agent.objects.filter(pk=run.agent_id, workflow_id=wf.id).count() == 0:
+            # Workflows can be shared: never edit one the fixed agent has moved away from.
+            raise ApplyError("The agent no longer uses this workflow.")
         cur = wf.current
         if cur is None:
             raise ApplyError("Save the workflow first.")

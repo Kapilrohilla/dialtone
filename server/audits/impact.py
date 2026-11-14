@@ -9,22 +9,56 @@ from collections import defaultdict
 from django.conf import settings
 
 from voiceagents.serializers import display_name
+from voiceagents.suggestions import current_settings, section
 from workflows.models import WorkflowSuggestion
 
 from .models import AgentSuggestion, CallAudit
 from .rubric import AREA_KEYS
 
 
+def _norm(text) -> str:
+    return " ".join(text.split()).casefold() if isinstance(text, str) else ""
+
+
+def _in_graph(item, graph) -> bool:
+    p = item.effective_payload if isinstance(item.effective_payload, dict) else {}
+    steps = graph.get("steps") if isinstance(graph, dict) else None
+    paths = graph.get("paths") if isinstance(graph, dict) else None
+    if item.kind == WorkflowSuggestion.ANSWER:
+        return any(isinstance(x, dict) and x.get("from") == item.step_id
+                   and _norm(x.get("label")) == _norm(p.get("label"))
+                   for x in paths or [])
+    return any(isinstance(x, dict) and x.get("id") == item.step_id and x.get("prompt") == p.get("after")
+               for x in steps or [])
+
+
+def _in_agent(item, agent) -> bool:
+    p = item.effective_payload if isinstance(item.effective_payload, dict) else {}
+    if item.kind == AgentSuggestion.SCRIPT:
+        s = section(agent, p.get("section_id"))
+        return s is not None and s["body"] == p.get("after")
+    if item.kind == AgentSuggestion.KNOWLEDGE:
+        return agent.knowledge.filter(archived=False, title__iexact=p.get("title") or "").exists()
+    current = current_settings(agent)
+    changes = p.get("changes") if isinstance(p.get("changes"), dict) else {}
+    return bool(changes) and all(current.get(k) == v for k, v in changes.items())
+
+
 def record_included(agent, version, workflow_revision) -> None:
-    """Called by ``publish`` in its transaction, after the new version exists."""
-    AgentSuggestion.objects.filter(agent=agent, status=AgentSuggestion.ACCEPTED, included_in__isnull=True) \
-        .update(included_in=version)
+    """Called by ``publish`` in its transaction, after the new version exists. Accepted fixes are recorded only
+    when the published draft still contains them: an editor's later Save may have overwritten one."""
+    for item in AgentSuggestion.objects.filter(agent=agent, status=AgentSuggestion.ACCEPTED, included_in__isnull=True):
+        if _in_agent(item, agent):
+            AgentSuggestion.objects.filter(pk=item.pk).update(included_in=version)
     if workflow_revision is not None:
-        WorkflowSuggestion.objects.filter(
+        items = WorkflowSuggestion.objects.filter(
             suggestion_set__audit_run__agent=agent, status=WorkflowSuggestion.ACCEPTED, included_in__isnull=True,
             applied_revision__workflow_id=workflow_revision.workflow_id,
             applied_revision__number__lte=workflow_revision.number,
-        ).update(included_in=version)
+        )
+        for item in items:
+            if _in_graph(item, workflow_revision.graph):
+                WorkflowSuggestion.objects.filter(pk=item.pk).update(included_in=version)
 
 
 def fix_summary(item) -> dict:
