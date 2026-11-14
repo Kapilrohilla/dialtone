@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui";
 import { ApiError, apiFetch } from "@/lib/api";
-import { meKey } from "@/lib/queries";
+import { meKey, useProjectName } from "@/lib/queries";
 import { safeNext } from "@/lib/safe-next";
 import { applyAppearance } from "@/lib/theme";
 import type { Me } from "@/lib/types";
@@ -16,6 +16,7 @@ function SignInForm() {
   const router = useRouter();
   const next = useSearchParams().get("next");
   const qc = useQueryClient();
+  const projectName = useProjectName();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [show, setShow] = useState(false);
@@ -42,7 +43,7 @@ function SignInForm() {
   return (
     <main className={styles.page}>
       <section className={styles.panel}>
-        <p className={styles.wordmark}>Carrum Voice</p>
+        <p className={styles.wordmark}>{projectName}</p>
         <h1 className={styles.heading}>Sign in</h1>
         <form onSubmit={submit} className={styles.form}>
           <div className={styles.field}>

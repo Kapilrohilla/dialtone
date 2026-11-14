@@ -1,0 +1,58 @@
+{
+  "name": "Northwind driver lead qualifier",
+  "description": "Calls driver-partner leads for Northwind Car Rentals (a fictional company) in Hindi and Hinglish, checks eligibility and hands interested drivers to the telecalling team.",
+  "language": "Hindi + Hinglish",
+  "persona_name": "Maya",
+  "voice_id": "",
+  "phone_number": "",
+  "settings": {
+    "mood_adaptation": true,
+    "dead_air": {"enabled": true, "nudge_s": 4, "second_nudge_s": 9, "hang_up_s": 15},
+    "company_name": "Northwind Car Rentals",
+    "name_pronunciation": "\"NORTH-wind\", stress on the first syllable; never \"north-WIND\".",
+    "consent_line": "Yeh call quality ke liye record ho rahi hai."
+  },
+  "custom_expressions": {
+    "reassuring": "say it slowly and reassuringly"
+  },
+  "script_file": "script.md",
+  "knowledge": [
+    {"title": "Northwind plans and rules", "file": "knowledge.md"}
+  ],
+  "workflow": {
+    "name": "Northwind driver onboarding",
+    "dead_air_enabled": true,
+    "graph": {
+      "steps": [
+        {"id": "greeting", "type": "start", "name": "Greeting", "position": {"x": 290, "y": 0},
+         "prompt": "Namaste {{lead.name}} ji, main Maya, Northwind Car Rentals se bol rahi hoon. Kya abhi do minute baat kar sakte hain?"},
+        {"id": "ask_city", "type": "collect", "name": "Ask city", "field": "city", "position": {"x": 290, "y": 180},
+         "prompt": "Aap abhi kis city mein rehte hain?"},
+        {"id": "ask_licence", "type": "collect", "name": "Ask licence", "field": "licence", "position": {"x": 145, "y": 360},
+         "prompt": "Kya aapke paas apne naam ka valid four-wheeler driving licence hai?"},
+        {"id": "explain_plan", "type": "prompt", "name": "Explain the plan", "position": {"x": 0, "y": 540},
+         "prompt": "[[expr:reassuring]] {{lead.city}} mein hamara weekly rental plan hai: gaadi aapko rent par milti hai, khareedni nahi padti. Main details bataun?"},
+        {"id": "end_interested", "type": "end", "name": "End: interested", "outcome": "INTERESTED", "position": {"x": -290, "y": 720},
+         "prompt": "Bahut achha, main aapki details hamari team ko bhej rahi hoon. Woh aapko jaldi call karenge."},
+        {"id": "schedule_callback", "type": "end", "name": "Schedule a call back", "outcome": "CBR", "position": {"x": 0, "y": 720},
+         "prompt": "Theek hai, aap bataiye kab call karun?"},
+        {"id": "transfer", "type": "transfer", "name": "Transfer to a telecaller", "position": {"x": 290, "y": 720},
+         "prompt": "Main aapki baat hamari team ke ek saathi se karwa deti hoon."},
+        {"id": "end_city", "type": "end", "name": "End: not in our cities", "outcome": "NE", "position": {"x": 435, "y": 360},
+         "prompt": "Abhi hum sirf Pune aur Bengaluru mein hain. Time dene ke liye dhanyavaad."},
+        {"id": "end_no_licence", "type": "end", "name": "End: no licence", "outcome": "NE", "position": {"x": 290, "y": 540},
+         "prompt": "Licence ke bina hum aage nahi badh paayenge. Dhanyavaad."}
+      ],
+      "paths": [
+        {"from": "greeting", "to": "ask_city", "label": "Next"},
+        {"from": "ask_city", "to": "ask_licence", "label": "Pune or Bengaluru"},
+        {"from": "ask_city", "to": "end_city", "label": "Other city"},
+        {"from": "ask_licence", "to": "explain_plan", "label": "Has licence"},
+        {"from": "ask_licence", "to": "end_no_licence", "label": "No licence"},
+        {"from": "explain_plan", "to": "end_interested", "label": "Interested"},
+        {"from": "explain_plan", "to": "schedule_callback", "label": "Busy"},
+        {"from": "explain_plan", "to": "transfer", "label": "Wants a person"}
+      ]
+    }
+  }
+}

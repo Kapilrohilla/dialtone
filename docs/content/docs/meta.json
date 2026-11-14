@@ -1,0 +1,14 @@
+{
+  "title": "Dialtone",
+  "pages": [
+    "index",
+    "---Getting started---",
+    "...getting-started",
+    "---Guides---",
+    "...guides",
+    "---Reference---",
+    "...reference",
+    "---Project---",
+    "contributing"
+  ]
+}

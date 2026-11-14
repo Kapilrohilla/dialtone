@@ -16,7 +16,9 @@
   border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); color: var(--amber);
   font-size: 15px; font-weight: 700; letter-spacing: 0.02em;
 }
-.workspace { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; font-weight: 600; }
+.brandText { display: flex; flex-direction: column; min-width: 0; }
+.project { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; font-weight: 600; }
+.workspace { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 13px; }
 .nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
 .item {
   position: relative;

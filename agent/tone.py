@@ -39,7 +39,7 @@ TONE_POLICY: dict[Emotion, ToneDirective] = {
         False,
     ),
     "suspicious": ToneDirective(
-        "Caller sounds wary. Be transparent: you are Carrum's AI assistant and never ask for "
+        "Caller sounds wary. Be transparent: you are the company's AI assistant and never ask for "
         "documents or money. Answer their doubt before anything else.",
         0.95,
         False,
