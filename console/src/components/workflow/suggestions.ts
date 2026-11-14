@@ -2,7 +2,7 @@ import { DISPOSITIONS } from "@/lib/outcomes";
 import { MAX_PAUSE_S, MIN_PAUSE_S, parse } from "@/lib/tokens";
 import type { AnswerPayload, ExpressionPayload, Graph, Step, Suggestion } from "@/lib/types";
 
-// The server's suggestion checks (dashboard/workflows/suggestions.py), run on the unsaved graph before Accept so a
+// The server's suggestion checks (server/workflows/suggestions.py), run on the unsaved graph before Accept so a
 // local edit that clashes blocks Accept with the same reason. Unknown expressions are left to the server: the console
 // doesn't know the agents' custom ones.
 

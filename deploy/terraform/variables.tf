@@ -1,0 +1,38 @@
+variable "project_id" {
+  description = "GCP project to create the resources in (no default: set it in terraform.tfvars)."
+  type        = string
+}
+
+variable "region" {
+  type    = string
+  default = "asia-south1"
+}
+
+variable "zone" {
+  type    = string
+  default = "asia-south1-c"
+}
+
+variable "name" {
+  description = "Name for the VM; also used as the network tag and resource prefix."
+  type        = string
+  default     = "dialtone"
+}
+
+variable "machine_type" {
+  description = "e2-medium is fine for ~2 calls; use e2-standard-4+ for real traffic."
+  type        = string
+  default     = "e2-medium"
+}
+
+variable "boot_disk_size_gb" {
+  description = "Boot disk; also holds the Docker volumes, including call recordings (~16 GB per 90 days at 300 calls/day)."
+  type        = number
+  default     = 100
+}
+
+variable "sip_provider_cidrs" {
+  description = "SIP provider signalling IPs/CIDRs allowed to reach port 5060. Empty = SIP port closed."
+  type        = list(string)
+  default     = []
+}

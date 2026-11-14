@@ -1,0 +1,89 @@
+---
+title: SIP telephony
+description: Connect a phone number from your SIP provider to the agent.
+---
+
+Phone calls reach Dialtone over SIP. Your provider sends each call to the LiveKit SIP service on your host;
+an inbound trunk accepts it, and a dispatch rule creates a room for it (`call-…`) and sends the agent worker
+(`AGENT_NAME`) in.
+
+## What you need
+
+- A SIP trunk with at least one number (E.164), and the IPs your provider sends calls from.
+- A host with a **static public IP** and these ports open:
+
+  | Port | Protocol | For |
+  |---|---|---|
+  | 5060 | UDP/TCP | SIP signalling, from your provider's IPs only |
+  | 10000-20000 | UDP | SIP media (RTP) |
+  | 50000-60000 | UDP | WebRTC media (Voice test, agents on other VMs) |
+  | 7881 | TCP | WebRTC TCP fallback |
+
+  `sudo deploy/bootstrap-server.sh <provider-ip> [...]` enables `ufw` and allows 5060 from those IPs only.
+  On GCP, use VPC firewall rules instead (the optional Terraform in `deploy/terraform/` creates them).
+
+## Configure and create the trunk
+
+In `.env`:
+
+```bash
+SIP_NUMBERS=+911234567890                  # comma-separated, E.164
+SIP_ALLOWED_ADDRESSES=203.0.113.10,203.0.113.0/28
+SIP_AUTH_USERNAME=                          # optional digest auth
+SIP_AUTH_PASSWORD=
+```
+
+Then:
+
+```bash
+make up     # if not running yet
+make sip    # scripts/setup-sip.sh
+make agent
+```
+
+`make sip` creates the inbound trunk `inbound-main` and the dispatch rule `inbound-to-<AGENT_NAME>` (one room
+per call, agent dispatched explicitly) and prints the SIP URI to give your provider. It is safe to re-run:
+existing trunks and rules are reused. To change the numbers or allowed addresses, delete the trunk
+(`make lk a="sip inbound delete <ST_…>"`) and run `make sip` again.
+
+In your provider's dashboard, route the number to `sip:<public-ip>:5060` with codec G.711 (PCMA/PCMU), then
+call the number. Make sure an agent is published for that number in the console, or the call gets the
+built-in agent (see [How a call picks its agent](/docs/guides/agents-and-workflows#how-a-call-picks-its-agent)).
+
+## Debugging
+
+```bash
+make logs s=sip                # INVITEs, auth/IP rejections
+make logs s=dialtone-agent     # agent sessions
+make lk a="sip inbound list"
+make lk a="sip dispatch list"
+make lk a="room list"
+```
+
+| Symptom | Likely cause |
+|---|---|
+| No INVITE in the `sip` logs | Provider not pointed at the right IP, or a firewall blocking 5060 |
+| INVITE rejected / 403 | Provider IP not in `SIP_ALLOWED_ADDRESSES`, or number not in `SIP_NUMBERS` |
+| 486 / no dispatch | Redis lost the trunk and rule (they live in Redis): run `make sip` again |
+| Call connects, silence | UDP 10000-20000 blocked, or wrong external IP |
+| Room created, no agent | Agent not running (`make agent`), or `AGENT_NAME` mismatch |
+
+## Test call without dialling abroad
+
+If your mobile can't dial the agent's number (e.g. a US number from India), have Twilio ring you and bridge
+the call:
+
+```bash
+scripts/test-call.sh +91XXXXXXXXXX "<twilio-profile>"
+```
+
+On a Twilio **trial** account your mobile must be a verified caller ID, you must press a key during the
+trial message, and you should set `AGENT_SIP_HOST=<public-ip>` so the call dials the SIP server directly
+(trial accounts can't dial unverified numbers).
+
+## Live handoff to a person
+
+Set `HANDOFF_SIP_URI` (`tel:+91…` or `sip:…`). With mood on, when a caller is frustrated or angry the agent
+offers to connect them to a person and transfers the call if they agree; workflows can also use a
+`transfer` step. Your trunk must support call transfer (SIP REFER). Test it with your own mobile first.
+Without `HANDOFF_SIP_URI` the agent offers a callback instead.

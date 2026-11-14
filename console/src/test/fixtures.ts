@@ -6,6 +6,7 @@ import type {
   CallRow,
   Dashboard,
   Graph,
+  Instance,
   KnowledgeDoc,
   LiveCall,
   Me,
@@ -18,16 +19,20 @@ import type {
 
 export const NUMBER = "+918047182290";
 
+/** GET /api/instance/. Not "Dialtone", so a test can tell the saved name from the fallback. */
+export const instance: Instance = { project_name: "Northwind Voice" };
+
 export const me: Me = {
   id: 1,
   name: "Kapil Rohilla",
-  email: "kapil@carrum.example",
+  email: "kapil@northwind.example",
   phone: "+919810000001",
   role: "owner",
+  is_superuser: false,
   workspace: {
     id: 1,
-    name: "Carrum Mobility",
-    slug: "carrum",
+    name: "Northwind Car Rentals",
+    slug: "northwind",
     dead_air_enabled: true,
     recording_enabled: false,
     audit_enabled: false,
@@ -42,7 +47,7 @@ export const script = [
   {
     id: "greeting",
     title: "Greeting",
-    body: "[[expr:happy]] नमस्ते! मैं Carrum Mobility से Priya बोल रही हूँ। [[expr:pause:1.2]] क्या मेरी बात {{lead.name}} जी से हो रही है?",
+    body: "[[expr:happy]] नमस्ते! मैं Northwind Car Rentals से Maya बोल रही हूँ। [[expr:pause:1.2]] क्या मेरी बात {{lead.name}} जी से हो रही है?",
   },
   {
     id: "city-and-licence",
@@ -66,7 +71,7 @@ export const agent: Agent = {
   updated_by_name: "Kapil",
   is_outdated: false,
   language: "Hinglish",
-  persona_name: "Priya",
+  persona_name: "Maya",
   voice_id: "Kore",
   settings: { mood_adaptation: true, dead_air: { enabled: true, nudge_s: 4, second_nudge_s: 9, hang_up_s: 15 } },
   script,
@@ -139,7 +144,7 @@ export const callDetail: CallDetail = {
   answers: { city: "Pune", licence: "Yes" },
   step_path: ["Greeting", "Ask city"],
   transcript: [
-    { speaker: "agent", text: "नमस्ते! मैं Carrum Mobility से Priya बोल रही हूँ।", expressions: ["happy"], at: "2026-11-05T09:02:03Z" },
+    { speaker: "agent", text: "नमस्ते! मैं Northwind Car Rentals से Maya बोल रही हूँ।", expressions: ["happy"], at: "2026-11-05T09:02:03Z" },
     { speaker: "caller", text: "हाँ, बोलिए।", expressions: [], at: "2026-11-05T09:02:09Z" },
   ],
   recording_url: null,
@@ -178,7 +183,7 @@ export const dashboard: Dashboard = {
   live_agent: { id: agent.id, name: agent.name, phone_number: NUMBER },
 };
 
-export const phoneNumbers: PhoneNumber[] = [{ number: NUMBER, trunk_name: "Carrum inbound", agent_name: agent.name }];
+export const phoneNumbers: PhoneNumber[] = [{ number: NUMBER, trunk_name: "Northwind inbound", agent_name: agent.name }];
 
 export const voices: Voice[] = [
   { id: "Kore", name: "Kore", description: "Female, firm", sample: "/voices/kore.wav" },
@@ -193,10 +198,10 @@ const step = (id: string, type: Step["type"], name: string, x: number, y: number
   ...extra,
 });
 
-/** The seeded "Driver onboarding" graph (dashboard/voiceagents/management/commands/seed_carrum.py). Paths carry no ids. */
+/** The seeded "Driver onboarding" graph (the server's demo seed command). Paths carry no ids. */
 export const onboardingGraph = (): Graph => ({
   steps: [
-    step("greeting", "start", "Greeting", 290, 0, { prompt: "नमस्ते, मैं Carrum से बोल रही हूँ। क्या अभी दो मिनट बात कर सकते हैं?" }),
+    step("greeting", "start", "Greeting", 290, 0, { prompt: "नमस्ते, मैं Northwind से बोल रही हूँ। क्या अभी दो मिनट बात कर सकते हैं?" }),
     step("ask_city", "prompt", "Ask city", 290, 180, { prompt: "आप अभी किस शहर में रहते हैं?" }),
     step("ask_licence", "collect", "Ask licence and experience", 145, 360, {
       field: "licence",
@@ -223,7 +228,7 @@ export const onboardingGraph = (): Graph => ({
   ],
 });
 
-// "Suggest with AI" draft for onboardingGraph (dashboard/workflows/suggestions_api.py serialize_set).
+// "Suggest with AI" draft for onboardingGraph (server/workflows/suggestions_api.py serialize_set).
 export const suggestionSet = (over: Partial<SuggestionSet> = {}): SuggestionSet => ({
   id: 7,
   status: "ready",

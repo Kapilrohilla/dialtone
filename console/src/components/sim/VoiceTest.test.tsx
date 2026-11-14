@@ -111,13 +111,13 @@ describe("VoiceTest", () => {
     renderWithProviders(<VoiceTest agentId={3} onClose={() => {}} />);
     await screen.findByText("Waiting for the agent to join…");
 
-    await act(() => room().stream("agent-xyz", "a1", ["Namaste! ", "Main Priya bol rahi hoon."]));
+    await act(() => room().stream("agent-xyz", "a1", ["Namaste! ", "Main Maya bol rahi hoon."]));
     await act(() => room().stream("web-test-1", "u1", ["haan"]));
     // The same segment again (still speaking): replaces, doesn't append.
     await act(() => room().stream("web-test-1", "u1", ["haan ji boliye"]));
 
     const log = screen.getByRole("log", { name: "Conversation" });
-    expect(within(log).getByText("Namaste! Main Priya bol rahi hoon.")).toBeInTheDocument();
+    expect(within(log).getByText("Namaste! Main Maya bol rahi hoon.")).toBeInTheDocument();
     expect(within(log).getByText("haan ji boliye")).toBeInTheDocument();
     expect(within(log).queryByText("haan")).not.toBeInTheDocument();
     expect(within(log).getAllByText(/^(You|Agent)$/).map((n) => n.textContent)).toEqual(["Agent", "You"]);

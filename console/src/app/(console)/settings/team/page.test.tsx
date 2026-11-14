@@ -9,8 +9,8 @@ import { server } from "@/test/server";
 import TeamPage from "./page";
 
 const members: TeamMember[] = [
-  { id: 1, name: "Kapil Rohilla", email: "kapil@carrum.example", role: "owner", last_login: "2026-11-05T09:00:00Z" },
-  { id: 2, name: "Asha Rao", email: "asha@carrum.example", role: "editor", last_login: null },
+  { id: 1, name: "Kapil Rohilla", email: "kapil@northwind.example", role: "owner", last_login: "2026-11-05T09:00:00Z" },
+  { id: 2, name: "Asha Rao", email: "asha@northwind.example", role: "editor", last_login: null },
 ];
 
 function serve(role: Role, extra: Partial<Me> = {}) {
@@ -73,12 +73,12 @@ describe("team", () => {
     renderWithProviders(<TeamPage />, { route: "/settings/team" });
     await user.click(await screen.findByRole("button", { name: "Invite someone" }));
     await user.type(screen.getByLabelText("Name"), "Ravi Kumar");
-    await user.type(screen.getByLabelText("Work email"), "ravi@carrum.example");
+    await user.type(screen.getByLabelText("Work email"), "ravi@northwind.example");
     await user.selectOptions(screen.getByLabelText("Role"), "viewer");
     await user.click(screen.getByRole("button", { name: "Create link" }));
     const link = await screen.findByLabelText("Set-password link");
     expect(link).toHaveValue(`${location.origin}/set-password/Mw/abc-123`);
-    expect(body).toEqual({ name: "Ravi Kumar", email: "ravi@carrum.example", role: "viewer" });
+    expect(body).toEqual({ name: "Ravi Kumar", email: "ravi@northwind.example", role: "viewer" });
     expect(screen.getByText("Send this link to Ravi Kumar. It works once.")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Copy link" }));
     expect(writeText).toHaveBeenCalledWith(`${location.origin}/set-password/Mw/abc-123`);
@@ -93,7 +93,7 @@ describe("team", () => {
     renderWithProviders(<TeamPage />, { route: "/settings/team" });
     await user.click(await screen.findByRole("button", { name: "Invite someone" }));
     await user.type(screen.getByLabelText("Name"), "Ravi");
-    await user.type(screen.getByLabelText("Work email"), "ravi@carrum.example");
+    await user.type(screen.getByLabelText("Work email"), "ravi@northwind.example");
     await user.click(screen.getByRole("button", { name: "Create link" }));
     await user.click(await screen.findByRole("button", { name: "Copy link" }));
     expect(await screen.findByText("Couldn't copy. Select the link and copy it.")).toBeInTheDocument();
@@ -106,7 +106,7 @@ describe("team", () => {
     renderWithProviders(<TeamPage />, { route: "/settings/team" });
     await user.click(await screen.findByRole("button", { name: "Invite someone" }));
     await user.type(screen.getByLabelText("Name"), "Ravi");
-    await user.type(screen.getByLabelText("Work email"), "asha@carrum.example");
+    await user.type(screen.getByLabelText("Work email"), "asha@northwind.example");
     await user.click(screen.getByRole("button", { name: "Create link" }));
     expect(await screen.findByText("A user with this email already exists.")).toBeInTheDocument();
   });

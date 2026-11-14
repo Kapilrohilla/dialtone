@@ -4,7 +4,7 @@ import type { TranscriptTurn } from "@/lib/types";
 import { Transcript } from "./Transcript";
 
 const lines: TranscriptTurn[] = [
-  { speaker: "agent", text: "Namaste, main Priya bol rahi hoon.", expressions: ["happy", "pause"], at: "2026-11-05T09:02:03Z" },
+  { speaker: "agent", text: "Namaste, main Maya bol rahi hoon.", expressions: ["happy", "pause"], at: "2026-11-05T09:02:03Z" },
   { speaker: "caller", text: "Haan, boliye.", expressions: [], at: "2026-11-05T09:02:09Z" },
 ];
 
@@ -17,7 +17,7 @@ describe("Transcript", () => {
     const chips = log.querySelectorAll("[data-expr]");
     expect([...chips].map((c) => c.getAttribute("data-expr"))).toEqual(["happy", "pause"]);
     // chips come before the agent's words
-    expect(chips[0].closest("p")?.textContent).toMatch(/^\[happy\]\[pause[^\]]*\]Namaste, main Priya bol rahi hoon\.$/);
+    expect(chips[0].closest("p")?.textContent).toMatch(/^\[happy\]\[pause[^\]]*\]Namaste, main Maya bol rahi hoon\.$/);
     expect(within(log).getAllByText("Haan, boliye.")).toHaveLength(1);
   });
 

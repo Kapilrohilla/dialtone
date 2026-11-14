@@ -1,4 +1,4 @@
-/** Script tokens, mirroring dashboard/voiceagents/tokens.py: `[[expr:name(:seconds)]]` expressions and
+/** Script tokens, mirroring server/voiceagents/tokens.py: `[[expr:name(:seconds)]]` expressions and
  *  `{{lead.field}}` variables. Everything else in a body is plain text. */
 
 export const TOKEN_SOURCE = String.raw`\[\[expr:([a-z_]+)(?::(\d+(?:\.\d+)?))?\]\]|\{\{\s*(lead\.[a-z_]+)\s*\}\}`;

@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# The gate Cyrus must pass before merging its PR into `dev` (dev auto-deploys to the live VM).
-# Runs the unit tests (agent, dashboard, console tests + typecheck + lint) and a production console build.
-# Needs agent/.venv and dashboard/.venv (cyrus-setup.sh links them in Cyrus worktrees).
+# CI gate: the unit tests (agent, server, console tests + typecheck + lint), the shell script tests and a
+# production console build. Needs agent/.venv and server/.venv with requirements-dev.txt installed.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

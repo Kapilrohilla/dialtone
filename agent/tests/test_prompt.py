@@ -16,14 +16,21 @@ from prompt import (
 
 FIXTURES = Path(__file__).parent / "fixtures"
 LEAD = {"lead_id": "L123", "name": "Ramesh", "city": "Pune", "previously_interested": True}
+# The fictional demo company the golden fixtures and examples/car-rental-agent use.
+DEMO_ENV = {
+    "AGENT_COMPANY_NAME": "Northwind Car Rentals",
+    "AGENT_PERSONA_NAME": "Maya",
+    "AGENT_NAME_PRONUNCIATION": '"NORTH-wind", stress on the first syllable; never "north-WIND".',
+}
+IDENTITY_ENV = (*DEMO_ENV, "AGENT_CONSENT_LINE")
 
 
 def snapshot(**overrides) -> dict:
     snap = {
         "agent_id": 1,
         "version": 3,
-        "name": "Carrum leads",
-        "persona_name": "Anjali",
+        "name": "Northwind leads",
+        "persona_name": "Maya",
         "language": "hi-IN",
         "voice_id": "",
         "phone_number": "+911234567890",
@@ -46,14 +53,24 @@ def rules():
     return "Language:\n- Start in Hindi."
 
 
-def fresh_prompt(tmp_path, monkeypatch):
-    """prompt.py loaded from a copy in an empty dir with the env cleared: no knowledge.md, no persona
-    override, recording off, default language. The golden fixtures are independent of the local setup."""
+@pytest.fixture(autouse=True)
+def generic_env(monkeypatch):
+    """No AGENT_* identity from the local .env: tests set the identity they need."""
+    for var in IDENTITY_ENV:
+        monkeypatch.delenv(var, raising=False)
+
+
+def fresh_prompt(tmp_path, monkeypatch, env=DEMO_ENV):
+    """prompt.py loaded from a copy in an empty dir with the env cleared, then `env` set (the demo company
+    by default): no knowledge.md, recording off, default language. The golden fixtures are independent of
+    the local setup."""
     import importlib.util
     import shutil
 
-    for var in ("AGENT_PERSONA_NAME", "RECORDING_ENABLED", "DEFAULT_LANGUAGE"):
+    for var in (*IDENTITY_ENV, "RECORDING_ENABLED", "DEFAULT_LANGUAGE"):
         monkeypatch.delenv(var, raising=False)
+    for var, value in env.items():
+        monkeypatch.setenv(var, value)
     copy = tmp_path / "prompt_golden.py"
     shutil.copy(Path(prompt.__file__), copy)
     spec = importlib.util.spec_from_file_location("prompt_golden", copy)
@@ -77,7 +94,6 @@ def test_system_layer_contents():
     for needle in [
         "You are an AI assistant. Say so in your opening",
         "How you talk:",
-        "Saying the company name:",
         "Never ask for Aadhaar, PAN, bank details or any document numbers.",
         "Never:\n- Pressure a driver",
         "Recording the outcome with `record_outcome`:",
@@ -92,7 +108,7 @@ def test_system_layer_contents():
 
 
 def test_script_fallback_contents():
-    assert SCRIPT_FALLBACK.startswith(f"You are {prompt.PERSONA_NAME}, a female AI calling assistant")
+    assert SCRIPT_FALLBACK.startswith("You are a female AI calling assistant")
     assert "Your job:" in SCRIPT_FALLBACK
     assert "The call:\n1. Opening:" in SCRIPT_FALLBACK
     assert "7. Close:" in SCRIPT_FALLBACK
@@ -104,8 +120,47 @@ def test_system_layer_always_present_with_snapshot(rules):
     text = build_instructions(snapshot(script=[]), {}, rules)
     assert text.startswith(SYSTEM_LAYER)
     assert (
-        "You are Anjali, a female AI calling assistant for Carrum Mobility Solutions." in text
+        "You are Maya, a female AI calling assistant." in text
     )
+
+
+def test_generic_without_identity(tmp_path, monkeypatch):
+    fresh = fresh_prompt(tmp_path, monkeypatch, env={})
+    text = fresh.builtin_instructions(LEAD, fresh.GEMINI_LANGUAGE_RULES, recording=True)
+    assert text.startswith("You are a female AI calling assistant. You call for a fleet partner\nthat gives")
+    assert "never claim to be a human or an employee." in text
+    assert "Saying the company name:" not in text
+    assert "Namaste sir, main AI calling assistant bol rahi hoon." in text
+    assert text.count(prompt.DEFAULT_CONSENT_LINE) == 1
+    for word in ("None", "{", "Northwind", "Maya"):
+        assert word not in text, word
+
+
+def test_identity_precedence(monkeypatch):
+    assert prompt.identity() == prompt.Identity()
+    for var, value in DEMO_ENV.items():
+        monkeypatch.setenv(var, value)
+    monkeypatch.setenv("AGENT_CONSENT_LINE", "Env consent.")
+    env = prompt.identity({"persona_name": "  ", "settings": {"company_name": ""}})
+    assert env == prompt.Identity("Northwind Car Rentals", "Maya", DEMO_ENV["AGENT_NAME_PRONUNCIATION"], "Env consent.")
+    snap = {"persona_name": "Asha", "settings": {"company_name": "Contoso Fleet", "name_pronunciation": "KON-toh-so",
+                                                   "consent_line": "Agent consent."}}
+    assert prompt.identity(snap) == prompt.Identity("Contoso Fleet", "Asha", "KON-toh-so", "Agent consent.")
+    # An empty AGENT_CONSENT_LINE turns the notice off.
+    monkeypatch.setenv("AGENT_CONSENT_LINE", "")
+    assert prompt.identity().consent == ""
+    assert prompt.opening_line({}, recording=True).endswith("jaanna chahenge?")
+
+
+def test_snapshot_identity_reaches_the_prompt(rules, monkeypatch):
+    monkeypatch.setenv("AGENT_COMPANY_NAME", "Env Company")
+    snap = snapshot(script=[], settings={"company_name": "Northwind Car Rentals",
+                                         "name_pronunciation": '"NORTH-wind"'})
+    text = build_instructions(snap, {}, rules)
+    assert "You are Maya, a female AI calling assistant for Northwind Car Rentals." in text
+    assert "never claim to be a human or a Northwind Car Rentals employee." in text
+    assert 'Saying the company name:\n- Say "Northwind Car Rentals" like this: "NORTH-wind"' in text
+    assert "Env Company" not in text
 
 
 def test_layer_order(rules):
@@ -113,7 +168,7 @@ def test_layer_order(rules):
     text = build_instructions(snap, LEAD, rules)
     order = [
         SYSTEM_LAYER,
-        "You are Anjali,",
+        "You are Maya,",
         "## Your job",
         rules,
         "Approved information (the only",
@@ -163,8 +218,8 @@ def test_delivery_hints_lifted_out_of_the_spoken_line():
         "  Haan ji sir.\n  Delivery (not spoken): be playful"
     )
     # A hint alone on its line goes with the next line that has words; other text is untouched.
-    assert prompt.delivery_notes("(say this warmly)\n\nNamaste sir (Carrum)") == (
-        "\nNamaste sir (Carrum)\nDelivery (not spoken): warmly"
+    assert prompt.delivery_notes("(say this warmly)\n\nNamaste sir (Northwind)") == (
+        "\nNamaste sir (Northwind)\nDelivery (not spoken): warmly"
     )
     assert prompt.delivery_notes("Sir (Delhi NCR) mein?") == "Sir (Delhi NCR) mein?"
 
@@ -244,11 +299,11 @@ def test_transfer_step_block(rules):
 
 def test_devanagari_preserved(rules):
     snap = snapshot(
-        script=[{"title": "Opening", "body_rendered": "नमस्ते {{lead.name}} जी, कैरम मोबिलिटी से बोल रही हूँ।"}],
+        script=[{"title": "Opening", "body_rendered": "नमस्ते {{lead.name}} जी, नॉर्थविंड कार रेंटल्स से बोल रही हूँ।"}],
         knowledge=[{"id": 1, "title": "नियम", "revision": 1, "body_md": "जमा राशि ₹5000"}],
     )
     text = build_instructions(snap, {"name": "रमेश"}, rules)
-    assert "## Opening\nनमस्ते रमेश जी, कैरम मोबिलिटी से बोल रही हूँ।" in text
+    assert "## Opening\nनमस्ते रमेश जी, नॉर्थविंड कार रेंटल्स से बोल रही हूँ।" in text
     assert "## नियम\nजमा राशि ₹5000" in text
 
 
