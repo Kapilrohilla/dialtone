@@ -9,6 +9,9 @@ import type {
   Agent,
   AgentListItem,
   AgentTextSetting,
+  AgentVersion,
+  AuditFix,
+  AuditFixRun,
   CallAudit,
   CallDetail,
   CallPage,
@@ -62,7 +65,7 @@ export function useUpdateWorkspace() {
   return useMutation({
     mutationFn: (
       body: Partial<
-        Pick<Workspace, "dead_air_enabled" | "recording_enabled" | "audit_enabled" | "audit_sample_pct" | "audit_weights" | "audit_instructions">
+        Pick<Workspace, "dead_air_enabled" | "recording_enabled" | "audit_enabled" | "audit_sample_pct" | "audit_weights" | "audit_instructions" | "audit_fix_auto_apply">
       >,
     ) => apiFetch<Workspace>("/api/workspace", { method: "PATCH", json: body }),
     onSuccess: (workspace) => qc.setQueryData<Me>(meKey, (me) => (me ? { ...me, workspace } : me)),
@@ -337,6 +340,7 @@ function useInvalidateAgents() {
     Promise.all([
       qc.invalidateQueries({ queryKey: agentsKey }),
       id === undefined ? undefined : qc.invalidateQueries({ queryKey: agentKey(id) }),
+      id === undefined ? undefined : qc.invalidateQueries({ queryKey: agentVersionsKey(id) }),
       qc.invalidateQueries({ queryKey: dashboardKey }),
     ]);
 }
@@ -547,8 +551,8 @@ export function useWorkflows() {
 
 export const workflowKey = (id: number) => ["workflow", id] as const;
 
-export function useWorkflow(id: number) {
-  return useQuery({ queryKey: workflowKey(id), queryFn: () => apiFetch<Workflow>(`/api/workflows/${id}`) });
+export function useWorkflow(id: number, { enabled = true }: { enabled?: boolean } = {}) {
+  return useQuery({ queryKey: workflowKey(id), queryFn: () => apiFetch<Workflow>(`/api/workflows/${id}`), enabled });
 }
 
 /** The graph a new workflow starts with: one start step. */
@@ -667,6 +671,105 @@ export function useCloseSuggestions(workflowId: number) {
     onSuccess: () => qc.setQueryData(suggestionsKey(workflowId), null),
     onError: (e) => toast.show(e instanceof ApiError ? e.detail : "Could not discard the suggestions.", "bad"),
   });
+}
+
+// ---- audit fixes ----
+
+export const callFixesKey = (room: string) => ["audit-fixes", "call", room] as const;
+export const agentFixesKey = (agentId: number) => ["audit-fixes", "agent", agentId] as const;
+export const agentVersionsKey = (agentId: number) => ["agent-versions", agentId] as const;
+
+/** Checked again every 2 s while fixes are being made. */
+export const AUDIT_FIX_POLL_MS = 2000;
+
+/** A run, or null when there is none (204). Polls while it is running; when it finishes having applied fixes on
+ *  its own, the drafts they changed are read again. */
+function useFixRun(key: readonly unknown[], path: string, enabled: boolean) {
+  const qc = useQueryClient();
+  const lastStatus = useRef<string | undefined>(undefined);
+  const query = useQuery({
+    queryKey: key,
+    queryFn: async () => (await apiFetch<AuditFixRun | undefined>(path)) ?? null,
+    enabled,
+    refetchInterval: (q) => (q.state.data?.status === "running" ? AUDIT_FIX_POLL_MS : false),
+  });
+  const run = query.data;
+  useEffect(() => {
+    if (lastStatus.current === "running" && run && run.status !== "running" && run.auto_applied > 0) void invalidateFixTargets(qc, run);
+    lastStatus.current = run?.status;
+  }, [run, qc]);
+  return query;
+}
+
+/** What accepting a fix may change: the agent (and every agent's "older version" flag), its versions, the workflow,
+ *  and the knowledge list (a knowledge fix adds a document). */
+function invalidateFixTargets(qc: ReturnType<typeof useQueryClient>, run: AuditFixRun) {
+  return Promise.all([
+    invalidateOutdatedFlags(qc),
+    qc.invalidateQueries({ queryKey: agentVersionsKey(run.agent.id) }),
+    run.workflow ? qc.invalidateQueries({ queryKey: workflowKey(run.workflow.id), exact: true }) : undefined,
+    run.workflow ? qc.invalidateQueries({ queryKey: suggestionsKey(run.workflow.id) }) : undefined,
+    qc.invalidateQueries({ queryKey: workflowsKey }),
+    qc.invalidateQueries({ queryKey: knowledgeListKey, exact: true }),
+  ]);
+}
+
+/** The call's latest "Suggest fixes" run, or null. */
+export const useCallFixes = (room: string, { enabled = true }: { enabled?: boolean } = {}) =>
+  useFixRun(callFixesKey(room), `/api/calls/${encodeURIComponent(room)}/audit/fixes`, enabled);
+
+/** The agent's latest run over its recent calls, or null. */
+export const useAgentFixes = (agentId: number) => useFixRun(agentFixesKey(agentId), `/api/agents/${agentId}/audit-fixes`, true);
+
+/** "Suggest fixes" for one call. 409 (not ready, nothing to fix, older version) and 429 come back as the ApiError. */
+export function useSuggestCallFixes(room: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiFetch<AuditFixRun>(`/api/calls/${encodeURIComponent(room)}/audit/fixes`, { method: "POST" }),
+    onSuccess: (run) => qc.setQueryData(callFixesKey(room), run),
+  });
+}
+
+export type StartAgentFixes = { by?: "version" | "workflow_revision"; limit?: number };
+
+/** "Suggest fixes from recent calls". Errors come back as the ApiError. */
+export function useSuggestAgentFixes(agentId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: StartAgentFixes) => apiFetch<AuditFixRun>(`/api/agents/${agentId}/audit-fixes`, { method: "POST", json: body }),
+    onSuccess: (run) => qc.setQueryData(agentFixesKey(agentId), run),
+  });
+}
+
+export type AuditFixPatch = { fix: AuditFix; edited_payload?: object | null; status?: "pending" | "dismissed" };
+
+const fixPath = (run: AuditFixRun, fix: AuditFix) => `/api/audit-fixes/${run.id}/${fix.target}/${fix.id}`;
+
+/** Saves an edit (null puts the AI's version back) or dismisses / restores a fix. Field errors come back as the
+ *  ApiError's fields. `key` is the cached run's query key. */
+export function usePatchAuditFix(run: AuditFixRun, key: readonly unknown[]) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ fix, ...body }: AuditFixPatch) => apiFetch<AuditFixRun>(fixPath(run, fix), { method: "PATCH", json: body }),
+    onSuccess: (next) => qc.setQueryData(key, next),
+  });
+}
+
+/** Accepts a fix into the draft (a new workflow revision, or the agent), then reads again what it changed. */
+export function useAcceptAuditFix(run: AuditFixRun, key: readonly unknown[]) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (fix: AuditFix) => apiFetch<AuditFixRun>(`${fixPath(run, fix)}/accept`, { method: "POST" }),
+    onSuccess: async (next) => {
+      qc.setQueryData(key, next);
+      await invalidateFixTargets(qc, next);
+    },
+  });
+}
+
+/** Published versions, newest first, with the audit fixes each brought and its scores against the one before. */
+export function useAgentVersions(agentId: number) {
+  return useQuery({ queryKey: agentVersionsKey(agentId), queryFn: () => apiFetch<AgentVersion[]>(`/api/agents/${agentId}/versions`) });
 }
 
 // ---- sim ----

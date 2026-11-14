@@ -24,6 +24,9 @@ export default function AgentEditorPage() {
   const agentId = Number(id);
   const { data: agent, isError, error, refetch } = useAgent(agentId);
   const me = useMe();
+  // Bumped when an accepted audit fix changed the saved agent: the editor starts again from the fresh agent, so
+  // its local copies (script, fields) can't save the old values over the fix.
+  const [generation, setGeneration] = useState(0);
 
   if (isError || !agent || me.isPending) {
     return (
@@ -39,7 +42,17 @@ export default function AgentEditorPage() {
       </>
     );
   }
-  return <AgentEditor key={agent.id} agent={agent} editable={canEdit(me.data?.role)} />;
+  return (
+    <AgentEditor
+      key={`${agent.id}-${generation}`}
+      agent={agent}
+      editable={canEdit(me.data?.role)}
+      onReload={async () => {
+        await refetch();
+        setGeneration((g) => g + 1);
+      }}
+    />
+  );
 }
 
 function StatusChip({ status }: { status: Agent["status"] }) {
@@ -48,7 +61,7 @@ function StatusChip({ status }: { status: Agent["status"] }) {
   return <Chip>Draft</Chip>;
 }
 
-function AgentEditor({ agent, editable }: { agent: Agent; editable: boolean }) {
+function AgentEditor({ agent, editable, onReload }: { agent: Agent; editable: boolean; onReload: () => Promise<void> }) {
   const saves = useAgentSaves(agent);
   const { data: expressions } = useExpressions();
   const { data: agents } = useAgents();
@@ -67,6 +80,16 @@ function AgentEditor({ agent, editable }: { agent: Agent; editable: boolean }) {
     } catch {
       // Publishing now would ship the old text. The top bar (and the timings) say what failed.
       toast.show("Fix the errors before publishing.", "bad");
+    }
+  }
+
+  /** An agent fix is accepted from the saved agent: save what's unsaved first, or say why not. */
+  async function beforeAcceptFix(): Promise<string | null> {
+    try {
+      await saves.flushAll();
+      return null;
+    } catch {
+      return "Fix the errors on this page before accepting.";
     }
   }
 
@@ -155,6 +178,8 @@ function AgentEditor({ agent, editable }: { agent: Agent; editable: boolean }) {
           save={saves.saveFields}
           timingsError={saves.field.errors[TIMINGS_GROUP]?.detail}
           markInvalid={saves.markInvalid}
+          beforeAccept={beforeAcceptFix}
+          onAgentChanged={() => void onReload()}
         />
       </div>
       {editable && (

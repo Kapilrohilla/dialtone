@@ -128,3 +128,16 @@
 .fieldError { margin: 0; color: var(--bad); font-size: 13px; }
 .readOnlyField { display: flex; flex-direction: column; gap: 6px; font-size: 15px; }
 .readOnlyLabel { font-size: 14px; font-weight: 500; color: var(--ink-2); }
+
+/* Versions (KAP-37): audit fixes per version and the score change. */
+.versionList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.version { padding: 10px 0; border-bottom: 1px solid var(--border); }
+.version:first-child { padding-top: 0; }
+.version:last-child { border-bottom: 0; }
+.version article { display: flex; flex-direction: column; gap: 6px; }
+.versionHead { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 0; font-size: 14px; }
+.versionFixes { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
+.versionChange { display: flex; flex-direction: column; gap: 4px; }
+.versionDelta { margin: 0; font-size: 14px; font-weight: 500; }
+.versionAreas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: var(--ink-2); }
+.versionAreas li { display: flex; justify-content: space-between; gap: 8px; }
