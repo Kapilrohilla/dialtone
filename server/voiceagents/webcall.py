@@ -31,6 +31,14 @@ def is_web_room(room: str) -> bool:
     return room.startswith(ROOM_PREFIX)
 
 
+def web_room_agent_id(room: str) -> int | None:
+    """The agent a voice test room (`web-<agent id>-<hex>`) was made for, or None for any other room."""
+    if not is_web_room(room):
+        return None
+    head = room[len(ROOM_PREFIX):].split("-", 1)[0]
+    return int(head) if head.isdigit() else None
+
+
 def web_call_token(room: str, identity: str, name: str, agent_id: int) -> str:
     dispatch = api.RoomAgentDispatch(
         agent_name=settings.AGENT_NAME,

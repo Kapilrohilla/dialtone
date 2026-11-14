@@ -16,6 +16,8 @@
   border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); color: var(--amber);
   font-size: 15px; font-weight: 700; letter-spacing: 0.02em;
 }
+.logo:has(.logoImage) { overflow: hidden; }
+.logoImage { display: block; width: 100%; height: 100%; object-fit: contain; }
 .brandText { display: flex; flex-direction: column; min-width: 0; }
 .project { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; font-weight: 600; }
 .workspace { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 13px; }

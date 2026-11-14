@@ -43,8 +43,16 @@ class WorkflowSuggestionSet(models.Model):
     SCOPES = [(STEP, "This step"), (WORKFLOW, "Whole workflow")]
     RUNNING, READY, EMPTY, ERROR, CLOSED = "running", "ready", "empty", "error", "closed"
     STATUSES = [(RUNNING, "Running"), (READY, "Ready"), (EMPTY, "Empty"), (ERROR, "Error"), (CLOSED, "Closed")]
+    AI, AUDIT = "ai", "audit"
+    SOURCES = [(AI, "Suggest with AI"), (AUDIT, "Call audits")]
 
     workflow = models.ForeignKey(Workflow, on_delete=models.CASCADE, related_name="suggestion_sets")
+    # "audit": the workflow fixes of an audit-fix run (KAP-37). They are reviewed in the audit-fix panel, not in the
+    # workflow editor's Suggest with AI draft.
+    source = models.CharField(max_length=10, choices=SOURCES, default=AI)
+    audit_run = models.OneToOneField(
+        "audits.AuditFixRun", null=True, blank=True, on_delete=models.CASCADE, related_name="workflow_set"
+    )
     base_revision = models.ForeignKey(WorkflowRevision, on_delete=models.CASCADE, related_name="+")
     scope = models.CharField(max_length=10, choices=SCOPES)
     step_ids = models.JSONField(default=list)  # steps sent to Gemini
@@ -67,10 +75,11 @@ class WorkflowSuggestionSet(models.Model):
 
 
 class WorkflowSuggestion(models.Model):
-    """One draft change: a new answer (path) out of a step, or expressions added to a step's words."""
+    """One draft change: a new answer (path) out of a step, expressions added to a step's words, or (audit fixes
+    only) a step's words rewritten."""
 
-    ANSWER, EXPRESSION = "answer", "expression"
-    KINDS = [(ANSWER, "Answer"), (EXPRESSION, "Expression")]
+    ANSWER, EXPRESSION, PROMPT = "answer", "expression", "prompt"
+    KINDS = [(ANSWER, "Answer"), (EXPRESSION, "Expression"), (PROMPT, "Step words")]
     PENDING, ACCEPTED, DISMISSED = "pending", "accepted", "dismissed"
     STATUSES = [(PENDING, "Pending"), (ACCEPTED, "Accepted"), (DISMISSED, "Dismissed")]
 
@@ -85,6 +94,15 @@ class WorkflowSuggestion(models.Model):
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
     )
     decided_at = models.DateTimeField(null=True, blank=True)
+    # Audit fixes only: {"title", "area", "calls", "pool", "score_cost", "rank_score", "confidence", "evidence": [...]}
+    audit = models.JSONField(default=dict, blank=True)
+    auto_applied = models.BooleanField(default=False)  # accepted by "Auto-apply audit fixes to draft"
+    applied_revision = models.ForeignKey(
+        WorkflowRevision, null=True, blank=True, on_delete=models.SET_NULL, related_name="audit_fixes"
+    )  # the revision accepting it created
+    included_in = models.ForeignKey(
+        "voiceagents.AgentVersion", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )  # the first agent version published with it
 
     class Meta:
         ordering = ["id"]

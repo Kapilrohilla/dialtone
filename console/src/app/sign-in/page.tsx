@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui";
 import { ApiError, apiFetch } from "@/lib/api";
-import { meKey, useProjectName } from "@/lib/queries";
+import { meKey, useLogoUrl, useProjectName } from "@/lib/queries";
 import { safeNext } from "@/lib/safe-next";
 import { applyAppearance } from "@/lib/theme";
 import type { Me } from "@/lib/types";
@@ -17,6 +17,7 @@ function SignInForm() {
   const next = useSearchParams().get("next");
   const qc = useQueryClient();
   const projectName = useProjectName();
+  const logoUrl = useLogoUrl();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [show, setShow] = useState(false);
@@ -43,7 +44,11 @@ function SignInForm() {
   return (
     <main className={styles.page}>
       <section className={styles.panel}>
-        <p className={styles.wordmark}>{projectName}</p>
+        <div className={styles.brand}>
+          {/* eslint-disable-next-line @next/next/no-img-element -- a small same-origin file; next/image adds nothing here */}
+          {logoUrl && <img src={logoUrl} alt="" className={styles.logo} />}
+          <p className={styles.wordmark}>{projectName}</p>
+        </div>
         <h1 className={styles.heading}>Sign in</h1>
         <form onSubmit={submit} className={styles.form}>
           <div className={styles.field}>

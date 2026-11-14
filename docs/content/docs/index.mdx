@@ -11,7 +11,7 @@ It is made of four parts:
 
 | Part | Path | What it does |
 |---|---|---|
-| **Agent worker** | `agent/` | Python, [LiveKit Agents](https://docs.livekit.io/agents/). Joins each call's room and runs the conversation. Also ships the text simulator behind the console's *Try it* and *Test call*. |
+| **Agent worker** | `agent/` | Python, [LiveKit Agents](https://docs.livekit.io/agents/). Joins each call's room and runs the conversation. Also ships the text simulator behind the console's *Test chat*. |
 | **Server** | `server/` | Django + Django REST Framework, PostgreSQL. Stores agents, knowledge, workflows and call history, receives LiveKit webhooks and agent reports, serves the console's API and `/admin/`. |
 | **Console** | `console/` | Next.js. Where your team builds and publishes agents, edits workflows and knowledge, tests in the browser and watches live calls and history. |
 | **Media** | `deploy/docker-compose.yml` | LiveKit server, LiveKit SIP, LiveKit Egress (call recording) and Redis, all pinned versions. |

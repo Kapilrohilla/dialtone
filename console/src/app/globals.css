@@ -1,5 +1,12 @@
 /* Tokens come from final-screens.md. Light is :root; dark is [data-theme="dark"] or, with no
-   explicit choice, the system setting. Hue never moves between modes. */
+   explicit choice, the system setting. Hue never moves between modes.
+
+   The install's theme (Settings → General) is <html data-palette="saffron | ocean | forest">, set by the root
+   layout on the server. Saffron is the default and lives in the :root and dark blocks below; Ocean and Forest
+   override the palette tokens further down, for light and dark. Every palette was checked for WCAG AA
+   (KAP-38): text 4.5:1, focus rings and field edges 3:1, button labels on their fills.
+   --amber / --amber-tint are the accent ink and its pill (named after Saffron), --field-edge the 3:1 edge of
+   inputs, radios and checkboxes; hairline dividers keep the softer --border. */
 :root {
   color-scheme: light;
   --page: #FBF9F5;
@@ -8,10 +15,11 @@
   --well: #F3F0EA;
   --sidebar: #F3F0EA;
   --rule-strong: #CFC8BC;
+  --field-edge: #948A7D;
   --ink: #1E1A16;
   --ink-2: #4A443D;
   --muted: #6E675F;
-  --amber: #9A6200;
+  --amber: #8A5800;
   --amber-tint: #FBEFD6;
   --blue: #2F6DB5;
   --blue-tint: #E6EEF8;
@@ -52,20 +60,21 @@
   --row-gap: 16px;
   --control-h: 40px;
   --sidebar-w: 232px;
-  --focus: var(--blue);
+  --focus: #2F6DB5;
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --page: #1E2228;
-  --panel: #262B32;
-  --border: #3A4049;
-  --well: #14171B;
-  --sidebar: #191C21;
-  --rule-strong: #545C67;
-  --ink: #EEF0F3;
-  --ink-2: #C9CED6;
-  --muted: #A3AAB5;
+  --page: #221F1C;
+  --panel: #2B2824;
+  --border: #403B34;
+  --well: #1A1815;
+  --sidebar: #1C1A17;
+  --rule-strong: #7A7266;
+  --field-edge: #7A7266;
+  --ink: #F2EEE8;
+  --ink-2: #D6D0C7;
+  --muted: #ADA59A;
   --amber: #F2B544;
   --amber-tint: #4A3A1C;
   --blue: #7FB2F0;
@@ -76,6 +85,7 @@
   --bad-tint: #3A2220;
   --primary-fill: #F2B544;
   --primary-ink: #2A1F0B;
+  --focus: #7FB2F0;
   --expr-happy-bg: #3D2A1A;
   --expr-happy-border: #6B4524;
   --expr-happy-ink: #F5B98A;
@@ -105,15 +115,16 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --page: #1E2228;
-    --panel: #262B32;
-    --border: #3A4049;
-    --well: #14171B;
-    --sidebar: #191C21;
-    --rule-strong: #545C67;
-    --ink: #EEF0F3;
-    --ink-2: #C9CED6;
-    --muted: #A3AAB5;
+    --page: #221F1C;
+    --panel: #2B2824;
+    --border: #403B34;
+    --well: #1A1815;
+    --sidebar: #1C1A17;
+    --rule-strong: #7A7266;
+    --field-edge: #7A7266;
+    --ink: #F2EEE8;
+    --ink-2: #D6D0C7;
+    --muted: #ADA59A;
     --amber: #F2B544;
     --amber-tint: #4A3A1C;
     --blue: #7FB2F0;
@@ -124,6 +135,7 @@
     --bad-tint: #3A2220;
     --primary-fill: #F2B544;
     --primary-ink: #2A1F0B;
+    --focus: #7FB2F0;
     --expr-happy-bg: #3D2A1A;
     --expr-happy-border: #6B4524;
     --expr-happy-ink: #F5B98A;
@@ -148,6 +160,126 @@
     --expr-excited-bg: #3A2130;
     --expr-excited-border: #6A3A55;
     --expr-excited-ink: #F3A9CA;
+  }
+}
+
+/* Ocean and Forest: the palette tokens only (status and expression colours stay). The dark selectors are more
+   specific than the light ones, so they win whatever the order. */
+:root[data-palette="ocean"] {
+  --page: #F7F9FC;
+  --sidebar: #EEF3FA;
+  --panel: #FFFFFF;
+  --well: #EEF3FA;
+  --border: #E1E7F0;
+  --rule-strong: #C5CFDD;
+  --field-edge: #7D8AA0;
+  --ink: #0F172A;
+  --ink-2: #334155;
+  --muted: #5B6B82;
+  --primary-fill: #2563EB;
+  --primary-ink: #FFFFFF;
+  --amber-tint: #DBE7FB;
+  --amber: #1D4ED8;
+  --focus: #1D4ED8;
+  --bad: #B91C1C;
+}
+
+:root[data-palette="ocean"][data-theme="dark"] {
+  --page: #0F1623;
+  --sidebar: #0B111C;
+  --panel: #162030;
+  --well: #09101A;
+  --border: #26334A;
+  --rule-strong: #62738E;
+  --field-edge: #62738E;
+  --ink: #E6ECF5;
+  --ink-2: #CBD5E1;
+  --muted: #94A3B8;
+  --primary-fill: #3B82F6;
+  --primary-ink: #0A1628;
+  --amber-tint: #1E3A6E;
+  --amber: #93C5FD;
+  --focus: #93C5FD;
+  --bad: #F87171;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="ocean"]:not([data-theme="light"]) {
+    --page: #0F1623;
+    --sidebar: #0B111C;
+    --panel: #162030;
+    --well: #09101A;
+    --border: #26334A;
+    --rule-strong: #62738E;
+    --field-edge: #62738E;
+    --ink: #E6ECF5;
+    --ink-2: #CBD5E1;
+    --muted: #94A3B8;
+    --primary-fill: #3B82F6;
+    --primary-ink: #0A1628;
+    --amber-tint: #1E3A6E;
+    --amber: #93C5FD;
+    --focus: #93C5FD;
+    --bad: #F87171;
+  }
+}
+
+:root[data-palette="forest"] {
+  --page: #F6F9F7;
+  --sidebar: #EBF2EE;
+  --panel: #FFFFFF;
+  --well: #EBF2EE;
+  --border: #DDE7E1;
+  --rule-strong: #C3D1C8;
+  --field-edge: #7B8E83;
+  --ink: #10241A;
+  --ink-2: #33473B;
+  --muted: #5B6F63;
+  --primary-fill: #2F855A;
+  --primary-ink: #FFFFFF;
+  --amber-tint: #D7EEDF;
+  --amber: #1F6B44;
+  --focus: #2F855A;
+  --bad: #B4412F;
+}
+
+:root[data-palette="forest"][data-theme="dark"] {
+  --page: #18211C;
+  --sidebar: #121A16;
+  --panel: #1F2A24;
+  --well: #0F1612;
+  --border: #2E3B34;
+  --rule-strong: #647C6E;
+  --field-edge: #647C6E;
+  --ink: #E8F0EB;
+  --ink-2: #C9D6CE;
+  --muted: #9DB0A5;
+  --primary-fill: #52A27A;
+  --primary-ink: #0B1510;
+  --amber-tint: #1E3A2B;
+  --amber: #6EE7A8;
+  --focus: #6EE7A8;
+  --bad: #F07A6A;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="forest"]:not([data-theme="light"]) {
+    --page: #18211C;
+    --sidebar: #121A16;
+    --panel: #1F2A24;
+    --well: #0F1612;
+    --border: #2E3B34;
+    --rule-strong: #647C6E;
+    --field-edge: #647C6E;
+    --ink: #E8F0EB;
+    --ink-2: #C9D6CE;
+    --muted: #9DB0A5;
+    --primary-fill: #52A27A;
+    --primary-ink: #0B1510;
+    --amber-tint: #1E3A2B;
+    --amber: #6EE7A8;
+    --focus: #6EE7A8;
+    --bad: #F07A6A;
   }
 }
 

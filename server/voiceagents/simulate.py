@@ -1,4 +1,4 @@
-"""Console "Test call" (agent editor) and "Try it" (workflow builder): text simulation.
+"""Console "Test chat" (agent editor and workflow builder): text simulation.
 
 The dashboard builds the snapshot to try (the agent's unsaved-to-version draft, or a minimal one around a
 workflow), signs a short-lived "console-sim" token and proxies one turn to the agent container's text

@@ -63,6 +63,9 @@
 /* Audit (KAP-17) */
 .auditState { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 0; }
 .auditNote { margin: 8px 0 0; color: var(--muted); font-size: 14px; }
+.fixes { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); }
+.fixes .momentTitle { margin: 0; }
+.auditError { margin: 0 0 8px; color: var(--bad); font-size: 14px; }
 .auditHead { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
 .areas { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .area { padding: 4px 0; border-bottom: 1px solid var(--border); }

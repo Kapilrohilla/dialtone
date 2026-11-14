@@ -1,0 +1,55 @@
+.hint { margin: 0; font-size: 13px; color: var(--muted); }
+.error { margin: 0; font-size: 13px; color: var(--bad); }
+
+.logoRow { display: flex; align-items: flex-start; gap: 16px; }
+.logoTile {
+  display: inline-flex; flex: none; align-items: center; justify-content: center; width: 64px; height: 64px; overflow: hidden;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); color: var(--amber);
+  font-size: 22px; font-weight: 700; letter-spacing: 0.02em;
+}
+.logoTile img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.logoActions { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.themes { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+.themeCard {
+  display: flex; flex-direction: column; gap: 10px; padding: 10px; cursor: pointer;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel);
+}
+.themeCard:hover { border-color: var(--field-edge); }
+.themeCard:has(input:checked) { border-color: var(--amber); box-shadow: 0 0 0 1px var(--amber); }
+/* The radio stays visible, and its card shows the keyboard focus ring. */
+.themeCard:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
+.themeCard input:focus-visible { outline: none; }
+.themeName { display: flex; align-items: center; gap: 8px; font-weight: 500; }
+.themeName input { width: 18px; height: 18px; margin: 0; accent-color: var(--amber); }
+
+/* The theme's own colours: light ones by default, dark ones when the page is dark. */
+.preview {
+  --sw-page: var(--sw-page-light); --sw-sidebar: var(--sw-sidebar-light); --sw-panel: var(--sw-panel-light);
+  --sw-border: var(--sw-border-light); --sw-primary: var(--sw-primary-light); --sw-ink: var(--sw-ink-light);
+  display: flex; height: 72px; overflow: hidden; border: 1px solid var(--sw-border); border-radius: 6px; background: var(--sw-page);
+}
+:root[data-theme="dark"] .preview {
+  --sw-page: var(--sw-page-dark); --sw-sidebar: var(--sw-sidebar-dark); --sw-panel: var(--sw-panel-dark);
+  --sw-border: var(--sw-border-dark); --sw-primary: var(--sw-primary-dark); --sw-ink: var(--sw-ink-dark);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .preview {
+    --sw-page: var(--sw-page-dark); --sw-sidebar: var(--sw-sidebar-dark); --sw-panel: var(--sw-panel-dark);
+    --sw-border: var(--sw-border-dark); --sw-primary: var(--sw-primary-dark); --sw-ink: var(--sw-ink-dark);
+  }
+}
+.previewSidebar { display: flex; flex-direction: column; gap: 6px; width: 30%; padding: 8px 6px; background: var(--sw-sidebar); border-right: 1px solid var(--sw-border); }
+.previewNav { height: 5px; border-radius: 3px; background: var(--sw-ink); opacity: 0.35; }
+.previewNav:first-child { background: var(--sw-primary); opacity: 1; }
+.previewPanel {
+  display: flex; flex: 1; flex-direction: column; justify-content: space-between; margin: 8px; padding: 6px;
+  border: 1px solid var(--sw-border); border-radius: 4px; background: var(--sw-panel);
+}
+.previewLine { width: 70%; height: 5px; border-radius: 3px; background: var(--sw-ink); opacity: 0.35; }
+.previewButton { align-self: flex-end; width: 40%; height: 12px; border-radius: 3px; background: var(--sw-primary); }
+
+@media (forced-colors: active) {
+  .themeCard:has(input:checked) { outline: 2px solid CanvasText; }
+}

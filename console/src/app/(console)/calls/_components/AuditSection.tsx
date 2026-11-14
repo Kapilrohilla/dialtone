@@ -1,10 +1,11 @@
 import { ChevronDown, ChevronRight, Play } from "lucide-react";
 import { useState } from "react";
+import { AuditFixesPanel } from "@/components/audit-fixes/AuditFixesPanel";
 import { Button, Chip, Spinner } from "@/components/ui";
 import { cx } from "@/components/ui/util";
 import { ApiError } from "@/lib/api";
 import { EVENT_LABELS, scoreTone } from "@/lib/audit";
-import { useCallAudit, useRunAudit } from "@/lib/queries";
+import { callFixesKey, useCallAudit, useCallFixes, useRunAudit, useSuggestCallFixes } from "@/lib/queries";
 import { clock } from "@/lib/recording";
 import type { AuditArea, AuditEvidence, AuditMoment } from "@/lib/types";
 import styles from "../calls.module.css";
@@ -97,6 +98,7 @@ export function AuditSection({ room, canRun, offsetOf, onJump }: AuditSectionPro
           Scored by AI{audit.automatic ? " after the call" : ""}. Only the agent&rsquo;s side is scored.
           {audit.quotes_purged && " Quotes were removed after 90 days; the scores stay."}
         </p>
+        <CallFixes room={room} canRun={canRun} hasProblems={problems.length > 0} />
       </>
     );
   }
@@ -105,6 +107,34 @@ export function AuditSection({ room, canRun, offsetOf, onJump }: AuditSectionPro
     <section aria-labelledby="call-audit">
       <h3 id="call-audit" className={styles.sectionTitle}>Audit</h3>
       {body}
+    </section>
+  );
+}
+
+/** "Suggest fixes" for this call's problem moments, and the last run's fixes to review. */
+function CallFixes({ room, canRun, hasProblems }: { room: string; canRun: boolean; hasProblems: boolean }) {
+  const { data: run, isError } = useCallFixes(room);
+  const suggest = useSuggestCallFixes(room);
+  const running = run?.status === "running";
+  if (!hasProblems && !run) return null;
+  const startError = suggest.error ? (suggest.error instanceof ApiError ? suggest.error.detail : "Could not suggest fixes.") : null;
+  return (
+    <section className={styles.fixes} aria-labelledby="call-fixes">
+      <div className={styles.auditHead}>
+        <h4 id="call-fixes" className={styles.momentTitle}>Fixes</h4>
+        {canRun && hasProblems && !running && (
+          <Button size="sm" variant="outline" loading={suggest.isPending} onClick={() => suggest.mutate()}>
+            {run ? "Suggest again" : "Suggest fixes"}
+          </Button>
+        )}
+      </div>
+      {startError && <p className={styles.auditError} role="alert">{startError}</p>}
+      {isError && <p className={styles.auditNote}>Could not load the fixes.</p>}
+      {run ? (
+        <AuditFixesPanel run={run} cacheKey={callFixesKey(room)} readOnly={!canRun} />
+      ) : (
+        run === null && canRun && <p className={styles.auditNote}>Get ready-to-apply changes to the workflow or agent for the problems above.</p>
+      )}
     </section>
   );
 }

@@ -18,6 +18,8 @@ class Workspace(models.Model):
     audit_sample_pct = models.PositiveSmallIntegerField(default=100)  # 100, 50, 25 or 10
     audit_weights = models.JSONField(default=dict, blank=True)  # {area: 0-100}; missing areas use the defaults
     audit_instructions = models.TextField(blank=True, default="")  # extra notes for the rubric
+    # Audit fixes (KAP-37): apply confident, repeated fixes to the draft by themselves. Never publishes.
+    audit_fix_auto_apply = models.BooleanField(default=False)
 
     def __str__(self):
         return self.name

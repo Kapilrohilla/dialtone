@@ -54,7 +54,7 @@ or rely on the worker env values.
    `WORKSPACE` is the slug of the workspace to load into; it is created if it doesn't exist. To use a new
    workspace, add yourself to it: `python manage.py create_member you@example.com --workspace northwind`.
 
-3. Open the console, find **Northwind driver lead qualifier**, try it with **Try it** / **Test call**, give it
+3. Open the console, find **Northwind driver lead qualifier**, run it with **Test chat**, give it
    a phone number and publish it.
 
 To load it by hand instead, create the knowledge document from `knowledge.md`, a workflow with the graph in

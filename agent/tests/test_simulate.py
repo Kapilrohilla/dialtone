@@ -1,4 +1,4 @@
-"""Text simulation server (console "Try it" / "Test call"): scripted fake model, no network."""
+"""Text simulation server (console "Test chat"): scripted fake model, no network."""
 
 import inspect
 

@@ -52,7 +52,7 @@ If the caller hangs up before the agent records one, the call is logged as `CDRP
 
 ## Trying an agent before publishing
 
-- **Try it** and **Test call** run the saved draft as **text**, through the `dialtone-agent-sim` service:
+- **Test chat** runs the saved draft as **text**, through the `dialtone-agent-sim` service:
   the same prompt and workflow engine as a live call, with nothing dialled or reported. Needs
   `GOOGLE_API_KEY`.
 - **Voice test** is a real voice call in your browser over WebRTC, with the same worker, pipeline and voice
@@ -64,6 +64,31 @@ Publishing takes an immutable snapshot (a version) of the agent with its script,
 workflow revision. Only that snapshot reaches callers. A workspace has at most one published agent at a time;
 the agent's phone number ties it to the number callers dial. Publishing again creates a new version;
 unpublish, archive, restore and duplicate are in the agent's menu, and **Versions** lists past snapshots.
+
+## Fixes from call audits
+
+With call audits on (**Settings → Calls**), every audited call gets a score and a list of problem moments.
+**Suggest fixes** turns those problems into ready-to-apply changes:
+
+- From one call: **Suggest fixes** in the call's **Audit** section.
+- From recent calls: **Audit fixes** in the agent editor reads the last 10, 20 or 50 audited calls of the
+  latest version (or of the workflow revision it uses). Repeated problems are grouped into one fix and fixes
+  are ranked by how many calls show the problem × how many score points it cost them.
+
+Workflow fixes add a missing answer out of a step, add expressions, or rewrite a step's words; agent fixes
+rewrite a script section, add a knowledge snippet for questions the agent couldn't answer, or change
+settings (language, persona name, name pronunciation, consent line, mood adaptation). Every fix links to the
+calls, lines and quotes behind it and passes the same checks as an edit; fixes that fail them are left out.
+
+**Accept** writes to the draft only: a new workflow revision, or the agent's draft. Callers keep the
+published version until you publish. With **Auto-apply audit fixes to draft** on (**Settings → Calls**,
+off by default), fixes that pass the checks, are confident and appear in at least `AUDIT_FIX_AUTO_MIN_CALLS`
+calls are applied to the draft as soon as they're suggested; publishing stays a person's step.
+
+**Versions** shows which audit fixes each version includes and, once both have
+`AUDIT_FIX_MIN_CALLS_FOR_SCORES` audited calls, its average audit scores against the version before.
+Audits whose quotes were purged (see [Retention](#retention)) still count toward how often a problem
+appears, but their quotes are never used as evidence.
 
 ## How a call picks its agent
 

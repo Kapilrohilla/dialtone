@@ -49,11 +49,24 @@ describe("calls settings", () => {
     await waitFor(() => expect(checkIn()).toHaveAttribute("aria-checked", "true"));
   });
 
+  it("turns on auto-applying audit fixes to the draft", async () => {
+    const { patches } = serve("admin");
+    renderWithProviders(<CallsSettingsPage />, { route: "/settings/calls" });
+    const toggle = await screen.findByRole("switch", { name: "Auto-apply audit fixes to draft" });
+    expect(toggle).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByText(/at least 3 calls/)).toBeInTheDocument();
+    await userEvent.setup().click(toggle);
+    expect(await screen.findByText("Audit fixes that pass checks are applied to the draft.")).toBeInTheDocument();
+    expect(patches).toEqual([{ audit_fix_auto_apply: true }]);
+    expect(toggle).toHaveAttribute("aria-checked", "true");
+  });
+
   it("editors and viewers see the switch but only owners and admins change it", async () => {
     serve("editor");
     renderWithProviders(<CallsSettingsPage />, { route: "/settings/calls" });
     await screen.findByRole("heading", { name: "Silent callers" });
     expect(checkIn()).toBeDisabled();
+    expect(screen.getByRole("switch", { name: "Auto-apply audit fixes to draft" })).toBeDisabled();
     expect(screen.getByText("Only owners and admins can change this.")).toBeInTheDocument();
   });
 });

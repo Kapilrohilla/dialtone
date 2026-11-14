@@ -10,10 +10,10 @@ import type { SimResponse } from "@/lib/types";
 import styles from "./Simulator.module.css";
 
 export type SimulatorProps = {
-  /** "agent": the agent's current draft (Test call). "workflow": the workflow on its own (Try it). */
+  /** "agent": the agent's current draft. "workflow": the workflow on its own. Both open as "Test chat". */
   kind: "agent" | "workflow";
   id: number;
-  /** Defaults to "Test call" for an agent and "Try it" for a workflow. */
+  /** Defaults to "Test chat" for both kinds. */
   title?: string;
   /** The agent's custom expressions, so their chips get the custom tint rather than the unknown one. */
   customExpressions?: Record<string, string>;
@@ -130,7 +130,7 @@ export function Simulator({ kind, id, title, customExpressions, onClose }: Simul
   );
 
   return (
-    <SlideOver open onClose={onClose} title={title ?? (kind === "agent" ? "Test call" : "Try it")} footer={composer}>
+    <SlideOver open onClose={onClose} title={title ?? "Test chat"} footer={composer}>
       <p className={styles.note}>Type as the caller. Nothing is saved and nobody is called.</p>
       {step && <p className={styles.step}>Step: {step.name}</p>}
       <div role="log" aria-label="Conversation" aria-live="polite" className={styles.log}>

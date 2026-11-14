@@ -1,4 +1,4 @@
-"""Console "Try it" / "Test call": the dashboard proxies a draft snapshot to the agent's text simulator."""
+"""Console "Test chat": the dashboard proxies a draft snapshot to the agent's text simulator."""
 import socket
 import urllib.error
 

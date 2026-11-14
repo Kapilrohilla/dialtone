@@ -22,7 +22,7 @@ Set only the keys your `AGENT_PIPELINE` and the features you use need.
 
 | Variable | Enables |
 |---|---|
-| `GOOGLE_API_KEY` | Google AI (Gemini): the `gemini-live` pipeline, the console's *Try it* / *Test call* simulator, *Suggest with AI* in the workflow builder, and mood classification on `gemini-live`. |
+| `GOOGLE_API_KEY` | Google AI (Gemini): the `gemini-live` pipeline, the console's *Test chat* simulator, *Suggest with AI* in the workflow builder, and mood classification on `gemini-live`. |
 | `SARVAM_API_KEY` | Sarvam speech-to-text (`sarvam` and `elevenlabs` pipelines) and Sarvam TTS (`sarvam`). |
 | `OPENAI_API_KEY` | The LLM of the `sarvam` and `elevenlabs` pipelines, and mood classification on them. |
 | `ELEVEN_API_KEY` | ElevenLabs text-to-speech (`elevenlabs` pipeline). |
@@ -143,11 +143,15 @@ these environment variables.
 
 | Variable | Default | Notes |
 |---|---|---|
-| `SIM_PORT` | `8790` | Port of `dialtone-agent-sim` (text *Try it* / *Test call*). |
-| `SIM_LLM_MODEL` | `gemini-2.5-flash` | Model the simulator uses (`GOOGLE_API_KEY`). |
+| `SIM_PORT` | `8790` | Port of `dialtone-agent-sim` (text *Test chat*). |
+| `SIM_LLM_MODEL` | `gemini-3.6-flash` | Model the simulator uses (`GOOGLE_API_KEY`). |
 | `AGENT_SIM_URL` | `http://127.0.0.1:8790` | Where the server reaches the simulator. |
 | `SUGGEST_LLM_MODEL` | `gemini-3.6-flash` | Model behind the workflow builder's *Suggest with AI*. |
 | `SUGGEST_DAILY_LIMIT` | `20` | Suggestion runs per workspace per day (failed runs don't count). |
+| `AUDIT_FIX_DAILY_LIMIT` | `20` | *Suggest fixes* runs (from call audits) per workspace per day (failed runs don't count). |
+| `AUDIT_FIX_AUTO_MIN_CONFIDENCE` | `0.8` | Confidence (0–1) a fix needs before *Auto-apply audit fixes to draft* applies it. |
+| `AUDIT_FIX_AUTO_MIN_CALLS` | `3` | Audited calls a problem must appear in before *Auto-apply audit fixes to draft* applies its fix. |
+| `AUDIT_FIX_MIN_CALLS_FOR_SCORES` | `5` | Audited calls each version needs before **Versions** compares its scores with the version before. |
 
 ## Deploy-time variables (not in `.env`)
 
