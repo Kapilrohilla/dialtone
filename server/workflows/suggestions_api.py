@@ -34,7 +34,8 @@ class PatchSerializer(serializers.Serializer):
 
 
 def open_set(workflow):
-    return workflow.suggestion_sets.exclude(status=Set.CLOSED).select_related("created_by", "base_revision").first()
+    return workflow.suggestion_sets.filter(source=Set.AI).exclude(status=Set.CLOSED) \
+        .select_related("created_by", "base_revision").first()
 
 
 def _taken_labels(items, item) -> list[str]:
@@ -100,7 +101,7 @@ def serialize_set(s: Set, workflow) -> dict:
 def runs_today(workspace) -> int:
     """Runs the workspace started today (TIME_ZONE); failed runs don't count, even once a newer run closed them."""
     return Set.objects.filter(
-        workflow__workspace=workspace, created_at__date=timezone.localdate()
+        workflow__workspace=workspace, source=Set.AI, created_at__date=timezone.localdate()
     ).exclude(status=Set.ERROR).exclude(error__gt="").count()
 
 
@@ -133,7 +134,7 @@ class SuggestionsView(_Base):
                 return Response({"detail": "Daily limit reached"}, status=status.HTTP_429_TOO_MANY_REQUESTS)
             kinds = [k for k in ("answers", "expressions") if k in data["kinds"]]
             step_ids, total = suggest.steps_to_check(cur.graph, data["scope"], step_id, kinds)
-            for old in wf.suggestion_sets.exclude(status=Set.CLOSED):
+            for old in wf.suggestion_sets.filter(source=Set.AI).exclude(status=Set.CLOSED):
                 # One open set per workflow: its pending items stay pending in the closed set, out of sight.
                 Set.objects.filter(pk=old.pk).update(status=Set.CLOSED, closed_at=timezone.now())
             run = Set.objects.create(
@@ -165,7 +166,8 @@ class SuggestionItemView(_Base):
     def patch(self, request, pk, item_id):
         wf = self.workflow(pk)
         item = get_object_or_404(
-            Item.objects.select_related("suggestion_set"), pk=item_id, suggestion_set__workflow=wf)
+            Item.objects.select_related("suggestion_set"), pk=item_id, suggestion_set__workflow=wf,
+            suggestion_set__source=Set.AI)
         s = item.suggestion_set
         if s.status == Set.CLOSED:
             return Response({"detail": "These suggestions were discarded."}, status=409)
@@ -200,7 +202,7 @@ class CloseSuggestionsView(_Base):
 
     def post(self, request, pk, set_id):
         wf = self.workflow(pk)
-        s = get_object_or_404(Set, pk=set_id, workflow=wf)
+        s = get_object_or_404(Set, pk=set_id, workflow=wf, source=Set.AI)
         close(s, request.user)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -213,7 +215,7 @@ def accept_on_save(workflow, item_ids, user) -> None:
         return
     now = timezone.now()
     items = Item.objects.filter(
-        pk__in=ids, status=Item.PENDING, suggestion_set__workflow=workflow
+        pk__in=ids, status=Item.PENDING, suggestion_set__workflow=workflow, suggestion_set__source=Set.AI
     ).exclude(suggestion_set__status=Set.CLOSED)
     set_ids = set(items.values_list("suggestion_set_id", flat=True))
     items.update(status=Item.ACCEPTED, decided_by=user, decided_at=now)
