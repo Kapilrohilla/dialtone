@@ -19,7 +19,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   set-password pages and becomes the tab icon (`POST`/`DELETE /api/instance/logo`). The theme (Saffron,
   the default, Ocean or Forest) sets the console palette for everyone, in light and dark (`theme` on
   `PATCH /api/instance/`); the root layout applies it on the server, so pages load without a flash
-  ([KAP-38](https://linear.app/kapil-rohilla/issue/KAP-38/settings-general-custom-logo-and-theme-saffron-ocean-forest)).
+  ([KAP-38](https://linear.app/kapil-rohilla/issue/KAP-38/settings-general-custom-logo-and-theme-saffron-ocean-forest), [#20](https://github.com/Kapilrohilla/dialtone/pull/20)).
 
 ### Changed
 
