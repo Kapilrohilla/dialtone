@@ -5,7 +5,7 @@ import { expect, test, type Browser, type Page } from "@playwright/test";
 // The tests share one database and run in order (workers: 1); later ones rely on earlier edits only
 // where noted.
 
-const EMAIL = process.env.E2E_EMAIL ?? "e2e@carrum.test";
+const EMAIL = process.env.E2E_EMAIL ?? "e2e@example.test";
 const PASSWORD = process.env.E2E_PASSWORD ?? "";
 const LIGHT = "test-results/light";
 const DARK = "test-results/dark";
@@ -44,16 +44,16 @@ async function shot(page: Page, dir: string, name: string) {
 
 async function openAgent(page: Page) {
   await page.goto("/agents");
-  await page.getByRole("table").getByRole("link", { name: "Driver lead qualifier" }).click();
+  await page.getByRole("table").getByRole("link", { name: "Rental enquiry assistant" }).click();
   await expect(page).toHaveURL(/\/agents\/\d+$/);
   await expect(page.getByRole("region", { name: "Opening" })).toBeVisible();
   // The side panel loads the attached knowledge separately; wait so screenshots show it.
-  await expect(page.getByText("Approved pricing and rules", { exact: true })).toBeVisible();
+  await expect(page.getByText("Rental policies and pricing", { exact: true })).toBeVisible();
 }
 
 async function openWorkflow(page: Page) {
   await page.goto("/workflows");
-  await page.getByRole("link", { name: "Driver onboarding" }).click();
+  await page.getByRole("link", { name: "Rental enquiry" }).click();
   await expect(page).toHaveURL(/\/workflows\/\d+$/);
   await expect(page.locator(".react-flow__node").first()).toBeVisible();
 }
@@ -85,7 +85,7 @@ test("2. agents: the live agent's script autosaves an expression", async ({ page
   const noCrash = watchErrors(page);
   await signIn(page);
   await page.goto("/agents");
-  const row = page.getByRole("row", { name: /Driver lead qualifier/ });
+  const row = page.getByRole("row", { name: /Rental enquiry assistant/ });
   await expect(row).toBeVisible();
   await expect(row.getByText("Live", { exact: true })).toBeVisible();
   await shot(page, LIGHT, "03-agents");
@@ -111,8 +111,8 @@ test("3. test call says the simulator isn't running", async ({ page }) => {
   const noCrash = watchErrors(page);
   await signIn(page);
   await openAgent(page);
-  await page.getByRole("button", { name: "Test call" }).click();
-  const sim = page.getByRole("dialog", { name: "Test call" });
+  await page.getByRole("button", { name: "Test chat" }).click();
+  const sim = page.getByRole("dialog", { name: "Test chat" });
   await expect(sim).toBeVisible();
   await sim.getByRole("textbox").first().fill("Hello");
   await sim.getByRole("textbox").first().press("Enter");
@@ -124,7 +124,7 @@ test("4. knowledge: saving a document adds a version", async ({ page }) => {
   const noCrash = watchErrors(page);
   await signIn(page);
   await page.goto("/knowledge");
-  await expect(page.getByRole("textbox", { name: "Document title" })).toHaveValue("Approved pricing and rules");
+  await expect(page.getByRole("textbox", { name: "Document title" })).toHaveValue("Rental policies and pricing");
   await shot(page, LIGHT, "06-knowledge");
 
   await page.getByRole("radio", { name: "Markdown" }).click();
@@ -147,7 +147,7 @@ test("4. knowledge: saving a document adds a version", async ({ page }) => {
   await expect(confirm.getByText("No agent uses it.")).toBeVisible();
   await confirm.getByRole("button", { name: "Delete document" }).click();
   await expect(page.getByRole("status").getByText("Deleted.")).toBeVisible();
-  await expect(page.getByRole("textbox", { name: "Document title" })).toHaveValue("Approved pricing and rules");
+  await expect(page.getByRole("textbox", { name: "Document title" })).toHaveValue("Rental policies and pricing");
   await expect(page.getByRole("navigation", { name: "Documents" }).getByText("Untitled document")).toHaveCount(0);
   noCrash();
 });
@@ -158,8 +158,8 @@ test("5. workflows: the seeded flow fits, shows its chips and saves cleanly", as
   await openWorkflow(page);
 
   const canvas = page.locator(".react-flow");
-  const titles = ["Greeting", "Ask city", "Ask licence and experience", "Explain the plan", "End: interested",
-    "Schedule a call back", "Transfer to a telecaller", "End: not in your city", "End: not eligible"];
+  const titles = ["Greeting", "Ask city", "Ask licence and dates", "Explain the plan", "End: interested",
+    "Schedule a call back", "Transfer to a booking specialist", "End: city not served", "End: not eligible"];
   await expect(page.locator(".react-flow__node")).toHaveCount(titles.length);
   // Wait for the fit animation to finish before measuring.
   await page.waitForTimeout(800);
@@ -182,14 +182,14 @@ test("5. workflows: the seeded flow fits, shows its chips and saves cleanly", as
   await checkIn.click();
   await expect(checkIn).toHaveAttribute("aria-checked", "true");
 
-  // Devanagari prompts render in the panel.
+  // The step's prompt renders in the panel.
   await canvas.locator(".react-flow__node").filter({ hasText: "Greeting" }).click();
-  await expect(panel.getByRole("textbox", { name: "What the agent says" })).toContainText("नमस्ते, मैं Carrum से बोल रही हूँ।");
+  await expect(panel.getByRole("textbox", { name: "What the agent says" })).toContainText("Hi, this is Maya from Northwind Car Rentals.");
 
   await canvas.locator(".react-flow__node").filter({ hasText: "Explain the plan" }).click();
   await expect(panel.getByLabel("Step name")).toHaveValue("Explain the plan");
   await expect(panel.locator('[data-expr="excited"]')).toHaveCount(1);
-  // Each path's target gets the panel's full width, so "Transfer to a telecaller" isn't cut off.
+  // Each path's target gets the panel's full width, so "Transfer to a booking specialist" isn't cut off.
   const target = panel.getByRole("combobox", { name: "Where path 3 goes" });
   expect((await target.boundingBox())!.width).toBeGreaterThan(250);
   await shot(page, LIGHT, "05-workflow-builder");
@@ -311,5 +311,36 @@ test("9. integrations, sign out and the sign-in redirect", async ({ page }) => {
 
   await page.goto("/agents");
   await expect(page).toHaveURL(`${baseURL()}/sign-in?next=%2Fagents`);
+  noCrash();
+});
+
+test("10. settings: a superuser renames the project", async ({ page }) => {
+  const noCrash = watchErrors(page);
+  await signIn(page);
+  await page.goto("/settings");
+  // The e2e user is a superuser, so the install-wide page is listed.
+  await page.getByRole("navigation", { name: "Settings" }).getByRole("link", { name: "General" }).click();
+  await expect(page).toHaveURL(/\/settings\/general$/);
+  const sidebar = page.getByRole("complementary").filter({ has: page.getByRole("navigation", { name: "Main" }) });
+  const field = page.getByRole("textbox", { name: "Project name" });
+  await expect(field).toHaveValue("Dialtone");
+  await expect(sidebar.getByText("Dialtone", { exact: true })).toBeVisible();
+  await expect(page).toHaveTitle("Dialtone");
+  await shot(page, LIGHT, "09c-settings-general");
+
+  await field.fill("Northwind Voice");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.getByRole("status").getByText("Saved.")).toBeVisible();
+  // No reload: the sidebar and the tab title follow at once.
+  await expect(sidebar.getByText("Northwind Voice", { exact: true })).toBeVisible();
+  await expect(page).toHaveTitle("Northwind Voice");
+
+  // The server renders the new name too.
+  await page.reload();
+  await expect(page).toHaveTitle("Northwind Voice");
+  await expect(sidebar.getByText("Northwind Voice", { exact: true })).toBeVisible();
+  await page.goto("/sign-in");
+  // In main: Next's route announcer reads the new title out too.
+  await expect(page.getByRole("main").getByText("Northwind Voice", { exact: true })).toBeVisible();
   noCrash();
 });

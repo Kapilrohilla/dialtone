@@ -52,4 +52,9 @@ describe("set password", () => {
     await fill("one-passphrase", "other-passphrase");
     expect(await screen.findByRole("alert")).toHaveTextContent("The two passwords do not match.");
   });
+
+  it("shows the install's project name", async () => {
+    open();
+    expect(await screen.findByText("Northwind Voice")).toBeInTheDocument();
+  });
 });

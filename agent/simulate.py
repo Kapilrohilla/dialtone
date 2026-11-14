@@ -1,4 +1,4 @@
-"""Text simulation for the console's "Try it" and "Test call": one agent reply per request.
+"""Text simulation for the console's "Test chat": one agent reply per request.
 
 The console (dashboard) posts the snapshot it wants to try, the whole transcript so far and the workflow
 state from the previous reply. The server is stateless: it rebuilds the WorkflowRun from that state,
@@ -26,11 +26,11 @@ from livekit import api
 from prompt import (
     DISPOSITIONS,
     GEMINI_LANGUAGE_RULES,
-    PERSONA_NAME,
     build_instructions,
     capped_outcome,
     end_step_check,
     end_step_refusal,
+    identity,
     opening_instructions,
     opening_line,
 )
@@ -53,7 +53,7 @@ INTEREST_STRENGTHS = ("confirmed", "conditional", "tentative", "none")
 RECORD_OUTCOME_SCHEMA = {
     "name": "record_outcome",
     "description": (
-        "Record the call's outcome for Carrum's telecalling team. Call it before your closing line, and "
+        "Record the call's outcome for the telecalling team. Call it before your closing line, and "
         "again if the outcome changes. Fill only what the driver actually said; leave the rest empty."
     ),
     "parameters": {
@@ -97,7 +97,7 @@ END_CALL_SCHEMA = {
 TRANSFER_SCHEMA = {
     "name": "transfer_to_telecaller",
     "description": (
-        "Connect the driver to a person on Carrum's telecalling team right now. Use only when the driver "
+        "Connect the driver to a person on the telecalling team right now. Use only when the driver "
         "agreed to talk to a person now. Call record_outcome first. If this returns that transfer isn't "
         "available, offer a callback instead."
     ),
@@ -130,7 +130,7 @@ class GeminiChatModel:
     def __init__(self, model: str | None = None):
         from livekit.plugins import google
 
-        self._llm = google.LLM(model=model or os.getenv("SIM_LLM_MODEL", "gemini-2.5-flash"))
+        self._llm = google.LLM(model=model or os.getenv("SIM_LLM_MODEL", "gemini-3.6-flash"))
 
     async def complete(self, instructions: str, messages: list[dict], tools: list[dict]) -> ModelTurn:
         from livekit.agents import function_tool, llm
@@ -251,8 +251,9 @@ class Simulation:
 
     def __init__(self, snapshot: dict, lead: dict, state: dict | None):
         self.snapshot, self.lead = snapshot, lead
-        persona = snapshot.get("persona_name")
-        self.persona = persona if isinstance(persona, str) and persona.strip() else PERSONA_NAME
+        # Like PhoneAgent: company, persona and consent line from the snapshot, else the env.
+        self.identity = identity(snapshot)
+        self.persona = self.identity.persona
         workflow = snapshot.get("workflow")
         graph = workflow.get("graph") if isinstance(workflow, dict) else None
         graph = graph if isinstance(graph, dict) else {}
@@ -279,7 +280,7 @@ class Simulation:
             self.snapshot, self.lead, GEMINI_LANGUAGE_RULES, self.current_step(), paths,
             handoff_available=handoff_available(),
         )
-        return f"{text}\n\n{opening_instructions(self.lead, self.persona)}"
+        return f"{text}\n\n{opening_instructions(self.lead, self.persona, who=self.identity)}"
 
     def tools(self) -> list[dict]:
         paths = [path_tool_schema(p) for p in self.run.all_path_tools()] if self.has_workflow else []
@@ -309,7 +310,7 @@ class Simulation:
             current = self.run.current
             refusal = start_path_refusal(
                 current.type if current else None, self.run.transitions, self.agent_spoke,
-                opening_line(self.lead, self.persona),
+                opening_line(self.lead, self.persona, who=self.identity),
             )
             if refusal is not None:
                 return refusal

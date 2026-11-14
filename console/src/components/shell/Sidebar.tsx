@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import { Chip, Menu } from "@/components/ui";
-import { useLiveCalls, useLogout, useMe } from "@/lib/queries";
+import { useLiveCalls, useLogoUrl, useLogout, useMe, useProjectName } from "@/lib/queries";
 import type { Role } from "@/lib/types";
 import { ThemeToggle } from "./ThemeToggle";
 import styles from "./Sidebar.module.css";
@@ -25,7 +25,7 @@ const ROLE_LABEL: Record<Role, string> = { owner: "Owner", admin: "Admin", edito
 
 const isActive = (pathname: string, href: string) => (href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`));
 
-/** "Carrum Mobility" → "CM", "Kapil" → "K". */
+/** "Northwind Car Rentals" → "NC", "Kapil" → "K". */
 export function initials(name: string | undefined): string {
   const words = (name ?? "").trim().split(/\s+/).filter(Boolean);
   return words
@@ -37,6 +37,8 @@ export function initials(name: string | undefined): string {
 export function Sidebar() {
   const pathname = usePathname();
   const { data: me } = useMe();
+  const projectName = useProjectName();
+  const logoUrl = useLogoUrl();
   // The Live calls screen polls faster itself. A signed-out poll here only empties the count.
   const live = useLiveCalls(pathname === "/live" ? 0 : 10_000, { signInRedirect: false });
   const logout = useLogout();
@@ -45,8 +47,14 @@ export function Sidebar() {
   return (
     <aside className={styles.sidebar}>
       <div className={styles.brand}>
-        <span className={styles.logo} aria-hidden="true">{initials(me?.workspace.name)}</span>
-        <p className={styles.workspace}>{me?.workspace.name}</p>
+        <span className={styles.logo} aria-hidden="true">
+          {/* eslint-disable-next-line @next/next/no-img-element -- a small same-origin file; next/image adds nothing here */}
+          {logoUrl ? <img src={logoUrl} alt="" className={styles.logoImage} /> : initials(projectName)}
+        </span>
+        <div className={styles.brandText}>
+          <p className={styles.project}>{projectName}</p>
+          {me && <p className={styles.workspace}>{me.workspace.name}</p>}
+        </div>
       </div>
       <nav aria-label="Main" className={styles.nav}>
         {NAV.map(({ href, label, Icon }) => {

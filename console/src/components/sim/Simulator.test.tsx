@@ -30,7 +30,7 @@ describe("Simulator", () => {
   it("opens with the agent's first line", async () => {
     const bodies = serve([reply({ reply: "[[expr:happy]] नमस्ते! क्या मेरी बात {{lead.name}} जी से हो रही है?", state: { turn: 1 } })]);
     renderWithProviders(<Simulator kind="agent" id={3} onClose={() => {}} />);
-    expect(screen.getByRole("dialog", { name: "Test call" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Test chat" })).toBeInTheDocument();
     expect(screen.getByText("Type as the caller. Nothing is saved and nobody is called.")).toBeInTheDocument();
     const log = transcript();
     expect(await within(log).findByText("Agent")).toBeInTheDocument();
@@ -65,7 +65,7 @@ describe("Simulator", () => {
   it("shows the current step", async () => {
     serve([reply({ reply: "Let me explain the weekly plan.", step: { id: "plan", name: "Explain the plan" } })], "*/api/workflows/2/simulate");
     renderWithProviders(<Simulator kind="workflow" id={2} onClose={() => {}} />);
-    expect(screen.getByRole("dialog", { name: "Try it" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Test chat" })).toBeInTheDocument();
     expect(await screen.findByText("Step: Explain the plan")).toBeInTheDocument();
   });
 

@@ -74,7 +74,7 @@ describe("call history", () => {
     );
     renderWithProviders(<CallsPage />, { route: `/calls?${RANGE}` });
     const row = (await screen.findByRole("button", { name: /Open call from/ })).closest("tr")!;
-    expect(within(row).getAllByText("—")).toHaveLength(3);
+    expect(within(row).getAllByText("—")).toHaveLength(4); // outcome, mood, score, duration
     expect(within(row).getByText("No summary")).toBeInTheDocument();
   });
 

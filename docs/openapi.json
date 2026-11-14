@@ -1,0 +1,1827 @@
+{
+    "openapi": "3.0.3",
+    "info": {
+        "title": "Dialtone API",
+        "version": "1.0.0",
+        "description": "REST API of the Dialtone server: auth, workspace, agents, knowledge, workflows, calls and runtime."
+    },
+    "paths": {
+        "/api/agents": {
+            "get": {
+                "operationId": "agents_retrieve",
+                "tags": [
+                    "agents"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "agents_create",
+                "tags": [
+                    "agents"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/agents/{id}": {
+            "get": {
+                "operationId": "agents_retrieve_2",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "agents"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            },
+            "patch": {
+                "operationId": "agents_partial_update",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "agents"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/agents/{id}/archive": {
+            "post": {
+                "operationId": "agents_archive_create",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "agents"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/agents/{id}/audit-fixes": {
+            "get": {
+                "operationId": "agents_audit_fixes_retrieve",
+                "description": "GET: the agent's latest run over recent calls, or 204. POST: start one over the last N audited calls of the\nlatest version (``by: \"version\"``) or of the workflow revision it uses (``by: \"workflow_revision\"``).",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "agents"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "agents_audit_fixes_create",
+                "description": "GET: the agent's latest run over recent calls, or 204. POST: start one over the last N audited calls of the\nlatest version (``by: \"version\"``) or of the workflow revision it uses (``by: \"workflow_revision\"``).",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "agents"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/agents/{id}/duplicate": {
+            "post": {
+                "operationId": "agents_duplicate_create",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "agents"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/agents/{id}/publish": {
+            "post": {
+                "operationId": "agents_publish_create",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "agents"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/agents/{id}/restore": {
+            "post": {
+                "operationId": "agents_restore_create",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "agents"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/agents/{id}/simulate": {
+            "post": {
+                "operationId": "agents_simulate_create",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "agents"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/agents/{id}/unpublish": {
+            "post": {
+                "operationId": "agents_unpublish_create",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "agents"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/agents/{id}/versions": {
+            "get": {
+                "operationId": "agents_versions_retrieve",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "agents"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/agents/{id}/web-call": {
+            "post": {
+                "operationId": "agents_web_call_create",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "agents"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/audit-fixes/{run_id}": {
+            "get": {
+                "operationId": "audit_fixes_retrieve",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "run_id",
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "audit-fixes"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/audit-fixes/{run_id}/{target}/{item_id}": {
+            "patch": {
+                "operationId": "audit_fixes_partial_update",
+                "description": "PATCH: save an edit (``edited_payload``, validated like the original) or dismiss / restore a fix.",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "item_id",
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^\\d+$"
+                        },
+                        "required": true
+                    },
+                    {
+                        "in": "path",
+                        "name": "run_id",
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^\\d+$"
+                        },
+                        "required": true
+                    },
+                    {
+                        "in": "path",
+                        "name": "target",
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^agent|workflow$"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "audit-fixes"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/audit-fixes/{run_id}/{target}/{item_id}/accept": {
+            "post": {
+                "operationId": "audit_fixes_accept_create",
+                "description": "POST: accept a fix. Writes to the draft (a new workflow revision, or the agent); never publishes.",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "item_id",
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^\\d+$"
+                        },
+                        "required": true
+                    },
+                    {
+                        "in": "path",
+                        "name": "run_id",
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^\\d+$"
+                        },
+                        "required": true
+                    },
+                    {
+                        "in": "path",
+                        "name": "target",
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^agent|workflow$"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "audit-fixes"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/auth/csrf": {
+            "get": {
+                "operationId": "auth_csrf_retrieve",
+                "tags": [
+                    "auth"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    },
+                    {}
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/auth/login": {
+            "post": {
+                "operationId": "auth_login_create",
+                "tags": [
+                    "auth"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    },
+                    {}
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/auth/logout": {
+            "post": {
+                "operationId": "auth_logout_create",
+                "tags": [
+                    "auth"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    },
+                    {}
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/auth/set-password": {
+            "post": {
+                "operationId": "auth_set_password_create",
+                "description": "Consumes the one-time link from an invite: uid + token + new password.",
+                "tags": [
+                    "auth"
+                ],
+                "security": [
+                    {}
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/calls": {
+            "get": {
+                "operationId": "calls_retrieve",
+                "description": "Members read; editors and up act.",
+                "tags": [
+                    "calls"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/calls/{room}": {
+            "get": {
+                "operationId": "calls_retrieve_2",
+                "description": "Members read; editors and up act.",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "room",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "calls"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/calls/{room}/audit": {
+            "get": {
+                "operationId": "calls_audit_retrieve",
+                "description": "GET: the call's current audit, or {\"status\": \"none\"}. POST (editors): audit the call now, or re-audit.",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "room",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "calls"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "calls_audit_create",
+                "description": "GET: the call's current audit, or {\"status\": \"none\"}. POST (editors): audit the call now, or re-audit.",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "room",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "calls"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/calls/{room}/audit/fixes": {
+            "get": {
+                "operationId": "calls_audit_fixes_retrieve",
+                "description": "GET: the call's latest run, or 204. POST: \"Suggest fixes\" for this call's audit.",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "room",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "calls"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "calls_audit_fixes_create",
+                "description": "GET: the call's latest run, or 204. POST: \"Suggest fixes\" for this call's audit.",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "room",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "calls"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/calls/{room}/needs-person": {
+            "post": {
+                "operationId": "calls_needs_person_create",
+                "description": "Members read; editors and up act.",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "room",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "calls"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/calls/{room}/recording": {
+            "get": {
+                "operationId": "calls_recording_retrieve",
+                "description": "The call's audio, members of its workspace only. Range requests for seeking (Safari needs them).",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "room",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "calls"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/calls/export.csv": {
+            "get": {
+                "operationId": "calls_export.csv_retrieve",
+                "description": "Members read; editors and up act.",
+                "tags": [
+                    "calls"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/dashboard": {
+            "get": {
+                "operationId": "dashboard_retrieve",
+                "description": "Members read; editors and up act.",
+                "tags": [
+                    "dashboard"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/expressions": {
+            "get": {
+                "operationId": "expressions_retrieve",
+                "tags": [
+                    "expressions"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/instance/": {
+            "get": {
+                "operationId": "instance_retrieve",
+                "description": "GET (public): {\"project_name\", \"theme\", \"logo_url\"}. PATCH (super admins): project_name and/or theme.",
+                "tags": [
+                    "instance"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Instance"
+                                }
+                            }
+                        },
+                        "description": ""
+                    }
+                }
+            },
+            "patch": {
+                "operationId": "instance_partial_update",
+                "description": "GET (public): {\"project_name\", \"theme\", \"logo_url\"}. PATCH (super admins): project_name and/or theme.",
+                "tags": [
+                    "instance"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/PatchedInstance"
+                            }
+                        },
+                        "application/x-www-form-urlencoded": {
+                            "schema": {
+                                "$ref": "#/components/schemas/PatchedInstance"
+                            }
+                        },
+                        "multipart/form-data": {
+                            "schema": {
+                                "$ref": "#/components/schemas/PatchedInstance"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Instance"
+                                }
+                            }
+                        },
+                        "description": ""
+                    }
+                }
+            }
+        },
+        "/api/instance/logo/": {
+            "get": {
+                "operationId": "instance_logo_retrieve",
+                "description": "GET (public): the logo file, 404 if there is none. POST (super admins): multipart `file`, PNG, SVG or JPG,\nsquare, up to 1 MB; SVGs are sanitized. DELETE (super admins): back to the initials tile.",
+                "tags": [
+                    "instance"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "image/*": {
+                                "schema": {
+                                    "type": "string",
+                                    "format": "binary"
+                                }
+                            }
+                        },
+                        "description": ""
+                    },
+                    "404": {
+                        "description": "No response body"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "instance_logo_create",
+                "description": "GET (public): the logo file, 404 if there is none. POST (super admins): multipart `file`, PNG, SVG or JPG,\nsquare, up to 1 MB; SVGs are sanitized. DELETE (super admins): back to the initials tile.",
+                "tags": [
+                    "instance"
+                ],
+                "requestBody": {
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "$ref": "#/components/schemas/LogoUpload"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Instance"
+                                }
+                            }
+                        },
+                        "description": ""
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "instance_logo_destroy",
+                "description": "GET (public): the logo file, 404 if there is none. POST (super admins): multipart `file`, PNG, SVG or JPG,\nsquare, up to 1 MB; SVGs are sanitized. DELETE (super admins): back to the initials tile.",
+                "tags": [
+                    "instance"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/integrations/requests": {
+            "post": {
+                "operationId": "integrations_requests_create",
+                "tags": [
+                    "integrations"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/knowledge": {
+            "get": {
+                "operationId": "knowledge_retrieve",
+                "tags": [
+                    "knowledge"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "knowledge_create",
+                "tags": [
+                    "knowledge"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/knowledge/{id}": {
+            "get": {
+                "operationId": "knowledge_retrieve_2",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "knowledge"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            },
+            "patch": {
+                "operationId": "knowledge_partial_update",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "knowledge"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "knowledge_destroy",
+                "description": "Remove a document from the console and from every agent that links it.\n\nPublished agents keep quoting it until they are published again (their snapshot holds the text).\nA workflow step that answers from it would be left pointing at nothing, so that is refused. The row\nand its revisions stay in the database, archived.",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "knowledge"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/knowledge/{id}/revisions": {
+            "get": {
+                "operationId": "knowledge_revisions_retrieve",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "knowledge"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/knowledge/{id}/revisions/{number}": {
+            "get": {
+                "operationId": "knowledge_revisions_retrieve_2",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "required": true
+                    },
+                    {
+                        "in": "path",
+                        "name": "number",
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "knowledge"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/knowledge/upload": {
+            "post": {
+                "operationId": "knowledge_upload_create",
+                "tags": [
+                    "knowledge"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/live": {
+            "get": {
+                "operationId": "live_retrieve",
+                "description": "Members read; editors and up act.",
+                "tags": [
+                    "live"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/live/{room}/end": {
+            "post": {
+                "operationId": "live_end_create",
+                "description": "Members read; editors and up act.",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "room",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "live"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/live/{room}/transfer": {
+            "post": {
+                "operationId": "live_transfer_create",
+                "description": "Members read; editors and up act.",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "room",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "live"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/me": {
+            "get": {
+                "operationId": "me_retrieve",
+                "tags": [
+                    "me"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            },
+            "patch": {
+                "operationId": "me_partial_update",
+                "tags": [
+                    "me"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/me/password": {
+            "post": {
+                "operationId": "me_password_create",
+                "tags": [
+                    "me"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/phone-numbers": {
+            "get": {
+                "operationId": "phone_numbers_retrieve",
+                "description": "Members read; editors and up act.",
+                "tags": [
+                    "phone-numbers"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/team": {
+            "get": {
+                "operationId": "team_retrieve",
+                "tags": [
+                    "team"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "team_create",
+                "tags": [
+                    "team"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/team/{id}": {
+            "patch": {
+                "operationId": "team_partial_update",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "team"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/voices": {
+            "get": {
+                "operationId": "voices_retrieve",
+                "tags": [
+                    "voices"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/workflows": {
+            "get": {
+                "operationId": "workflows_retrieve",
+                "tags": [
+                    "workflows"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "workflows_create",
+                "tags": [
+                    "workflows"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/workflows/{id}": {
+            "get": {
+                "operationId": "workflows_retrieve_2",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "workflows"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            },
+            "patch": {
+                "operationId": "workflows_partial_update",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "workflows"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/workflows/{id}/simulate": {
+            "post": {
+                "operationId": "workflows_simulate_create",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "workflows"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/workflows/{id}/suggestions": {
+            "post": {
+                "operationId": "workflows_suggestions_create",
+                "description": "POST: start a run. Returns 202 with the running set; generation continues in the background.",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "workflows"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/workflows/{id}/suggestions/{item_id}": {
+            "patch": {
+                "operationId": "workflows_suggestions_partial_update",
+                "description": "PATCH: save an edit (``edited_payload``) or dismiss / restore an item of the open set.",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "required": true
+                    },
+                    {
+                        "in": "path",
+                        "name": "item_id",
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "workflows"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/workflows/{id}/suggestions/{set_id}/close": {
+            "post": {
+                "operationId": "workflows_suggestions_close_create",
+                "description": "POST: \"Discard all\" / \"Discard draft\". Pending items are dismissed and the set is closed.",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "required": true
+                    },
+                    {
+                        "in": "path",
+                        "name": "set_id",
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "workflows"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/workflows/{id}/suggestions/current": {
+            "get": {
+                "operationId": "workflows_suggestions_current_retrieve",
+                "description": "GET: the open set with its items, or 204 when there is none.",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "workflows"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/workflows/{id}/validate": {
+            "get": {
+                "operationId": "workflows_validate_retrieve",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "workflows"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/workspace": {
+            "get": {
+                "operationId": "workspace_retrieve",
+                "description": "The member's workspace (account) and its account-wide switches. Owners and admins change them.",
+                "tags": [
+                    "workspace"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            },
+            "patch": {
+                "operationId": "workspace_partial_update",
+                "description": "The member's workspace (account) and its account-wide switches. Owners and admins change them.",
+                "tags": [
+                    "workspace"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "Instance": {
+                "type": "object",
+                "description": "GET: everything. PATCH: any of project_name and theme (at least one). The logo has its own endpoint.",
+                "properties": {
+                    "project_name": {
+                        "type": "string",
+                        "maxLength": 60
+                    },
+                    "theme": {
+                        "$ref": "#/components/schemas/ThemeEnum"
+                    },
+                    "logo_url": {
+                        "type": "string",
+                        "readOnly": true,
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "logo_url"
+                ]
+            },
+            "LogoUpload": {
+                "type": "object",
+                "properties": {
+                    "file": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "PNG, SVG or JPG, square, up to 1 MB."
+                    }
+                },
+                "required": [
+                    "file"
+                ]
+            },
+            "PatchedInstance": {
+                "type": "object",
+                "description": "GET: everything. PATCH: any of project_name and theme (at least one). The logo has its own endpoint.",
+                "properties": {
+                    "project_name": {
+                        "type": "string",
+                        "maxLength": 60
+                    },
+                    "theme": {
+                        "$ref": "#/components/schemas/ThemeEnum"
+                    },
+                    "logo_url": {
+                        "type": "string",
+                        "readOnly": true,
+                        "nullable": true
+                    }
+                }
+            },
+            "ThemeEnum": {
+                "enum": [
+                    "saffron",
+                    "ocean",
+                    "forest"
+                ],
+                "type": "string",
+                "description": "* `saffron` - Saffron\n* `ocean` - Ocean\n* `forest` - Forest"
+            }
+        },
+        "securitySchemes": {
+            "cookieAuth": {
+                "type": "apiKey",
+                "in": "cookie",
+                "name": "sessionid"
+            }
+        }
+    }
+}

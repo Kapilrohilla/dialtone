@@ -1,0 +1,96 @@
+---
+title: Architecture
+description: Services, ports, data and how a call flows through them.
+---
+
+## Services
+
+All services are defined in `deploy/docker-compose.yml` (compose project `dialtone`) and use host
+networking.
+
+| Service | Image | Listens on | Role |
+|---|---|---|---|
+| `redis` | `redis:7.4-alpine` | 127.0.0.1:`REDIS_PORT` (6380) | LiveKit state; SIP trunks and dispatch rules (persisted, AOF) |
+| `postgres` | `postgres:16.4-alpine` | 127.0.0.1:5432 | Server database |
+| `livekit` | `livekit/livekit-server` | 7880 (signalling), 7881/TCP, UDP 50000-60000, :6789 metrics | Rooms and media; sends webhooks to the server |
+| `sip` | `livekit/sip` | 5060, UDP 10000-20000, :6790 metrics | SIP ↔ LiveKit bridge |
+| `egress` | `livekit/egress` | :6791 metrics | Audio-only call recordings to the `dashboard-data` volume |
+| `dialtone-server` | built from `server/` | 127.0.0.1:`DASHBOARD_PORT` (8787) | Django: console API, `/admin/`, LiveKit webhook, agent runtime API |
+| `dialtone-console` | built from `console/` | 127.0.0.1:3000 | Next.js console; proxies `/api/*` to the server |
+| `dialtone-agent` | built from `agent/` (profile `agent`) | outbound only | LiveKit Agents worker that runs calls |
+| `dialtone-agent-sim` | same image (profile `agent`) | 127.0.0.1:`SIM_PORT` (8790) | Text simulator for *Test chat* |
+
+Volumes: `postgres-data` (database), `dashboard-data` (recordings, legacy SQLite), `redis-data`,
+`agent-cache` (last published config per number).
+
+## A phone call, end to end
+
+```text
+1. Caller dials your number ──► SIP provider ──► sip (5060)
+2. sip checks the inbound trunk (numbers, allowed IPs, auth) and the dispatch rule (in Redis)
+3. livekit creates room "call-…" and dispatches the AGENT_NAME worker into it
+   └─► webhook room_started / participant_joined ──► dialtone-server (call appears in Live)
+4. dialtone-agent joins, GET /api/runtime/config?number=…  (1.5 s budget; falls back to cache / built-in)
+5. Optional: agent starts an egress recording (workspace switch + RECORDING_ENABLED), speaks consent line
+6. Conversation: Gemini Live, or STT → LLM → TTS; workflow tools move between steps
+   └─► POST /api/runtime/events (turns, steps, mood, captured fields) ──► Live screen
+7. Call ends (outcome recorded, caller hangs up, or dead-air hang-up)
+   ├─► POST /api/report (outcome, answers, summary, mood, latency)
+   └─► webhook room_finished ──► call history
+```
+
+A report may arrive before LiveKit's `room_finished` webhook; a later report for the same room replaces the
+earlier one.
+
+## Who talks to whom
+
+| From | To | How it authenticates |
+|---|---|---|
+| Browser | console (:3000) | Session cookie (sign-in as a workspace member) |
+| console | server `/api/*` | Proxies the browser's cookie and CSRF token (`DJANGO_URL`, baked in at build); no CORS |
+| LiveKit | server `/webhook` | LiveKit webhook signature (`LIVEKIT_API_KEY`) |
+| agent | server `/api/runtime/*` | LiveKit-signed JWT, identity `agent-runtime` |
+| agent | server `/api/report` | LiveKit-signed JWT, identity `agent-report` |
+| server | simulator (:8790) | LiveKit-signed JWT, identity `console-sim` |
+| Browser (Voice test) | LiveKit (:7880) | Room token signed by the server (`POST /api/agents/<id>/web-call`) |
+
+## Server apps
+
+| App | Owns |
+|---|---|
+| `workspaces` | Workspaces, members and roles (owner, admin, editor, viewer), auth, team invites, integration requests |
+| `instance` | Install-wide settings (project name), `/api/instance/` |
+| `voiceagents` | Agents, versions, publishing, voices, simulation proxy, web-call tokens |
+| `workflows` | Workflow graphs, revisions, validation, AI suggestions |
+| `knowledge` | Knowledge documents and revisions |
+| `calls` | Calls, events, reports, recordings, live calls, LiveKit webhook, dashboard, mood labels |
+| `runtime` | Endpoints the agent calls during a call |
+
+Management commands (run with
+`docker compose -f deploy/docker-compose.yml --env-file .env exec dialtone-server python manage.py …`):
+
+| Command | What it does |
+|---|---|
+| `seed_demo [--workspace SLUG] [--knowledge PATH]` | Adds the fictional Northwind Car Rentals demo to a workspace (default: the oldest, created if needed): a draft "Rental enquiry assistant" agent (persona Maya), the "Rental enquiry" workflow and the "Rental policies and pricing" knowledge document (built in, or the Markdown file at `PATH`). Idempotent; never publishes. |
+| `create_member EMAIL [--name N] [--role owner\|admin\|editor\|viewer] [--workspace SLUG]` | Creates a console user (prompts for a password). Without `--workspace` it uses the only workspace. |
+| `ensure_default_workspace` | Creates the "Default workspace" (slug `default`) if none exists. The server container runs it at startup. |
+| `createsuperuser` (`make server-admin`) | Django superuser for `/admin/` and instance settings. |
+| `purge_old_call_data [--days 90] [--dry-run]` | Deletes transcripts and recordings older than N days. |
+| `mood_eval [--since DATE]` | Scores mood labels; see [Mood evaluation](/docs/guides/mood-evaluation). |
+| `purge_turns` | Deletes captured caller speech after a mood evaluation. |
+| `copy_from_sqlite`, `import_legacy_calls` | One-off migrations from older dashboards. |
+
+## Agent modules
+
+| Module | Role |
+|---|---|
+| `agent.py` | Worker entrypoint: pipelines, session wiring, call lifecycle |
+| `console_config.py` | Fetches and caches the published config |
+| `prompt.py` | Builds instructions: persona, script, knowledge, current step, identity fallbacks |
+| `workflow.py` | Pure workflow engine (no LiveKit imports) |
+| `dead_air.py`, `greeting.py` | Silence handling and the opening |
+| `sentiment.py`, `mood.py`, `adapt.py`, `tone.py` | Mood classification and tone/pace adaptation |
+| `recording.py` | Egress recording and consent |
+| `events.py`, `report.py`, `metrics.py` | Live events, end-of-call report, latency metrics |
+| `simulate.py` | Text simulator server (`dialtone-agent-sim`) |
+| `voices.py`, `behavior.py` | Voice resolution and behaviour settings |

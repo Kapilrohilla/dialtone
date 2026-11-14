@@ -1,0 +1,83 @@
+---
+title: What is Dialtone?
+description: Self-hosted AI voice agents for phone calls, built on LiveKit.
+---
+
+Dialtone is a self-hosted platform for AI voice agents that answer phone calls. You run it on your own
+Linux machine or VM: callers ring a number on your SIP trunk, a LiveKit-based agent picks up, talks to them
+in their language, follows the script and workflow you built in the console, and reports how the call went.
+
+It is made of four parts:
+
+| Part | Path | What it does |
+|---|---|---|
+| **Agent worker** | `agent/` | Python, [LiveKit Agents](https://docs.livekit.io/agents/). Joins each call's room and runs the conversation. Also ships the text simulator behind the console's *Test chat*. |
+| **Server** | `server/` | Django + Django REST Framework, PostgreSQL. Stores agents, knowledge, workflows and call history, receives LiveKit webhooks and agent reports, serves the console's API and `/admin/`. |
+| **Console** | `console/` | Next.js. Where your team builds and publishes agents, edits workflows and knowledge, tests in the browser and watches live calls and history. |
+| **Media** | `deploy/docker-compose.yml` | LiveKit server, LiveKit SIP, LiveKit Egress (call recording) and Redis, all pinned versions. |
+
+## Speech pipelines
+
+Choose how the agent listens and speaks with `AGENT_PIPELINE`:
+
+- **`gemini-live`** (default): Gemini Live speech-to-speech. One model listens, thinks and speaks, and
+  handles Hindi and other Indian languages natively. Needs only `GOOGLE_API_KEY`.
+- **`sarvam`**: Sarvam speech-to-text, an OpenAI LLM, then Sarvam text-to-speech. Needs `SARVAM_API_KEY`
+  and `OPENAI_API_KEY`.
+- **`elevenlabs`**: like `sarvam`, but ElevenLabs speaks. Also needs `ELEVEN_API_KEY`; pick the voice with
+  `ELEVENLABS_VOICE_ID`. Free ElevenLabs plans only get premade voices over the API and don't allow
+  commercial use.
+
+All provider keys are optional: set the ones your pipeline and the features you use need. See
+[Configuration](/docs/getting-started/configuration).
+
+## Architecture
+
+```text
+                    ┌──────────────────────── one Linux host (host networking) ────────────────────────┐
+ Caller             │                                                                                   │
+   │  PSTN          │   livekit-sip ───────► livekit-server ◄──────► dialtone-agent ──► Gemini / Sarvam │
+   ▼                │   (5060, RTP          (rooms, :7880)  ▲         (worker)          / OpenAI /      │
+ SIP provider ──────┼──► 10000-20000)           │   │        │            │              ElevenLabs     │
+                    │                           │   │ Redis  │            │ config, events,             │
+                    │            webhooks       │   ▼        │            │ reports                     │
+                    │   dialtone-server ◄───────┘  egress ───┘            ▼                             │
+                    │   (Django, :8787) ◄─────────────────────────────────┘                             │
+                    │        ▲    │ PostgreSQL         (recordings → dashboard-data volume)             │
+                    │  /api/*│    ▼                                                                     │
+                    │   dialtone-console (Next.js, :3000)     dialtone-agent-sim (text, :8790)          │
+                    └────────▲──────────────────────────────────────────────────────────────────────────┘
+                             │ make tunnel (SSH: 3000, 8787, 7880)
+                        Your browser
+```
+
+Every inbound call gets its own LiveKit room (`call-…`), and the dispatch rule sends the agent worker
+(`AGENT_NAME`, default `phone-agent`) into it. When the call starts, the agent fetches the **published**
+agent for the dialled number from the server, runs it, streams live events back, and posts a report when the
+call ends. See [Architecture](/docs/reference/architecture) for the details.
+
+## What the agent does on a call
+
+- **Greeting:** it listens for about a second before speaking. If the caller says "hello" first, it answers
+  and then says its opening line. A workflow can't leave its start step until the agent has spoken, so a
+  caller's "hello" never skips the greeting.
+- **Knowledge:** it quotes only figures and rules from the knowledge documents attached to the agent (or
+  `agent/knowledge.md` for the built-in fallback agent). Without them it quotes no figures.
+- **Dead air:** if the caller goes quiet it checks in, checks in again, then says goodbye and hangs up.
+  "Ek minute", "ruko" or "wait" triples the timings for that pause.
+- **Caller mood (off by default):** labels each caller reply and adapts tone and pace. See
+  [Mood evaluation](/docs/guides/mood-evaluation).
+- **Live handoff (optional):** transfers an upset caller to a person when they agree (`HANDOFF_SIP_URI`).
+- **Outcome:** every call ends with one disposition (`INTERESTED`, `NI`, `CBR`, `UNRESOLVED`, …), a reason,
+  the captured answers and a summary, shown in the console's call history.
+- **Recording:** optional, per workspace, with a spoken consent line.
+
+## Requirements
+
+- **Linux.** Every service uses host networking (SIP/RTP and WebRTC need large UDP port ranges). Docker
+  Desktop on macOS or Windows won't work for real calls.
+- Docker with the compose plugin, `make`, `git` and `openssl`.
+- For real phone calls: a SIP trunk and a public IP. Without one you can still talk to your agents in the
+  browser with [Voice test](/docs/guides/browser-voice-test).
+
+Next: [Quickstart](/docs/getting-started/quickstart).

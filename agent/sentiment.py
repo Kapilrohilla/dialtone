@@ -24,7 +24,7 @@ _FENCE = re.compile(r"^\s*```[a-zA-Z]*\s*(.*?)\s*```\s*$", re.DOTALL)
 
 CLASSIFIER_PROMPT = """\
 You label the mood of a driver on a phone call. The input is one reply (in Hindi, Hinglish or a \
-regional Indian language) from a driver to Carrum's AI caller, plus the agent's previous line for \
+regional Indian language) from a driver to the company's AI caller, plus the agent's previous line for \
 context.
 
 Reply with only this JSON and nothing else:
@@ -33,7 +33,7 @@ Reply with only this JSON and nothing else:
 Labels:
 - neutral: no clear feeling; answering normally.
 - interested: keen, asking about the job or earnings, wants to move ahead.
-- confused: doesn't understand the question or what Carrum is.
+- confused: doesn't understand the question or who is calling.
 - frustrated: irritated or fed up, but not hostile.
 - rushed: short on time, busy, wants it quick or later.
 - suspicious: wary, doubts the call is genuine, worried about documents or money.

@@ -5,18 +5,21 @@ import { useState } from "react";
 import { Field } from "@/components/ui";
 import { useWorkflows } from "@/lib/queries";
 import { AdvancedSection } from "./AdvancedSection";
+import { AuditFixesSection, type AuditFixesSectionProps } from "./AuditFixesSection";
 import { BehaviourSection } from "./BehaviourSection";
 import { KnowledgeSection } from "./KnowledgeSection";
+import { VersionsSection } from "./VersionsSection";
 import { VoiceSection, type MarkInvalid, type PanelSectionProps } from "./VoiceSection";
 import styles from "./editor.module.css";
 
-export type SidePanelProps = PanelSectionProps & {
-  timingsError?: string | null;
-  markInvalid: MarkInvalid;
-};
+export type SidePanelProps = PanelSectionProps &
+  Pick<AuditFixesSectionProps, "beforeAccept" | "onAgentChanged"> & {
+    timingsError?: string | null;
+    markInvalid: MarkInvalid;
+  };
 
-/** The 320px settings column: voice, knowledge, workflow, behaviour, advanced. */
-export function SidePanel({ timingsError, markInvalid, ...props }: SidePanelProps) {
+/** The 320px settings column: voice, knowledge, workflow, behaviour, advanced, audit fixes, versions. */
+export function SidePanel({ timingsError, markInvalid, beforeAccept, onAgentChanged, ...props }: SidePanelProps) {
   return (
     <aside aria-label="Agent settings" className={styles.side}>
       <VoiceSection {...props} markInvalid={markInvalid} />
@@ -24,6 +27,8 @@ export function SidePanel({ timingsError, markInvalid, ...props }: SidePanelProp
       <WorkflowSection {...props} />
       <BehaviourSection {...props} />
       <AdvancedSection {...props} timingsError={timingsError} markInvalid={markInvalid} />
+      <AuditFixesSection agent={props.agent} readOnly={props.readOnly} beforeAccept={beforeAccept} onAgentChanged={onAgentChanged} />
+      <VersionsSection agentId={props.agent.id} />
     </aside>
   );
 }

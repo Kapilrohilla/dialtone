@@ -33,7 +33,7 @@ def cache_dir(tmp_path, monkeypatch):
 
 
 async def ok(request):
-    return web.json_response({"version_id": 7, "workspace": "carrum", "snapshot": SNAP})
+    return web.json_response({"version_id": 7, "workspace": "northwind", "snapshot": SNAP})
 
 
 async def call(server, number="+91 98765-43210", **kw):

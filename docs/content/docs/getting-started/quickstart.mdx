@@ -1,0 +1,98 @@
+---
+title: Quickstart
+description: Run the whole stack on one Linux machine and talk to the demo agent.
+---
+
+<Callout type="warn">
+  Dialtone needs a **Linux** host. Every service in `deploy/docker-compose.yml` uses host networking, which
+  Docker Desktop on macOS and Windows does not provide. A small cloud VM is fine; see
+  [Deploy to a VM](/docs/guides/deploy-to-a-vm).
+</Callout>
+
+## Prerequisites
+
+- Docker Engine with the compose plugin (`docker compose version`), `make`, `git`, `openssl`.
+  On a fresh Debian/Ubuntu VM, `sudo deploy/bootstrap-server.sh` installs them.
+- Free host ports: 3000 (console), 8787 (server), 7880/7881 (LiveKit), 5060 and UDP 10000-20000 (SIP),
+  UDP 50000-60000 (WebRTC), 6380 (Redis), 5432 (PostgreSQL), 8790 (simulator).
+- A provider key for the pipeline you want. The default `gemini-live` pipeline needs only `GOOGLE_API_KEY`.
+  You can start the stack without any key; the agent then can't speak until you add one.
+
+## 1. Create `.env`
+
+```bash
+git clone https://github.com/Kapilrohilla/dialtone.git && cd dialtone
+make init
+```
+
+`make init` (`scripts/init.sh`) copies `.env.example` to `.env` and generates the LiveKit API key and
+secret, `DJANGO_SECRET_KEY` and `POSTGRES_PASSWORD`. It is safe to re-run and never overwrites a value.
+Then edit `.env` and set at least `GOOGLE_API_KEY` (or the keys of another
+[pipeline](/docs#speech-pipelines)). Every setting is described in
+[Configuration](/docs/getting-started/configuration).
+
+## 2. Start the stack
+
+```bash
+make up       # redis, postgres, livekit, sip, egress, dialtone-server, dialtone-console
+make agent    # dialtone-agent (the worker) and dialtone-agent-sim (text simulator)
+make ps       # everything should be "running"
+```
+
+The server runs its migrations on start. Follow logs with `make logs s=dialtone-server` (or any service
+name).
+
+## 3. Seed the demo agent and create your logins
+
+```bash
+# A demo agent for the fictional "Northwind Car Rentals": script, workflow and knowledge (a draft; never published)
+docker compose -f deploy/docker-compose.yml --env-file .env exec dialtone-server python manage.py seed_demo
+
+# Your console login: a workspace owner (prompts for a password)
+docker compose -f deploy/docker-compose.yml --env-file .env exec dialtone-server \
+  python manage.py create_member you@example.com --name "Your Name" --role owner
+
+# Optional: a Django superuser for /admin/ and for renaming the install (Settings → General)
+make server-admin
+```
+
+The console signs in **workspace members**, not Django superusers. Owners and admins invite everyone else
+from **Settings → Team**. The demo agent's script and knowledge also live in
+[`examples/car-rental-agent/`](https://github.com/Kapilrohilla/dialtone/tree/main/examples/car-rental-agent);
+every figure in them is made up.
+
+## 4. Open the console
+
+On the machine itself, open http://localhost:3000. On a remote VM, the console and server listen on the
+VM's localhost only (they show caller phone numbers), so forward the ports over SSH:
+
+```bash
+make tunnel GCP_PROJECT=my-project          # GCP: forwards 3000, 8787 and 7880
+# any other host:
+ssh -N -L 3000:127.0.0.1:3000 -L 8787:127.0.0.1:8787 -L 7880:127.0.0.1:7880 you@your-vm
+```
+
+Sign in with the member you created, open **Agents → Rental enquiry assistant** (the demo agent, persona Maya, speaks English), then:
+
+- **Test chat:** chat with the draft as text (needs `GOOGLE_API_KEY`).
+- **Voice test:** talk to the draft through your microphone over WebRTC, no phone line needed. See
+  [Browser voice test](/docs/guides/browser-voice-test).
+- **Publish** when you are happy: the next phone call to the agent's number gets it.
+
+## 5. Take real phone calls (optional)
+
+Fill in the `SIP_*` settings in `.env`, run `make sip` and point your provider at the host. See
+[SIP telephony](/docs/guides/sip-telephony).
+
+## Useful commands
+
+| Command | What it does |
+|---|---|
+| `make up` / `make down` | Start the stack / stop everything, including the agent |
+| `make agent` | Build and (re)start the agent worker and simulator |
+| `make logs s=<service>` | Follow one service's logs, e.g. `s=sip` or `s=dialtone-agent` |
+| `make ps` | Service status |
+| `make lk a="room list"` | Pinned LiveKit CLI (in Docker), e.g. `a="sip inbound list"` |
+| `make server-admin` | Create a Django superuser |
+| `make sip` | Create the inbound SIP trunk and dispatch rule |
+| `make deploy` / `make tunnel` | Ship code to / open the console of a GCP VM |

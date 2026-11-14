@@ -16,7 +16,7 @@ export function outcomeTone(group: string): Tone {
   return TONES[group as OutcomeGroup] ?? "muted";
 }
 
-// Groups match dashboard/calls/outcomes.py.
+// Groups match server/calls/outcomes.py.
 export const DISPOSITIONS: { code: string; group: OutcomeGroup; label: string }[] = [
   { code: "INTERESTED", group: "Interested", label: "Interested" },
   { code: "CBR", group: "Call back", label: "Asked to talk later" },

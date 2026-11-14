@@ -22,6 +22,8 @@ export type TranscriptProps = {
   /** The line being heard; it's outlined and kept in view. */
   activeIndex?: number;
   playing?: boolean;
+  /** A line to highlight and scroll into view (an audit moment was clicked). A new object scrolls again. */
+  focus?: { index: number } | null;
 };
 
 const NEAR_BOTTOM_PX = 24;
@@ -30,7 +32,7 @@ const READER_SCROLL_HOLD_MS = 4_000;
 
 /** Who said what. Caller labels are amber, agent labels blue; the agent's expressions show as the editor's chips
  *  before its line. Follows new lines only while the reader is at the bottom. */
-export function Transcript({ lines, label = "Transcript", empty = "Nothing has been said yet.", className, times, onSeek, activeIndex = -1, playing = false }: TranscriptProps) {
+export function Transcript({ lines, label = "Transcript", empty = "Nothing has been said yet.", className, times, onSeek, activeIndex = -1, playing = false, focus = null }: TranscriptProps) {
   const ref = useRef<HTMLDivElement>(null);
   const atBottom = useRef(true);
   const readerScrolledAt = useRef(0);
@@ -56,6 +58,17 @@ export function Transcript({ lines, label = "Transcript", empty = "Nothing has b
     }
   }, [activeIndex, playing]);
 
+  // Bring a clicked audit moment's line into view.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !focus || focus.index < 0) return;
+    const line = el.querySelectorAll<HTMLElement>("[data-line]")[focus.index];
+    if (!line) return;
+    programmatic.current = true;
+    el.scrollTop = Math.max(0, line.offsetTop - el.offsetTop - 8);
+    readerScrolledAt.current = 0;
+  }, [focus]);
+
   function onScroll() {
     const el = ref.current;
     if (el) atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight <= NEAR_BOTTOM_PX;
@@ -71,7 +84,7 @@ export function Transcript({ lines, label = "Transcript", empty = "Nothing has b
         // `at` is stable as the window slides; a counter separates lines sharing a timestamp.
         const key = `${line.at}#${lines.slice(0, i).filter((l) => l.at === line.at).length}`;
         return (
-          <div key={key} data-line className={cx(styles.line, times && styles.timed, i === activeIndex && styles.active)} aria-current={i === activeIndex ? "true" : undefined}>
+          <div key={key} data-line className={cx(styles.line, times && styles.timed, (i === activeIndex || i === focus?.index) && styles.active)} aria-current={i === activeIndex ? "true" : undefined}>
             <span className={cx(styles.who, agent ? styles.agent : styles.caller)}>
               {agent ? "Agent" : "Caller"}
               {times && i === activeIndex && playing && (

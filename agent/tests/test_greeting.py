@@ -43,20 +43,20 @@ def test_noise_without_text_still_counts_as_speech():
 def test_greeting_instructions_when_caller_was_silent():
     from greeting import greeting_instructions
 
-    text = greeting_instructions("Namaste sir, main Carrum se bol rahi hoon.", "")
-    assert text == "Open the call by saying this, close to word for word: Namaste sir, main Carrum se bol rahi hoon."
+    text = greeting_instructions("Namaste sir, main Northwind Car Rentals se bol rahi hoon.", "")
+    assert text == "Open the call by saying this, close to word for word: Namaste sir, main Northwind Car Rentals se bol rahi hoon."
 
 
 def test_greeting_instructions_acknowledge_hello_first():
     from greeting import greeting_instructions
 
-    text = greeting_instructions("Namaste sir, main Carrum se bol rahi hoon.", "hello kaun?")
+    text = greeting_instructions("Namaste sir, main Northwind Car Rentals se bol rahi hoon.", "hello kaun?")
     assert '"hello kaun?"' in text
     assert "Ji, hello sir" in text
-    assert text.endswith("Namaste sir, main Carrum se bol rahi hoon.")
+    assert text.endswith("Namaste sir, main Northwind Car Rentals se bol rahi hoon.")
 
 
-OPENING = "Namaste sir, main Priya, Carrum Mobility se AI calling assistant bol rahi hoon."
+OPENING = "Namaste sir, main Maya, Northwind Car Rentals se AI calling assistant bol rahi hoon."
 
 
 def test_leaving_the_start_step_before_speaking_is_refused_with_the_opening():

@@ -3,6 +3,7 @@ import { Button, Chip, Spinner, Table, Td, Th } from "@/components/ui";
 import type { PlaybackState } from "@/components/recording/useRecording";
 import { cx } from "@/components/ui/util";
 import { formatPhone, formatWhen } from "@/lib/format";
+import { scoreTone } from "@/lib/audit";
 import { outcomeTone } from "@/lib/outcomes";
 import { clock } from "@/lib/recording";
 import type { CallPage, CallRow, RecordingStatus } from "@/lib/types";
@@ -41,6 +42,7 @@ export function CallsTable({ page, timeZone, stale, onOpen, onPage, openRoom, pl
             <Th>Caller</Th>
             <Th>Outcome</Th>
             <Th>Mood</Th>
+            <Th>Score</Th>
             <Th>Duration</Th>
             <Th>Summary</Th>
           </tr>
@@ -59,6 +61,7 @@ export function CallsTable({ page, timeZone, stale, onOpen, onPage, openRoom, pl
                 <Td className="mono">{caller}</Td>
                 <Td><OutcomeChip outcome={call.outcome} /></Td>
                 <Td>{call.mood ? capitalise(call.mood) : <span className={styles.none}>—</span>}</Td>
+                <Td><ScoreChip score={call.audit_score} /></Td>
                 <Td className={styles.durationCell}>
                   <RecordingCell
                     row={call}
@@ -81,6 +84,16 @@ export function CallsTable({ page, timeZone, stale, onOpen, onPage, openRoom, pl
         <Button size="sm" disabled={page.page >= page.pages} onClick={() => onPage(page.page + 1)}>Next</Button>
       </nav>
     </div>
+  );
+}
+
+/** The AI audit's overall score: red under 60, amber 60–79, green 80 and up; "—" when the call isn't scored. */
+export function ScoreChip({ score }: { score: number | null | undefined }) {
+  if (score == null) return <span className={styles.none} aria-label="Not audited">—</span>;
+  return (
+    <Chip tone={scoreTone(score)} className={styles.score}>
+      <span className="mono">{score}</span>
+    </Chip>
   );
 }
 

@@ -1,0 +1,147 @@
+---
+title: Agents and workflows
+description: How an agent is built in the console, published, and picked for a call.
+---
+
+An **agent** is what answers a call: a persona, a language, a voice, a script, knowledge documents, an
+optional workflow and call settings. You build agents in the console (**Agents**), try them as text or
+voice, and publish one when it is ready. Everything belongs to a **workspace**; members have one of four
+roles: owner, admin, editor or viewer.
+
+## The pieces of an agent
+
+| Piece | Where | What it does |
+|---|---|---|
+| **Persona and language** | Agent editor | The name the agent introduces itself with and the languages it speaks. |
+| **Script** | Agent editor | Titled sections of instructions (your job, opening, qualifying questions, objections, closing…). Supports expressions such as `[[expr:name]]` and lead variables such as `{{lead.city}}`. |
+| **Knowledge** | **Knowledge** | Documents with revisions (pricing, policies, FAQs). The agent quotes only what is written in the attached documents. |
+| **Workflow** | **Workflows** | A graph of steps the conversation follows (see below). Optional: without one the agent follows the script. |
+| **Behaviour** | Agent editor | Dead-air timings, mood adaptation, consent line, company name and pronunciation. |
+
+The demo agent from `seed_demo` (**Rental enquiry assistant** for the fictional Northwind Car Rentals) shows
+all of them; its script and knowledge are also in `examples/car-rental-agent/`.
+
+## Workflows
+
+A workflow is a set of **steps** joined by labelled **paths**. While a call runs, the agent sees the current
+step's instructions and one tool per path leaving it; calling the tool moves the call along that path.
+
+| Step type | Purpose |
+|---|---|
+| `start` | Exactly one per workflow. The call can't leave it until the agent has said its opening. |
+| `prompt` | Say or ask something, then follow a path. |
+| `collect` | Ask for one value and store it in a field (`snake_case`, up to 32 characters), shown in the call's captured answers. |
+| `knowledge` | Answer from one knowledge document. |
+| `transfer` | Hand the call to a person (`HANDOFF_SIP_URI`). May set an outcome. |
+| `end` | Close the call with an outcome (disposition). No paths may leave it. |
+
+Paths have a label (unique per step, up to 60 characters) and up to five example caller phrases. The
+console validates the graph as you edit and before publishing: every step must be reachable from the start,
+every non-end step needs a way out, and end steps need a known outcome. A loop limit stops runaway
+workflows and records the call as `UNRESOLVED`.
+
+**Suggest with AI** in the workflow builder proposes changes to the graph (needs `GOOGLE_API_KEY`;
+`SUGGEST_DAILY_LIMIT` runs per workspace per day).
+
+### Outcomes
+
+Every call ends with one disposition: `INTERESTED`, `NI` (not interested), `NE` (not eligible), `CBR`
+(callback requested), `CDRP` (caller dropped), `ISUDO`, `ISUID`, `HND` (handed off), `WRGN` (wrong
+number), `OWNVA`, `ABULR`, `LANGUAGE_BARRIER`, `NOT_CONNECTED` (the caller never spoke) or `UNRESOLVED`.
+If the caller hangs up before the agent records one, the call is logged as `CDRP`.
+
+## Trying an agent before publishing
+
+- **Test chat** runs the saved draft as **text**, through the `dialtone-agent-sim` service:
+  the same prompt and workflow engine as a live call, with nothing dialled or reported. Needs
+  `GOOGLE_API_KEY`.
+- **Voice test** is a real voice call in your browser over WebRTC, with the same worker, pipeline and voice
+  as a phone call. See [Browser voice test](/docs/guides/browser-voice-test).
+
+## Publishing
+
+Publishing takes an immutable snapshot (a version) of the agent with its script, knowledge revisions and
+workflow revision. Only that snapshot reaches callers. A workspace has at most one published agent at a time;
+the agent's phone number ties it to the number callers dial. Publishing again creates a new version;
+unpublish, archive, restore and duplicate are in the agent's menu, and **Versions** lists past snapshots.
+
+## Fixes from call audits
+
+With call audits on (**Settings → Calls**), every audited call gets a score and a list of problem moments.
+**Suggest fixes** turns those problems into ready-to-apply changes:
+
+- From one call: **Suggest fixes** in the call's **Audit** section.
+- From recent calls: **Audit fixes** in the agent editor reads the last 10, 20 or 50 audited calls of the
+  latest version (or of the workflow revision it uses). Repeated problems are grouped into one fix and fixes
+  are ranked by how many calls show the problem × how many score points it cost them.
+
+Workflow fixes add a missing answer out of a step, add expressions, or rewrite a step's words; agent fixes
+rewrite a script section, add a knowledge snippet for questions the agent couldn't answer, or change
+settings (language, persona name, name pronunciation, consent line, mood adaptation). Every fix links to the
+calls, lines and quotes behind it and passes the same checks as an edit; fixes that fail them are left out.
+
+**Accept** writes to the draft only: a new workflow revision, or the agent's draft. Callers keep the
+published version until you publish. With **Auto-apply audit fixes to draft** on (**Settings → Calls**,
+off by default), fixes that pass the checks, are confident and appear in at least `AUDIT_FIX_AUTO_MIN_CALLS`
+calls are applied to the draft as soon as they're suggested; publishing stays a person's step.
+
+**Versions** shows which audit fixes each version includes and, once both have
+`AUDIT_FIX_MIN_CALLS_FOR_SCORES` audited calls, its average audit scores against the version before.
+Audits whose quotes were purged (see [Retention](#retention)) still count toward how often a problem
+appears, but their quotes are never used as evidence.
+
+## How a call picks its agent
+
+When a call starts, the worker asks the server (`DASHBOARD_URL`, 1.5 s budget) for the published agent of
+the dialled number:
+
+1. **A published agent for that number:** its config is used, and the call keeps that version until it
+   ends. If only one agent is published install-wide and no agent has a number yet, that one is used.
+2. **Server down or slow:** the last config cached for that number (`CONFIG_CACHE_DIR`, the `agent-cache`
+   volume).
+3. **Nothing published, or unpublished:** the built-in script, with `agent/knowledge.md` as its knowledge if
+   the file exists. Without that file the built-in agent quotes no figures.
+
+A publish takes effect on the next call; calls already running are not changed. During a call the agent
+streams turns, step changes, mood and captured fields to `/api/runtime/events` for the **Live** screen, and
+posts its report to `/api/report` when the call ends (`DASHBOARD_REPORT_URL`).
+
+On a VM that runs only the agent (no server), set `DASHBOARD_URL=` (empty): calls then use the built-in
+agent without trying to reach a server that isn't there.
+
+## Lead records
+
+Dispatch the agent with JSON metadata to give it a lead record, e.g.
+`{"lead_id": "L123", "city": "Pune", "previously_interested": true}`. The agent skips questions the record
+answers, and script variables like `{{lead.city}}` are filled from it.
+
+## Dead air
+
+If the caller goes quiet, the agent checks in after `nudge_s` (4 s) and again after `second_nudge_s` (9 s),
+then says goodbye and hangs up at `hang_up_s` (15 s), logged as `UNRESOLVED` (or `NOT_CONNECTED` if the
+caller never spoke). The agent's own speech doesn't restart the count; the caller speaking does. "Ek
+minute", "ruko" or "wait" triples the timings for that pause.
+
+The agent checks in only when all three switches are on:
+
+- the workspace's (**Settings → Call handling**, owners and admins; applies from the next call, no publish
+  needed),
+- the workflow's (workflow builder side panel, with no step selected),
+- the agent's (**Behaviour**).
+
+The workflow and agent switches reach callers when the agent is published. `DEAD_AIR_*` in `.env` sets the
+built-in agent's timings and `DEAD_AIR_ENABLED=false` turns it off on the worker.
+
+## Call recording
+
+Phone calls are recorded when the workspace's **Record calls** switch (**Settings → Calls**) is on and the
+worker has `RECORDING_ENABLED=true`. The agent starts an audio-only LiveKit Egress recording per call, and
+the caller hears the consent line only if the recording actually started. Files are stored in the
+`dashboard-data` volume (`/data/recordings/YYYY/MM/<room>.ogg`) and only the server serves them, to
+signed-in members. Recording is refused when the disk has less than `RECORDING_MIN_FREE_GB` (2) free.
+
+## Retention
+
+`python manage.py purge_old_call_data [--days 90] [--dry-run]` deletes transcripts and call recordings
+older than 90 days, keeping outcomes, summaries, answers and metrics. `deploy/bootstrap-server.sh` installs
+a daily systemd timer (`dialtone-purge`) that runs it.

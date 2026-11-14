@@ -1,11 +1,15 @@
 import type {
   Agent,
   AgentListItem,
+  AgentVersion,
+  AuditFixEvidence,
+  AuditFixRun,
   CallDetail,
   CallPage,
   CallRow,
   Dashboard,
   Graph,
+  Instance,
   KnowledgeDoc,
   LiveCall,
   Me,
@@ -18,13 +22,28 @@ import type {
 
 export const NUMBER = "+918047182290";
 
+/** GET /api/instance/. Not "Dialtone", so a test can tell the saved name from the fallback. */
+export const instance: Instance = { project_name: "Northwind Voice", theme: "saffron", logo_url: null };
+
 export const me: Me = {
   id: 1,
   name: "Kapil Rohilla",
-  email: "kapil@carrum.example",
+  email: "kapil@northwind.example",
   phone: "+919810000001",
   role: "owner",
-  workspace: { id: 1, name: "Carrum Mobility", slug: "carrum", dead_air_enabled: true, recording_enabled: false },
+  is_superuser: false,
+  workspace: {
+    id: 1,
+    name: "Northwind Car Rentals",
+    slug: "northwind",
+    dead_air_enabled: true,
+    recording_enabled: false,
+    audit_enabled: false,
+    audit_sample_pct: 100,
+    audit_weights: { naturalness: 25, listening: 20, empathy: 15, pacing: 15, flow: 15, accuracy: 10 },
+    audit_instructions: "",
+    audit_fix_auto_apply: false,
+  },
   preferences: { appearance: "system", notify_needs_person: true, notify_daily_summary: false, time_zone: "Asia/Kolkata" },
 };
 
@@ -32,7 +51,7 @@ export const script = [
   {
     id: "greeting",
     title: "Greeting",
-    body: "[[expr:happy]] नमस्ते! मैं Carrum Mobility से Priya बोल रही हूँ। [[expr:pause:1.2]] क्या मेरी बात {{lead.name}} जी से हो रही है?",
+    body: "[[expr:happy]] नमस्ते! मैं Northwind Car Rentals से Maya बोल रही हूँ। [[expr:pause:1.2]] क्या मेरी बात {{lead.name}} जी से हो रही है?",
   },
   {
     id: "city-and-licence",
@@ -56,7 +75,7 @@ export const agent: Agent = {
   updated_by_name: "Kapil",
   is_outdated: false,
   language: "Hinglish",
-  persona_name: "Priya",
+  persona_name: "Maya",
   voice_id: "Kore",
   settings: { mood_adaptation: true, dead_air: { enabled: true, nudge_s: 4, second_nudge_s: 9, hang_up_s: 15 } },
   script,
@@ -129,7 +148,7 @@ export const callDetail: CallDetail = {
   answers: { city: "Pune", licence: "Yes" },
   step_path: ["Greeting", "Ask city"],
   transcript: [
-    { speaker: "agent", text: "नमस्ते! मैं Carrum Mobility से Priya बोल रही हूँ।", expressions: ["happy"], at: "2026-11-05T09:02:03Z" },
+    { speaker: "agent", text: "नमस्ते! मैं Northwind Car Rentals से Maya बोल रही हूँ।", expressions: ["happy"], at: "2026-11-05T09:02:03Z" },
     { speaker: "caller", text: "हाँ, बोलिए।", expressions: [], at: "2026-11-05T09:02:09Z" },
   ],
   recording_url: null,
@@ -168,7 +187,7 @@ export const dashboard: Dashboard = {
   live_agent: { id: agent.id, name: agent.name, phone_number: NUMBER },
 };
 
-export const phoneNumbers: PhoneNumber[] = [{ number: NUMBER, trunk_name: "Carrum inbound", agent_name: agent.name }];
+export const phoneNumbers: PhoneNumber[] = [{ number: NUMBER, trunk_name: "Northwind inbound", agent_name: agent.name }];
 
 export const voices: Voice[] = [
   { id: "Kore", name: "Kore", description: "Female, firm", sample: "/voices/kore.wav" },
@@ -183,10 +202,10 @@ const step = (id: string, type: Step["type"], name: string, x: number, y: number
   ...extra,
 });
 
-/** The seeded "Driver onboarding" graph (dashboard/voiceagents/management/commands/seed_carrum.py). Paths carry no ids. */
+/** The seeded "Driver onboarding" graph (the server's demo seed command). Paths carry no ids. */
 export const onboardingGraph = (): Graph => ({
   steps: [
-    step("greeting", "start", "Greeting", 290, 0, { prompt: "नमस्ते, मैं Carrum से बोल रही हूँ। क्या अभी दो मिनट बात कर सकते हैं?" }),
+    step("greeting", "start", "Greeting", 290, 0, { prompt: "नमस्ते, मैं Northwind से बोल रही हूँ। क्या अभी दो मिनट बात कर सकते हैं?" }),
     step("ask_city", "prompt", "Ask city", 290, 180, { prompt: "आप अभी किस शहर में रहते हैं?" }),
     step("ask_licence", "collect", "Ask licence and experience", 145, 360, {
       field: "licence",
@@ -213,7 +232,7 @@ export const onboardingGraph = (): Graph => ({
   ],
 });
 
-// "Suggest with AI" draft for onboardingGraph (dashboard/workflows/suggestions_api.py serialize_set).
+// "Suggest with AI" draft for onboardingGraph (server/workflows/suggestions_api.py serialize_set).
 export const suggestionSet = (over: Partial<SuggestionSet> = {}): SuggestionSet => ({
   id: 7,
   status: "ready",
@@ -282,3 +301,123 @@ export const suggestionSet = (over: Partial<SuggestionSet> = {}): SuggestionSet 
   ],
   ...over,
 });
+
+// "Suggest fixes" from call audits (server/audits/fixes_api.py serialize_run).
+const moment = (over: Partial<AuditFixEvidence> = {}): AuditFixEvidence => ({
+  call: "call-7f3a",
+  audit_id: 1,
+  line: 0,
+  at: "2026-11-05T09:02:03Z",
+  at_s: 3,
+  area: "naturalness",
+  step_id: "city",
+  step_name: "Ask city",
+  quote: "आप किस शहर से हैं?",
+  note: "Asked again after the caller answered",
+  event: "",
+  ...over,
+});
+
+const fixBase = {
+  edited: false,
+  status: "pending" as const,
+  invalid_reason: "",
+  auto_applied: false,
+  applied_revision: null,
+  area: "listening",
+  area_label: "Listening",
+  rank_score: 1,
+  confidence: 0.9,
+};
+
+export const auditFixRun = (over: Partial<AuditFixRun> = {}): AuditFixRun => ({
+  id: 41,
+  status: "ready",
+  scope: "call",
+  error: "",
+  call: "call-7f3a",
+  agent: { id: agent.id, name: agent.name },
+  agent_version: 4,
+  workflow: { id: workflow.id, name: workflow.name },
+  calls: 1,
+  dropped: 0,
+  auto_applied: 0,
+  created_by: { id: 1, name: "Kapil Rohilla" },
+  created_at: "2026-11-05T09:10:00Z",
+  finished_at: "2026-11-05T09:10:20Z",
+  items: [
+    {
+      ...fixBase,
+      id: 501,
+      target: "workflow",
+      kind: "answer",
+      step_id: "city",
+      step_name: "Ask city",
+      title: "Handle callers who already said their city",
+      calls: 3,
+      pool: 5,
+      score_cost: 6,
+      payload: {
+        label: "Already said the city",
+        examples: ["बताया तो था", "I told you"],
+        reason: "Callers often say the city in the greeting.",
+        target: { step_id: "done" },
+      },
+      evidence: [moment(), moment({ call: "call-1c0d", at_s: 64, quote: "", note: "Caller repeated Pune" })],
+    },
+    {
+      ...fixBase,
+      id: 77,
+      target: "agent",
+      kind: "script",
+      step_id: "",
+      step_name: "",
+      title: "Shorter greeting",
+      area: "naturalness",
+      area_label: "Sounds human",
+      calls: 2,
+      pool: 5,
+      score_cost: 3.5,
+      payload: {
+        section_id: "greeting",
+        title: "Greeting",
+        before: "नमस्ते! मैं Northwind Car Rentals से Maya बोल रही हूँ।",
+        after: "नमस्ते! Maya बोल रही हूँ, Northwind से।",
+        reason: "The opening is too long.",
+      },
+      evidence: [moment({ note: "Opening is too long", area: "naturalness" })],
+    },
+  ],
+  ...over,
+});
+
+export const agentVersions: AgentVersion[] = [
+  {
+    number: 5,
+    published_by_name: "Kapil",
+    published_at: "2026-11-05T08:00:00Z",
+    audit_fixes: [{ id: 77, target: "agent", kind: "script", title: "Shorter greeting", area: "naturalness", auto_applied: false }],
+    audit_scores: { calls: 12, overall: 78.5, areas: { naturalness: 4.1, listening: 3.9, empathy: 4, pacing: 3.5, flow: 4, accuracy: 4.6 } },
+    compared_to: {
+      version: 4,
+      enough: true,
+      scores: { calls: 15, overall: 72.3, areas: { naturalness: 3.6, listening: 4, empathy: 4, pacing: 3.5, flow: 3.8, accuracy: 4.6 } },
+      change: { overall: 6.2, areas: { naturalness: 0.5, listening: -0.1, empathy: 0, pacing: 0, flow: 0.2, accuracy: 0 } },
+    },
+    min_calls: 10,
+  },
+  {
+    number: 4,
+    published_by_name: "Kapil",
+    published_at: "2026-11-01T08:00:00Z",
+    audit_fixes: [],
+    audit_scores: { calls: 15, overall: 72.3, areas: { naturalness: 3.6, listening: 4, empathy: 4, pacing: 3.5, flow: 3.8, accuracy: 4.6 } },
+    compared_to: {
+      version: 3,
+      enough: false,
+      scores: { calls: 2, overall: 70, areas: { naturalness: 3, listening: 4, empathy: 4, pacing: 3, flow: 4, accuracy: 4 } },
+      change: null,
+    },
+    min_calls: 10,
+  },
+];

@@ -1,10 +1,13 @@
 "use client";
 
-import { Panel, StateBlock, Switch, useToast } from "@/components/ui";
+import { useState } from "react";
+import { Button, Field, Panel, StateBlock, Switch, useToast } from "@/components/ui";
 import { TopBar } from "@/components/shell/TopBar";
 import { ApiError } from "@/lib/api";
+import { AREA_LABELS, SAMPLE_PCTS } from "@/lib/audit";
 import { useMe, useUpdateWorkspace } from "@/lib/queries";
 import { canManageTeam } from "@/lib/roles";
+import type { AuditAreaKey, Workspace } from "@/lib/types";
 import styles from "../settings.module.css";
 
 /** Account-wide call switches. They save on their own and reach the next call; nothing needs publishing. */
@@ -79,6 +82,7 @@ export default function CallsSettingsPage() {
               kept for 90 days. Phone calls and browser voice tests are both recorded. Changes reach the next call.
             </p>
           </section>
+          <AuditSettings workspace={me.workspace} canChange={canChange} />
           <section className={styles.section} aria-labelledby="silent-h" style={{ borderBottom: 0, paddingBottom: 0 }}>
             <h2 id="silent-h">Silent callers</h2>
             <div className={styles.switches}>
@@ -99,5 +103,136 @@ export default function CallsSettingsPage() {
         </Panel>
       </div>
     </>
+  );
+}
+
+/** Call audits: Gemini scores the AI side of finished calls. The switch and the sample save at once; the
+ *  weights and the extra instructions save with a button. */
+function AuditSettings({ workspace, canChange }: { workspace: Workspace; canChange: boolean }) {
+  const update = useUpdateWorkspace();
+  const toast = useToast();
+  const [weights, setWeights] = useState<Record<string, string>>(() =>
+    Object.fromEntries(AREA_LABELS.map(([key]) => [key, String(workspace.audit_weights?.[key] ?? 0)])),
+  );
+  const [instructions, setInstructions] = useState(workspace.audit_instructions ?? "");
+  const sendingOn = update.isPending ? update.variables?.audit_enabled : undefined;
+  const sendingAutoApply = update.isPending ? update.variables?.audit_fix_auto_apply : undefined;
+
+  const parsed = Object.fromEntries(Object.entries(weights).map(([k, v]) => [k, Number(v)])) as Record<AuditAreaKey, number>;
+  const weightError = Object.values(parsed).some((n) => !Number.isInteger(n) || n < 0 || n > 100)
+    ? "Each weight must be a whole number from 0 to 100."
+    : Object.values(parsed).every((n) => n === 0)
+      ? "At least one area needs a weight above 0."
+      : null;
+  const total = Object.values(parsed).reduce((a, b) => a + (Number.isFinite(b) ? b : 0), 0);
+  const dirty =
+    instructions !== (workspace.audit_instructions ?? "") || AREA_LABELS.some(([key]) => parsed[key] !== workspace.audit_weights?.[key]);
+
+  const failed = (e: unknown) => toast.show(e instanceof ApiError ? e.detail : "Could not save.", "bad");
+
+  return (
+    <section className={styles.section} aria-labelledby="audit-h">
+      <h2 id="audit-h">Call audits</h2>
+      <div className={styles.switches}>
+        <Switch
+          label="Score calls with AI"
+          checked={sendingOn ?? workspace.audit_enabled}
+          disabled={!canChange || update.isPending}
+          onChange={(next) =>
+            update.mutate(
+              { audit_enabled: next },
+              {
+                onSuccess: (ws) => toast.show(ws.audit_enabled ? "Finished calls are scored from now on." : "Calls aren't scored automatically any more.", "ok"),
+                onError: failed,
+              },
+            )
+          }
+        />
+      </div>
+      <p className={styles.note}>
+        After each call, Gemini scores the agent&rsquo;s side from 0 to 100, with quotes from the call as evidence. Scores show in Call history.
+        Calls with fewer than 2 agent lines aren&rsquo;t scored. Editors can also audit any call from its details.
+      </p>
+      <Field
+        control="select"
+        label="Calls to score"
+        value={String(workspace.audit_sample_pct)}
+        disabled={!canChange || update.isPending}
+        hint="Scoring fewer calls costs less."
+        onChange={(e) =>
+          update.mutate({ audit_sample_pct: Number(e.target.value) }, { onSuccess: () => toast.show("Saved.", "ok"), onError: failed })
+        }
+      >
+        {SAMPLE_PCTS.map((pct) => (
+          <option key={pct} value={pct}>{pct === 100 ? "Every call" : `${pct}% of calls`}</option>
+        ))}
+      </Field>
+      <div className={styles.switches}>
+        <Switch
+          label="Auto-apply audit fixes to draft"
+          checked={sendingAutoApply ?? workspace.audit_fix_auto_apply ?? false}
+          disabled={!canChange || update.isPending}
+          onChange={(next) =>
+            update.mutate(
+              { audit_fix_auto_apply: next },
+              {
+                onSuccess: (ws) =>
+                  toast.show(ws.audit_fix_auto_apply ? "Audit fixes that pass checks are applied to the draft." : "Audit fixes wait for review.", "ok"),
+                onError: failed,
+              },
+            )
+          }
+        />
+      </div>
+      <p className={styles.note}>
+        When fixes are suggested, the ones that pass checks, are confident and show up in at least 3 calls are applied on their own.
+        They change the draft only: publishing stays manual, so callers hear them only after someone publishes.
+      </p>
+      <fieldset className={styles.form} disabled={!canChange} style={{ border: 0, padding: 0, margin: 0 }}>
+        <legend className={styles.note} style={{ marginBottom: 8 }}>
+          How much each area counts in the overall score (now {total} in total; they don&rsquo;t need to add up to 100).
+        </legend>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
+          {AREA_LABELS.map(([key, label]) => (
+            <Field
+              key={key}
+              label={label}
+              type="number"
+              min={0}
+              max={100}
+              step={1}
+              inputMode="numeric"
+              value={weights[key]}
+              onChange={(e) => setWeights((w) => ({ ...w, [key]: e.target.value }))}
+            />
+          ))}
+        </div>
+        {weightError && <p className={styles.note} role="alert">{weightError}</p>}
+        <Field
+          control="textarea"
+          label="Extra instructions for scoring"
+          hint="For example: Our callers are drivers; keep it informal."
+          maxLength={1000}
+          rows={3}
+          value={instructions}
+          onChange={(e) => setInstructions(e.target.value)}
+        />
+        <div>
+          <Button
+            variant="primary"
+            disabled={!dirty || Boolean(weightError)}
+            loading={update.isPending && update.variables?.audit_weights !== undefined}
+            onClick={() =>
+              update.mutate(
+                { audit_weights: parsed, audit_instructions: instructions },
+                { onSuccess: () => toast.show("Scoring settings saved. They apply to the next audit.", "ok"), onError: failed },
+              )
+            }
+          >
+            Save scoring settings
+          </Button>
+        </div>
+      </fieldset>
+    </section>
   );
 }
