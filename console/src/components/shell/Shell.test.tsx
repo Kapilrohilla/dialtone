@@ -10,16 +10,26 @@ import { Shell } from "./Shell";
 const open = (route = "/") => renderWithProviders(<Shell><p>Page body</p></Shell>, { route });
 
 describe("shell", () => {
-  it("shows the project, the workspace, the user and the page", async () => {
+  it("shows the project, the workspace and the page, with no user avatar", async () => {
     open();
     expect(await screen.findByText("Page body")).toBeInTheDocument();
     expect(await screen.findByText("Northwind Voice")).toBeInTheDocument();
     expect(screen.getByText("NV")).toBeInTheDocument();
     expect(await screen.findByText("Northwind Car Rentals")).toBeInTheDocument();
-    expect(screen.getByText("Kapil Rohilla")).toBeInTheDocument();
     expect(screen.getByText("Soon")).toBeInTheDocument();
-    expect(screen.getByText("KR")).toBeInTheDocument();
-    expect(screen.getByText("Owner")).toBeInTheDocument();
+    expect(screen.queryByText("Kapil Rohilla")).not.toBeInTheDocument();
+    expect(screen.queryByText("KR")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "User menu" })).not.toBeInTheDocument();
+  });
+
+  it("links to the docs and support in new tabs", async () => {
+    open();
+    const docs = await screen.findByRole("link", { name: "Documentation" });
+    expect(docs).toHaveAttribute("href", "https://kapilrohilla.github.io/dialtone/docs/");
+    expect(docs).toHaveAttribute("target", "_blank");
+    const support = screen.getByRole("link", { name: "Support" });
+    expect(support).toHaveAttribute("href", "https://github.com/Kapilrohilla/dialtone/issues");
+    expect(support).toHaveAttribute("target", "_blank");
   });
 
   it("calls the project Dialtone while the name can't be loaded", async () => {
@@ -81,7 +91,7 @@ describe("shell", () => {
     expect(document.documentElement.dataset.theme).toBe("dark");
   });
 
-  it("signs out from the user menu", async () => {
+  it("logs out from the sidebar", async () => {
     let called = false;
     server.use(http.post("*/api/auth/logout", () => {
       called = true;
@@ -89,8 +99,7 @@ describe("shell", () => {
     }));
     const user = userEvent.setup();
     open();
-    await user.click(await screen.findByRole("button", { name: "User menu" }));
-    await user.click(screen.getByRole("menuitem", { name: "Sign out" }));
+    await user.click(await screen.findByRole("button", { name: "Log out" }));
     await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/sign-in"));
     expect(called).toBe(true);
   });
@@ -99,8 +108,7 @@ describe("shell", () => {
     server.use(http.post("*/api/auth/logout", () => HttpResponse.json({ detail: "Server unavailable." }, { status: 503 })));
     const user = userEvent.setup();
     open();
-    await user.click(await screen.findByRole("button", { name: "User menu" }));
-    await user.click(screen.getByRole("menuitem", { name: "Sign out" }));
+    await user.click(await screen.findByRole("button", { name: "Log out" }));
     expect(await screen.findByText("Server unavailable.")).toBeInTheDocument();
     expect(router.replace).not.toHaveBeenCalled();
   });

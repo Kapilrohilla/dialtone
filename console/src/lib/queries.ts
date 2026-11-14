@@ -821,9 +821,9 @@ export function useSimulate(kind: "agent" | "workflow", id: number) {
 }
 
 /** A LiveKit token for a voice test of the agent's draft in the browser (no phone call). */
-export function useWebCall(agentId: number) {
+export function useWebCall() {
   return useMutation({
-    mutationFn: () => apiFetch<WebCallResponse>(`/api/agents/${agentId}/web-call`, { method: "POST" }),
+    mutationFn: (agentId: number) => apiFetch<WebCallResponse>(`/api/agents/${agentId}/web-call`, { method: "POST" }),
   });
 }
 

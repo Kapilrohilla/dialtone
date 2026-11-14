@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import { Simulator } from "@/components/sim/Simulator";
-import { VoiceTest } from "@/components/sim/VoiceTest";
+import { useVoiceTest } from "@/components/sim/VoiceTest";
 import { TopBar, type Crumb } from "@/components/shell/TopBar";
 import { Button, Chip, StateBlock, useToast } from "@/components/ui";
 import { ApiError } from "@/lib/api";
@@ -68,7 +68,7 @@ function AgentEditor({ agent, editable, onReload }: { agent: Agent; editable: bo
   const toast = useToast();
   const [publishing, setPublishing] = useState(false);
   const [testing, setTesting] = useState(false);
-  const [voiceTesting, setVoiceTesting] = useState(false);
+  const voice = useVoiceTest();
   const live = agents?.find((a) => a.status === "published") ?? null;
   const isLive = agent.status === "published";
   const upToDate = isLive && !agent.is_outdated;
@@ -102,7 +102,7 @@ function AgentEditor({ agent, editable, onReload }: { agent: Agent; editable: bo
   async function voiceTest() {
     // The voice agent fetches the saved draft when it joins: save first, like Test chat.
     await saves.flushAll().catch(() => undefined);
-    setVoiceTesting(true);
+    voice.start({ id: agent.id, name: agent.name });
   }
 
   const breadcrumb: Crumb[] = [
@@ -186,7 +186,6 @@ function AgentEditor({ agent, editable, onReload }: { agent: Agent; editable: bo
         <PublishDialog agent={publishing ? agent : null} liveAgent={live} onClose={() => setPublishing(false)} />
       )}
       {testing && <Simulator kind="agent" id={agent.id} customExpressions={saves.custom} onClose={() => setTesting(false)} />}
-      {voiceTesting && <VoiceTest agentId={agent.id} onClose={() => setVoiceTesting(false)} />}
     </>
   );
 }

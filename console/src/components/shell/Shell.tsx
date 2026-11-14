@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { StateBlock } from "@/components/ui";
 import { useMe } from "@/lib/queries";
 import { applyAppearance } from "@/lib/theme";
+import { VoiceTestProvider } from "@/components/sim/VoiceTest";
 import { Sidebar } from "./Sidebar";
 import styles from "./Shell.module.css";
 
@@ -50,9 +51,12 @@ export function Shell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className={styles.shell}>
-      <Sidebar />
-      <main className={styles.main}>{children}</main>
-    </div>
+    // The voice test call lives here, so it carries on while you move between console pages.
+    <VoiceTestProvider>
+      <div className={styles.shell}>
+        <Sidebar />
+        <main className={styles.main}>{children}</main>
+      </div>
+    </VoiceTestProvider>
   );
 }
