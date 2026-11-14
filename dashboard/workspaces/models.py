@@ -9,6 +9,11 @@ class Workspace(models.Model):
     dead_air_enabled = models.BooleanField(default=True)
     # Record phone calls (the caller hears a consent line). Off until an owner or admin turns it on.
     recording_enabled = models.BooleanField(default=False)
+    # Call audits (KAP-17): Gemini scores the AI side of finished calls. Off until an owner or admin turns it on.
+    audit_enabled = models.BooleanField(default=False)
+    audit_sample_pct = models.PositiveSmallIntegerField(default=100)  # 100, 50, 25 or 10
+    audit_weights = models.JSONField(default=dict, blank=True)  # {area: 0-100}; missing areas use the defaults
+    audit_instructions = models.TextField(blank=True, default="")  # extra notes for the rubric
 
     def __str__(self):
         return self.name

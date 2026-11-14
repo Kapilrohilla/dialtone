@@ -8,5 +8,6 @@ urlpatterns = [
     path("api/", include("workflows.urls")),
     path("api/", include("voiceagents.urls")),
     path("api/", include("runtime.urls")),
+    path("", include("audits.urls")),
     path("", include("calls.urls")),
 ]

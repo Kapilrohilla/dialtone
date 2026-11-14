@@ -24,7 +24,17 @@ export const me: Me = {
   email: "kapil@carrum.example",
   phone: "+919810000001",
   role: "owner",
-  workspace: { id: 1, name: "Carrum Mobility", slug: "carrum", dead_air_enabled: true, recording_enabled: false },
+  workspace: {
+    id: 1,
+    name: "Carrum Mobility",
+    slug: "carrum",
+    dead_air_enabled: true,
+    recording_enabled: false,
+    audit_enabled: false,
+    audit_sample_pct: 100,
+    audit_weights: { naturalness: 25, listening: 20, empathy: 15, pacing: 15, flow: 15, accuracy: 10 },
+    audit_instructions: "",
+  },
   preferences: { appearance: "system", notify_needs_person: true, notify_daily_summary: false, time_zone: "Asia/Kolkata" },
 };
 

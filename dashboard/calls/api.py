@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 
 from asgiref.sync import async_to_sync
 from django.conf import settings
-from django.db.models import Count, F, Func, Q, Value
+from django.db.models import Count, F, Func, OuterRef, Q, Subquery, Value
 from django.db.models.functions import Trim, Upper
 from django.http import Http404, HttpResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404
@@ -65,6 +65,14 @@ def calls_of(request):
     return Call.objects.filter(workspace=workspace_for(request))
 
 
+def with_audit_score(qs):
+    """Adds `audit_score`: the current audit's overall score (0–100), None when the call isn't scored."""
+    from audits.models import CallAudit
+
+    current = CallAudit.objects.filter(call=OuterRef("pk"), is_current=True, status=CallAudit.READY)
+    return qs.annotate(audit_score=Subquery(current.values("overall_score")[:1]))
+
+
 # --- filters ----------------------------------------------------------------------------------------
 
 def parse_date(value, name):
@@ -91,10 +99,20 @@ def _int(value, name, minimum=None):
     return n
 
 
+def _score(value, name):
+    """An audit score filter (0–100), or None when not given."""
+    if not value:
+        return None
+    n = _int(value, name, minimum=0)
+    if n > 100:
+        raise ValidationError({name: ["Must be at most 100."]})
+    return n
+
+
 def filtered_calls(request):
     """The workspace's calls with the list filters applied, newest first; 400 on a bad filter."""
     p = request.query_params
-    qs = calls_of(request).select_related("report", "recording", "agent_version")
+    qs = with_audit_score(calls_of(request).select_related("report", "recording", "agent_version"))
     q = p.get("q", "").strip()
     if digits := re.sub(r"\D", "", q):
         qs = qs.annotate(
@@ -114,6 +132,14 @@ def filtered_calls(request):
         qs = qs.filter(report__final_mood__iexact=mood)
     if city := p.get("city", "").strip():
         qs = qs.filter(report__data__outcome__city__icontains=city)
+    score_min = _score(p.get("score_min", "").strip(), "score_min")
+    score_max = _score(p.get("score_max", "").strip(), "score_max")
+    if score_min is not None and score_max is not None and score_min > score_max:
+        raise ValidationError({"score_min": ["The lowest score can't be above the highest."]})
+    if score_min is not None:
+        qs = qs.filter(audit_score__gte=score_min)
+    if score_max is not None:
+        qs = qs.filter(audit_score__lte=score_max)
     if p.get("from"):
         qs = qs.filter(started_at__gte=day_start(parse_date(p["from"], "from")))
     if p.get("to"):
@@ -136,7 +162,8 @@ class CallListView(_Base):
 
 class CallDetailView(_Base):
     def get(self, request, room):
-        call = get_object_or_404(calls_of(request).select_related("report", "recording", "agent_version"), room=room)
+        call = get_object_or_404(
+            with_audit_score(calls_of(request).select_related("report", "recording", "agent_version")), room=room)
         events = list(CallEvent.objects.filter(call=call).order_by("seq"))
         return Response(call_detail(call, events))
 
@@ -225,7 +252,7 @@ def csv_cell(value):
 
 
 class CallExportView(_Base):
-    HEADERS = ["When", "Caller", "Agent", "Outcome", "Mood", "Duration", "Summary"]
+    HEADERS = ["When", "Caller", "Agent", "Outcome", "Mood", "Duration", "Summary", "Score"]
 
     def get(self, request):
         qs = filtered_calls(request)[:CSV_MAX_ROWS]
@@ -240,6 +267,7 @@ class CallExportView(_Base):
             writer.writerow([csv_cell(v) for v in (
                 when, row["caller"], row["agent_name"] or "", row["outcome"], row["mood"],
                 "" if duration is None else duration, row["summary"],
+                "" if row["audit_score"] is None else row["audit_score"],
             )])
         response = HttpResponse(buf.getvalue().encode("utf-8"), content_type="text/csv; charset=utf-8")
         response["Content-Disposition"] = 'attachment; filename="calls.csv"'

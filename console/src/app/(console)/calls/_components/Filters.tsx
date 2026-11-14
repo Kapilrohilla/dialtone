@@ -1,6 +1,7 @@
 import { Search } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { Button, Field } from "@/components/ui";
+import { SCORE_RANGES, scoreRangeOf } from "@/lib/audit";
 import { OUTCOME_GROUPS } from "@/lib/outcomes";
 import { useAgents, type CallFilters } from "@/lib/queries";
 import styles from "../calls.module.css";
@@ -88,6 +89,24 @@ export function Filters({ filters, anyFilter, error, onChange, onClear }: Filter
             .map((a) => (
               <option key={a.id} value={String(a.id)}>{a.name}</option>
             ))}
+        </Field>
+        <Field
+          control="select"
+          label="Score"
+          className={styles.select}
+          value={scoreRangeOf(filters.score_min, filters.score_max)}
+          onChange={(e) => {
+            const range = SCORE_RANGES.find((r) => r.value === e.target.value);
+            onChange({ score_min: range?.min ?? "", score_max: range?.max ?? "" });
+          }}
+        >
+          <option value="">Any score</option>
+          {SCORE_RANGES.map((r) => (
+            <option key={r.value} value={r.value}>{r.label}</option>
+          ))}
+          {scoreRangeOf(filters.score_min, filters.score_max) === "custom" && (
+            <option value="custom">{`${filters.score_min || 0} to ${filters.score_max || 100}`}</option>
+          )}
         </Field>
         <Button variant="outline" aria-expanded={more} onClick={() => setMore((v) => !v)}>More filters</Button>
         {anyFilter && <Button variant="text" onClick={onClear}>Clear filters</Button>}

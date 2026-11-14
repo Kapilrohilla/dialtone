@@ -23,14 +23,44 @@ class PreferencesSerializer(serializers.ModelSerializer):
         fields = PREF_FIELDS
 
 
+AUDIT_SAMPLE_PCTS = (100, 50, 25, 10)
+
+
 def workspace_payload(ws):
+    from audits.rubric import weights_for
+
     return {"id": ws.id, "name": ws.name, "slug": ws.slug, "dead_air_enabled": ws.dead_air_enabled,
-            "recording_enabled": ws.recording_enabled}
+            "recording_enabled": ws.recording_enabled, "audit_enabled": ws.audit_enabled,
+            "audit_sample_pct": ws.audit_sample_pct, "audit_weights": weights_for(ws),
+            "audit_instructions": ws.audit_instructions}
 
 
 class WorkspaceUpdateSerializer(serializers.Serializer):
     dead_air_enabled = StrictBooleanField(required=False)
     recording_enabled = StrictBooleanField(required=False)
+    audit_enabled = StrictBooleanField(required=False)
+    audit_sample_pct = serializers.ChoiceField(choices=AUDIT_SAMPLE_PCTS, required=False)
+    audit_weights = serializers.DictField(required=False)
+    audit_instructions = serializers.CharField(max_length=1000, required=False, allow_blank=True)
+
+    def validate_audit_sample_pct(self, value):
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise serializers.ValidationError("Choose 100, 50, 25 or 10.")
+        return value
+
+    def validate_audit_weights(self, value):
+        from audits.rubric import AREA_KEYS
+
+        out = {}
+        for key, weight in value.items():
+            if key not in AREA_KEYS:
+                raise serializers.ValidationError(f'"{key}" isn\'t a rubric area.')
+            if isinstance(weight, bool) or not isinstance(weight, int) or not 0 <= weight <= 100:
+                raise serializers.ValidationError("Each weight must be a whole number from 0 to 100.")
+            out[key] = weight
+        if out and not any(out.values()) and len(out) == len(AREA_KEYS):
+            raise serializers.ValidationError("At least one area needs a weight above 0.")
+        return out
 
 
 def me_payload(user, membership):

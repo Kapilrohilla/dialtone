@@ -20,6 +20,14 @@ export type Workspace = {
   dead_air_enabled: boolean;
   /** Records real phone calls (never browser tests). The server's RECORDING_ENABLED can still turn it off. */
   recording_enabled: boolean;
+  /** Call audits: Gemini scores the AI side of finished calls. Off by default. */
+  audit_enabled: boolean;
+  /** Share of calls audited automatically: 100, 50, 25 or 10. */
+  audit_sample_pct: number;
+  /** Weight (0–100) of each rubric area in the overall score. */
+  audit_weights: Record<AuditAreaKey, number>;
+  /** Extra notes for the rubric. */
+  audit_instructions: string;
 };
 
 export type Me = {
@@ -162,6 +170,8 @@ export type CallRow = {
   has_recording: boolean;
   /** Missing from older servers; then has_recording decides. */
   recording_status?: RecordingStatus;
+  /** The current audit's overall score (0–100); null when the call isn't scored. Missing from older servers. */
+  audit_score?: number | null;
 };
 
 /** "processing" covers starting and still recording. */
@@ -181,6 +191,59 @@ export type CallDetail = CallRow & {
   /** When the recording began: transcript times minus this are offsets into the audio. */
   recording_started_at: string | null;
 };
+
+// dashboard/audits/api.py
+export type AuditAreaKey = "naturalness" | "listening" | "empathy" | "pacing" | "flow" | "accuracy";
+
+/** One quoted line (or call signal) behind a score. `at` is the transcript line's time; null for signals. */
+export type AuditEvidence = {
+  line: number | null;
+  at: string | null;
+  at_s: number | null;
+  step_id: string;
+  step_name: string;
+  speaker: string;
+  /** Blank after 90 days (quotes_purged). */
+  quote: string;
+  /** Set when the evidence is a call signal rather than words: dead_air, interruption, latency, mood, call_end. */
+  event: string;
+  kind: "good" | "problem";
+  note: string;
+};
+
+export type AuditArea = {
+  key: AuditAreaKey;
+  label: string;
+  weight: number;
+  /** 1–5; null when the model gave no evidence for it. */
+  score: number | null;
+  summary: string;
+  evidence: AuditEvidence[];
+};
+
+export type AuditMoment = Omit<AuditEvidence, "event"> & { area: AuditAreaKey | "" };
+
+export type CallAudit =
+  | { status: "none"; enabled: boolean }
+  | {
+      id: number;
+      status: "queued" | "running" | "ready" | "skipped" | "error";
+      enabled: boolean;
+      error: string;
+      skipped_reason: string;
+      skipped_label: string;
+      overall_score: number | null;
+      summary: string;
+      areas: AuditArea[];
+      moments: AuditMoment[];
+      rubric_version: string;
+      model: string;
+      used_audio: boolean;
+      quotes_purged: boolean;
+      automatic: boolean;
+      created_at: string;
+      finished_at: string | null;
+    };
 
 export type CallPage = { results: CallRow[]; count: number; page: number; pages: number };
 

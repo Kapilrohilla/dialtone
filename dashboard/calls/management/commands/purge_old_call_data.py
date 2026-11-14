@@ -9,6 +9,7 @@ from django.db import transaction
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 
+from audits.models import CallAudit
 from calls.models import CallEvent, CallReport, Recording, TurnLabel, recording_relpath
 
 # Files under RECORDINGS_DIR with no recording row are deleted once they are this old (crashed egress).
@@ -99,9 +100,35 @@ class Command(BaseCommand):
                 report.data.pop("turns", None)
                 # queryset update so received_at (auto_now) is not bumped
                 CallReport.objects.filter(pk=report.pk).update(data=report.data)
+        n_audits = self.audits(cutoff, dry_run)
         prefix = "Would delete" if dry_run else "Deleted"
         self.stdout.write(
             f"{prefix} {n_events} turn events; {'would blank' if dry_run else 'blanked'} the caller text "
             f"on {n_labels} turn labels; "
-            f"{'would remove' if dry_run else 'removed'} turns from {n_reports} reports (older than {days} days)."
+            f"{'would remove' if dry_run else 'removed'} turns from {n_reports} reports (older than {days} days); "
+            f"{'would blank' if dry_run else 'blanked'} quotes and summaries on {n_audits} call audits."
         )
+
+    def audits(self, cutoff, dry_run) -> int:
+        """Audit summaries and quotes hold the caller's words: blank them with the transcript. Scores, areas,
+        steps and times stay, so trends still work."""
+        old = (
+            CallAudit.objects.filter(quotes_purged=False)
+            .annotate(age_at=Coalesce("call__started_at", "created_at"))
+            .filter(age_at__lt=cutoff)
+        )
+        n = old.count()
+        if dry_run:
+            return n
+        for audit in old.iterator():
+            scores = audit.scores if isinstance(audit.scores, dict) else {}
+            for area in scores.values():
+                for item in area.get("evidence") or [] if isinstance(area, dict) else []:
+                    if isinstance(item, dict):
+                        item["quote"] = ""
+            moments = audit.moments if isinstance(audit.moments, list) else []
+            for m in moments:
+                if isinstance(m, dict):
+                    m["quote"] = ""
+            CallAudit.objects.filter(pk=audit.pk).update(scores=scores, moments=moments, summary="", quotes_purged=True)
+        return n
