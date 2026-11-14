@@ -1,4 +1,4 @@
-"""Text simulation for the console's "Try it" and "Test call": one agent reply per request.
+"""Text simulation for the console's "Test chat": one agent reply per request.
 
 The console (dashboard) posts the snapshot it wants to try, the whole transcript so far and the workflow
 state from the previous reply. The server is stateless: it rebuilds the WorkflowRun from that state,

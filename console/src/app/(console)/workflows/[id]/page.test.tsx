@@ -244,8 +244,8 @@ describe("workflow builder", () => {
     await screen.findByRole("heading", { level: 1, name: /Driver onboarding/ });
     await select("Greeting");
     await user.type(within(panel()).getByRole("textbox", { name: "Step name" }), " and consent");
-    await user.click(screen.getByRole("button", { name: "Try it" }));
-    expect(await screen.findByRole("dialog", { name: "Try it" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Test chat" }));
+    expect(await screen.findByRole("dialog", { name: "Test chat" })).toBeInTheDocument();
     await waitFor(() => expect(log).toEqual(["PATCH", "SIMULATE"]));
     expect(patches[0].graph!.steps[0].name).toBe("Greeting and consent");
   });
@@ -256,10 +256,10 @@ describe("workflow builder", () => {
     await screen.findByRole("heading", { level: 1, name: /Driver onboarding/ });
     await select("Greeting");
     await user.type(within(panel()).getByRole("textbox", { name: "Step name" }), "!");
-    await user.click(screen.getByRole("button", { name: "Try it" }));
+    await user.click(screen.getByRole("button", { name: "Test chat" }));
     expect(await screen.findByText("The graph is too large.")).toBeInTheDocument();
     expect(log).toEqual(["PATCH"]);
-    expect(screen.queryByRole("dialog", { name: "Try it" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Test chat" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
   });
 
@@ -267,7 +267,7 @@ describe("workflow builder", () => {
     const { log } = serve();
     const { user } = open();
     await screen.findByRole("heading", { level: 1, name: /Driver onboarding/ });
-    await user.click(screen.getByRole("button", { name: "Try it" }));
+    await user.click(screen.getByRole("button", { name: "Test chat" }));
     await waitFor(() => expect(log).toEqual(["SIMULATE"]));
   });
 
@@ -306,7 +306,7 @@ describe("workflow builder", () => {
     expect(queryClient.getQueryData<{ role: string }>(["me"])?.role).toBe("viewer");
     for (const name of STEP_NAMES) expect(within(canvas()).getByText(name)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Try it" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Test chat" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Add step" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Rename/ })).not.toBeInTheDocument();
     expect(card("Greeting")).not.toHaveClass("draggable");
@@ -374,7 +374,7 @@ describe("workflow builder", () => {
     await screen.findByRole("heading", { level: 1, name: /Driver onboarding/ });
     expect(card("Greeting")).toHaveClass("draggable");
     expect(canvas().querySelector(".react-flow__handle.connectable")).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Try it" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Test chat" })).toBeInTheDocument();
   });
 
   it("shows an error with Try again", async () => {

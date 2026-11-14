@@ -111,8 +111,8 @@ test("3. test call says the simulator isn't running", async ({ page }) => {
   const noCrash = watchErrors(page);
   await signIn(page);
   await openAgent(page);
-  await page.getByRole("button", { name: "Test call" }).click();
-  const sim = page.getByRole("dialog", { name: "Test call" });
+  await page.getByRole("button", { name: "Test chat" }).click();
+  const sim = page.getByRole("dialog", { name: "Test chat" });
   await expect(sim).toBeVisible();
   await sim.getByRole("textbox").first().fill("Hello");
   await sim.getByRole("textbox").first().press("Enter");

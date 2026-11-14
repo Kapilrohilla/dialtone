@@ -674,7 +674,7 @@ export function useCloseSuggestions(workflowId: number) {
 export type SimMessage = { role: "caller" | "agent"; text: string };
 export type SimRequest = { messages: SimMessage[]; state: Record<string, unknown> | null };
 
-/** One turn of the text simulator ("Test call" for an agent's draft, "Try it" for a workflow). Nothing is saved. */
+/** One turn of the text simulator ("Test chat", for an agent's draft or a workflow). Nothing is saved. */
 export function useSimulate(kind: "agent" | "workflow", id: number) {
   const path = `/api/${kind === "agent" ? "agents" : "workflows"}/${id}/simulate`;
   return useMutation({ mutationFn: (body: SimRequest) => apiFetch<SimResponse>(path, { method: "POST", json: body }) });

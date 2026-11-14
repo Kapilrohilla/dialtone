@@ -22,7 +22,7 @@ Set only the keys your `AGENT_PIPELINE` and the features you use need.
 
 | Variable | Enables |
 |---|---|
-| `GOOGLE_API_KEY` | Google AI (Gemini): the `gemini-live` pipeline, the console's *Try it* / *Test call* simulator, *Suggest with AI* in the workflow builder, and mood classification on `gemini-live`. |
+| `GOOGLE_API_KEY` | Google AI (Gemini): the `gemini-live` pipeline, the console's *Test chat* simulator, *Suggest with AI* in the workflow builder, and mood classification on `gemini-live`. |
 | `SARVAM_API_KEY` | Sarvam speech-to-text (`sarvam` and `elevenlabs` pipelines) and Sarvam TTS (`sarvam`). |
 | `OPENAI_API_KEY` | The LLM of the `sarvam` and `elevenlabs` pipelines, and mood classification on them. |
 | `ELEVEN_API_KEY` | ElevenLabs text-to-speech (`elevenlabs` pipeline). |
@@ -143,7 +143,7 @@ these environment variables.
 
 | Variable | Default | Notes |
 |---|---|---|
-| `SIM_PORT` | `8790` | Port of `dialtone-agent-sim` (text *Try it* / *Test call*). |
+| `SIM_PORT` | `8790` | Port of `dialtone-agent-sim` (text *Test chat*). |
 | `SIM_LLM_MODEL` | `gemini-3.6-flash` | Model the simulator uses (`GOOGLE_API_KEY`). |
 | `AGENT_SIM_URL` | `http://127.0.0.1:8790` | Where the server reaches the simulator. |
 | `SUGGEST_LLM_MODEL` | `gemini-3.6-flash` | Model behind the workflow builder's *Suggest with AI*. |
