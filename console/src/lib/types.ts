@@ -28,6 +28,8 @@ export type Workspace = {
   audit_weights: Record<AuditAreaKey, number>;
   /** Extra notes for the rubric. */
   audit_instructions: string;
+  /** Audit fixes that pass checks, are confident and show in 3+ calls are applied to the draft on their own. */
+  audit_fix_auto_apply: boolean;
 };
 
 export type Me = {
@@ -167,7 +169,26 @@ export type Agent = Omit<AgentListItem, "calls_this_week"> & {
   created_at: string;
 };
 
-export type AgentVersion = { number: number; published_by_name: string | null; published_at: string };
+/** Average audit scores of a version's calls: overall 0–100, areas 1–5; null when nothing was scored. */
+export type AuditScores = { calls: number; overall: number | null; areas: Record<AuditAreaKey, number | null> };
+
+/** GET /api/agents/:id/versions, newest first (server/audits/impact.py versions_payload). */
+export type AgentVersion = {
+  number: number;
+  published_by_name: string | null;
+  published_at: string;
+  /** Accepted audit fixes first published in this version. */
+  audit_fixes: { id: number; target: AuditFixTarget; kind: AuditFixKind; title: string; area: string; auto_applied: boolean }[];
+  audit_scores: AuditScores;
+  /** The version before this one; null for the first. `change` is set only when both have `min_calls` audited calls. */
+  compared_to: null | {
+    version: number;
+    enough: boolean;
+    scores: AuditScores;
+    change: null | { overall: number | null; areas: Record<AuditAreaKey, number | null> };
+  };
+  min_calls: number;
+};
 
 // GET /api/expressions
 export type Expression = { name: string; hint: string; builtin: boolean };
@@ -356,4 +377,85 @@ export type SuggestionSet = {
   created_at: string;
   finished_at: string | null;
   items: Suggestion[];
+};
+
+// server/audits/fixes_api.py: "Suggest fixes" from call audits
+export type AuditFixTarget = "workflow" | "agent";
+export type AuditFixKind = "answer" | "expression" | "prompt" | "script" | "knowledge" | "settings";
+
+/** A call moment behind a fix. `at_s` is seconds into the call. */
+export type AuditFixEvidence = {
+  call: string;
+  audit_id: number;
+  line: number | null;
+  at: string | null;
+  at_s: number | null;
+  area: string;
+  step_id: string;
+  step_name: string;
+  /** Blank once the call's quotes were removed. */
+  quote: string;
+  note: string;
+  event: string;
+};
+
+export type ScriptFixPayload = { section_id: string; title: string; before: string; after: string; reason: string };
+export type KnowledgeFixPayload = { title: string; body: string; reason: string };
+/** Keys: language, persona_name, name_pronunciation, consent_line, mood_adaptation. */
+export type SettingsFixPayload = { changes: Record<string, string | boolean>; before: Record<string, string | boolean>; reason: string };
+
+type AuditFixBase = {
+  id: number;
+  step_id: string;
+  step_name: string;
+  /** The payload is the author's edit. */
+  edited: boolean;
+  status: "pending" | "accepted" | "dismissed";
+  /** Why it can't be accepted against the current draft; empty when it can. */
+  invalid_reason: string;
+  auto_applied: boolean;
+  /** The workflow revision an accepted workflow fix made. */
+  applied_revision: number | null;
+  title: string;
+  area: string;
+  area_label: string;
+  /** Calls (out of `pool`) that had this problem. */
+  calls: number;
+  pool: number;
+  /** About how many overall points the problem cost. */
+  score_cost: number;
+  rank_score: number;
+  confidence: number;
+  evidence: AuditFixEvidence[];
+};
+
+export type AuditFix = AuditFixBase &
+  (
+    | { target: "workflow"; kind: "answer"; payload: AnswerPayload }
+    | { target: "workflow"; kind: "expression" | "prompt"; payload: ExpressionPayload }
+    | { target: "agent"; kind: "script"; payload: ScriptFixPayload }
+    | { target: "agent"; kind: "knowledge"; payload: KnowledgeFixPayload }
+    | { target: "agent"; kind: "settings"; payload: SettingsFixPayload }
+  );
+
+export type AuditFixRun = {
+  id: number;
+  status: "running" | "ready" | "empty" | "error";
+  scope: "call" | "batch";
+  error: string;
+  /** The call's room for a one-call run. */
+  call: string | null;
+  agent: { id: number; name: string };
+  agent_version: number | null;
+  workflow: { id: number; name: string } | null;
+  /** Audited calls looked at. */
+  calls: number;
+  /** Suggestions left out because they failed checks. */
+  dropped: number;
+  auto_applied: number;
+  created_by: { id: number; name: string | null } | null;
+  created_at: string;
+  finished_at: string | null;
+  /** Ranked best first. */
+  items: AuditFix[];
 };

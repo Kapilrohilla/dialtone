@@ -214,6 +214,9 @@ def publish(agent: Agent, user) -> AgentVersion:
         )
         locked.status, locked.published_version = Agent.PUBLISHED, version
         locked.save(update_fields=["status", "published_version"])
+        from audits.impact import record_included  # audits depends on voiceagents, not the other way round
+
+        record_included(locked, version, resolved.workflow_revision)
     _sync(agent, locked)
     return version
 

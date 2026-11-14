@@ -32,7 +32,7 @@ def workspace_payload(ws):
     return {"id": ws.id, "name": ws.name, "slug": ws.slug, "dead_air_enabled": ws.dead_air_enabled,
             "recording_enabled": ws.recording_enabled, "audit_enabled": ws.audit_enabled,
             "audit_sample_pct": ws.audit_sample_pct, "audit_weights": weights_for(ws),
-            "audit_instructions": ws.audit_instructions}
+            "audit_instructions": ws.audit_instructions, "audit_fix_auto_apply": ws.audit_fix_auto_apply}
 
 
 class WorkspaceUpdateSerializer(serializers.Serializer):
@@ -42,6 +42,7 @@ class WorkspaceUpdateSerializer(serializers.Serializer):
     audit_sample_pct = serializers.ChoiceField(choices=AUDIT_SAMPLE_PCTS, required=False)
     audit_weights = serializers.DictField(required=False)
     audit_instructions = serializers.CharField(max_length=1000, required=False, allow_blank=True)
+    audit_fix_auto_apply = StrictBooleanField(required=False)
 
     def validate_audit_sample_pct(self, value):
         if isinstance(value, bool) or not isinstance(value, int):

@@ -7,7 +7,9 @@ import hashlib
 import json
 import re
 
-from voiceagents.tokens import ExprToken, long_pause_errors, parse, short_pause_errors, unknown_expressions
+from voiceagents.tokens import (
+    ExprToken, long_pause_errors, parse, short_pause_errors, unknown_expressions, variables,
+)
 
 from .graph import DISPOSITIONS, MAX_EXAMPLE_CHARS, MAX_EXAMPLES, MAX_LABEL_CHARS
 
@@ -218,7 +220,40 @@ def validate_expression(payload, graph, step_id: str, custom: dict[str, str] | N
     return {"before": before, "after": after, "reason": reason}
 
 
+# -- step words (audit fixes) --------------------------------------------------------------------------
+
+def validate_prompt(payload, graph, step_id: str, custom: dict[str, str] | None = None) -> dict:
+    """The cleaned rewrite of a step's words, or Invalid. Used by audit fixes to shorten or rewrite a step prompt.
+    The rewrite may not bring in a lead variable the step didn't already use."""
+    custom = custom or {}
+    if not isinstance(payload, dict):
+        raise Invalid("This suggestion is malformed.")
+    step = _steps(graph).get(step_id)
+    if step is None:
+        raise Invalid("The step this came from was removed.")
+    before, after = payload.get("before"), payload.get("after")
+    if not isinstance(before, str):
+        raise Invalid("This suggestion is malformed.", "after")
+    prompt = step.get("prompt") if isinstance(step.get("prompt"), str) else ""
+    if prompt != before:
+        raise Invalid("The agent's words for this step have changed.")
+    after = _text(after, "after", MAX_PROMPT_CHARS, "What the agent says")
+    if after == before.strip():
+        raise Invalid("This doesn't change the agent's words.", "after")
+    new_vars = [v for v in variables(after) if v not in variables(before)]
+    if new_vars:
+        raise Invalid(f'"{{{{{new_vars[0]}}}}}" isn\'t used by this step yet. Keep to the details it already uses.',
+                      "after")
+    errors = _expression_errors(after, custom)
+    if errors:
+        raise Invalid(errors[0], "after")
+    reason = _text(payload.get("reason"), "reason", MAX_REASON_CHARS, "Reason", required=False)
+    return {"before": before, "after": after, "reason": reason}
+
+
 def validate_item(kind: str, payload, graph, step_id: str, custom=None, taken_labels=()) -> dict:
     if kind == "answer":
         return validate_answer(payload, graph, step_id, custom, taken_labels)
+    if kind == "prompt":
+        return validate_prompt(payload, graph, step_id, custom)
     return validate_expression(payload, graph, step_id, custom)

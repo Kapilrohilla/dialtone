@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Button, Field, Panel, StateBlock, Switch, useToast } from "@/components/ui";
 import { TopBar } from "@/components/shell/TopBar";
 import { ApiError } from "@/lib/api";
-import { SAMPLE_PCTS } from "@/lib/audit";
+import { AREA_LABELS, SAMPLE_PCTS } from "@/lib/audit";
 import { useMe, useUpdateWorkspace } from "@/lib/queries";
 import { canManageTeam } from "@/lib/roles";
 import type { AuditAreaKey, Workspace } from "@/lib/types";
@@ -106,15 +106,6 @@ export default function CallsSettingsPage() {
   );
 }
 
-const AREA_LABELS: [AuditAreaKey, string][] = [
-  ["naturalness", "Sounds human"],
-  ["listening", "Listening"],
-  ["empathy", "Empathy and tone"],
-  ["pacing", "Pacing and turn-taking"],
-  ["flow", "Flow and goal"],
-  ["accuracy", "Accuracy"],
-];
-
 /** Call audits: Gemini scores the AI side of finished calls. The switch and the sample save at once; the
  *  weights and the extra instructions save with a button. */
 function AuditSettings({ workspace, canChange }: { workspace: Workspace; canChange: boolean }) {
@@ -125,6 +116,7 @@ function AuditSettings({ workspace, canChange }: { workspace: Workspace; canChan
   );
   const [instructions, setInstructions] = useState(workspace.audit_instructions ?? "");
   const sendingOn = update.isPending ? update.variables?.audit_enabled : undefined;
+  const sendingAutoApply = update.isPending ? update.variables?.audit_fix_auto_apply : undefined;
 
   const parsed = Object.fromEntries(Object.entries(weights).map(([k, v]) => [k, Number(v)])) as Record<AuditAreaKey, number>;
   const weightError = Object.values(parsed).some((n) => !Number.isInteger(n) || n < 0 || n > 100)
@@ -175,6 +167,27 @@ function AuditSettings({ workspace, canChange }: { workspace: Workspace; canChan
           <option key={pct} value={pct}>{pct === 100 ? "Every call" : `${pct}% of calls`}</option>
         ))}
       </Field>
+      <div className={styles.switches}>
+        <Switch
+          label="Auto-apply audit fixes to draft"
+          checked={sendingAutoApply ?? workspace.audit_fix_auto_apply ?? false}
+          disabled={!canChange || update.isPending}
+          onChange={(next) =>
+            update.mutate(
+              { audit_fix_auto_apply: next },
+              {
+                onSuccess: (ws) =>
+                  toast.show(ws.audit_fix_auto_apply ? "Audit fixes that pass checks are applied to the draft." : "Audit fixes wait for review.", "ok"),
+                onError: failed,
+              },
+            )
+          }
+        />
+      </div>
+      <p className={styles.note}>
+        When fixes are suggested, the ones that pass checks, are confident and show up in at least 3 calls are applied on their own.
+        They change the draft only: publishing stays manual, so callers hear them only after someone publishes.
+      </p>
       <fieldset className={styles.form} disabled={!canChange} style={{ border: 0, padding: 0, margin: 0 }}>
         <legend className={styles.note} style={{ marginBottom: 8 }}>
           How much each area counts in the overall score (now {total} in total; they don&rsquo;t need to add up to 100).

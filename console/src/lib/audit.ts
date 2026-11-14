@@ -1,5 +1,5 @@
 import type { ChipTone } from "@/components/ui";
-import type { AuditEvidence, TranscriptTurn } from "@/lib/types";
+import type { AuditAreaKey, AuditEvidence, TranscriptTurn } from "@/lib/types";
 
 /** Score colour bands: under 60 red, 60–79 amber, 80 and up green. */
 export function scoreTone(score: number | null | undefined): ChipTone {
@@ -56,4 +56,23 @@ export function auditOffset(item: Pick<AuditEvidence, "at">, recordingStartedAt:
   const start = Date.parse(recordingStartedAt);
   if (Number.isNaN(at) || Number.isNaN(start)) return null;
   return Math.max(0, (at - start) / 1000);
+}
+
+/** The rubric areas in order, with their names on screen. */
+export const AREA_LABELS: [AuditAreaKey, string][] = [
+  ["naturalness", "Sounds human"],
+  ["listening", "Listening"],
+  ["empathy", "Empathy and tone"],
+  ["pacing", "Pacing and turn-taking"],
+  ["flow", "Flow and goal"],
+  ["accuracy", "Accuracy"],
+];
+
+/** A score change with its sign: "+3.2", "−1.5" (a real minus), "0". Unknown shows as "—". */
+export function signed(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(n)) return "—";
+  const v = Math.round(n * 10) / 10;
+  if (v > 0) return `+${v}`;
+  if (v < 0) return `\u2212${Math.abs(v)}`;
+  return "0";
 }

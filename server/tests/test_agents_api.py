@@ -133,7 +133,8 @@ def test_publish_endpoint(member):
     assert c.post(f"/api/agents/{pk}/publish").json() == {"version": 2}
     versions = c.get(f"/api/agents/{pk}/versions").json()
     assert [v["number"] for v in versions] == [2, 1]
-    assert set(versions[0]) == {"number", "published_by_name", "published_at"}
+    assert set(versions[0]) == {"number", "published_by_name", "published_at", "audit_fixes", "audit_scores",
+                                "compared_to", "min_calls"}
     assert versions[0]["published_by_name"] == c.user.email
 
 

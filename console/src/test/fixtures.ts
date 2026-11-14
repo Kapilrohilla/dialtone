@@ -1,6 +1,9 @@
 import type {
   Agent,
   AgentListItem,
+  AgentVersion,
+  AuditFixEvidence,
+  AuditFixRun,
   CallDetail,
   CallPage,
   CallRow,
@@ -39,6 +42,7 @@ export const me: Me = {
     audit_sample_pct: 100,
     audit_weights: { naturalness: 25, listening: 20, empathy: 15, pacing: 15, flow: 15, accuracy: 10 },
     audit_instructions: "",
+    audit_fix_auto_apply: false,
   },
   preferences: { appearance: "system", notify_needs_person: true, notify_daily_summary: false, time_zone: "Asia/Kolkata" },
 };
@@ -297,3 +301,123 @@ export const suggestionSet = (over: Partial<SuggestionSet> = {}): SuggestionSet 
   ],
   ...over,
 });
+
+// "Suggest fixes" from call audits (server/audits/fixes_api.py serialize_run).
+const moment = (over: Partial<AuditFixEvidence> = {}): AuditFixEvidence => ({
+  call: "call-7f3a",
+  audit_id: 1,
+  line: 0,
+  at: "2026-11-05T09:02:03Z",
+  at_s: 3,
+  area: "naturalness",
+  step_id: "city",
+  step_name: "Ask city",
+  quote: "आप किस शहर से हैं?",
+  note: "Asked again after the caller answered",
+  event: "",
+  ...over,
+});
+
+const fixBase = {
+  edited: false,
+  status: "pending" as const,
+  invalid_reason: "",
+  auto_applied: false,
+  applied_revision: null,
+  area: "listening",
+  area_label: "Listening",
+  rank_score: 1,
+  confidence: 0.9,
+};
+
+export const auditFixRun = (over: Partial<AuditFixRun> = {}): AuditFixRun => ({
+  id: 41,
+  status: "ready",
+  scope: "call",
+  error: "",
+  call: "call-7f3a",
+  agent: { id: agent.id, name: agent.name },
+  agent_version: 4,
+  workflow: { id: workflow.id, name: workflow.name },
+  calls: 1,
+  dropped: 0,
+  auto_applied: 0,
+  created_by: { id: 1, name: "Kapil Rohilla" },
+  created_at: "2026-11-05T09:10:00Z",
+  finished_at: "2026-11-05T09:10:20Z",
+  items: [
+    {
+      ...fixBase,
+      id: 501,
+      target: "workflow",
+      kind: "answer",
+      step_id: "city",
+      step_name: "Ask city",
+      title: "Handle callers who already said their city",
+      calls: 3,
+      pool: 5,
+      score_cost: 6,
+      payload: {
+        label: "Already said the city",
+        examples: ["बताया तो था", "I told you"],
+        reason: "Callers often say the city in the greeting.",
+        target: { step_id: "done" },
+      },
+      evidence: [moment(), moment({ call: "call-1c0d", at_s: 64, quote: "", note: "Caller repeated Pune" })],
+    },
+    {
+      ...fixBase,
+      id: 77,
+      target: "agent",
+      kind: "script",
+      step_id: "",
+      step_name: "",
+      title: "Shorter greeting",
+      area: "naturalness",
+      area_label: "Sounds human",
+      calls: 2,
+      pool: 5,
+      score_cost: 3.5,
+      payload: {
+        section_id: "greeting",
+        title: "Greeting",
+        before: "नमस्ते! मैं Northwind Car Rentals से Maya बोल रही हूँ।",
+        after: "नमस्ते! Maya बोल रही हूँ, Northwind से।",
+        reason: "The opening is too long.",
+      },
+      evidence: [moment({ note: "Opening is too long", area: "naturalness" })],
+    },
+  ],
+  ...over,
+});
+
+export const agentVersions: AgentVersion[] = [
+  {
+    number: 5,
+    published_by_name: "Kapil",
+    published_at: "2026-11-05T08:00:00Z",
+    audit_fixes: [{ id: 77, target: "agent", kind: "script", title: "Shorter greeting", area: "naturalness", auto_applied: false }],
+    audit_scores: { calls: 12, overall: 78.5, areas: { naturalness: 4.1, listening: 3.9, empathy: 4, pacing: 3.5, flow: 4, accuracy: 4.6 } },
+    compared_to: {
+      version: 4,
+      enough: true,
+      scores: { calls: 15, overall: 72.3, areas: { naturalness: 3.6, listening: 4, empathy: 4, pacing: 3.5, flow: 3.8, accuracy: 4.6 } },
+      change: { overall: 6.2, areas: { naturalness: 0.5, listening: -0.1, empathy: 0, pacing: 0, flow: 0.2, accuracy: 0 } },
+    },
+    min_calls: 10,
+  },
+  {
+    number: 4,
+    published_by_name: "Kapil",
+    published_at: "2026-11-01T08:00:00Z",
+    audit_fixes: [],
+    audit_scores: { calls: 15, overall: 72.3, areas: { naturalness: 3.6, listening: 4, empathy: 4, pacing: 3.5, flow: 3.8, accuracy: 4.6 } },
+    compared_to: {
+      version: 3,
+      enough: false,
+      scores: { calls: 2, overall: 70, areas: { naturalness: 3, listening: 4, empathy: 4, pacing: 3, flow: 4, accuracy: 4 } },
+      change: null,
+    },
+    min_calls: 10,
+  },
+];

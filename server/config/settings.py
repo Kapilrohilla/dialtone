@@ -39,6 +39,13 @@ SUGGEST_DAILY_LIMIT = int(os.getenv("SUGGEST_DAILY_LIMIT", "20"))  # runs per wo
 # keep it configurable; it falls back to the Suggest with AI model.
 AUDIT_LLM_MODEL = os.getenv("AUDIT_LLM_MODEL", "") or SUGGEST_LLM_MODEL
 AUDIT_MAX_CONCURRENT = int(os.getenv("AUDIT_MAX_CONCURRENT") or "2")  # audits running at once per server process
+# Audit fixes (KAP-37): "Suggest fixes" runs per workspace per day (failed runs don't count); what
+# "Auto-apply audit fixes to draft" requires of a fix; how many audited calls a version needs before its scores
+# are compared with the version before.
+AUDIT_FIX_DAILY_LIMIT = int(os.getenv("AUDIT_FIX_DAILY_LIMIT") or "20")
+AUDIT_FIX_AUTO_MIN_CONFIDENCE = float(os.getenv("AUDIT_FIX_AUTO_MIN_CONFIDENCE") or "0.8")
+AUDIT_FIX_AUTO_MIN_CALLS = int(os.getenv("AUDIT_FIX_AUTO_MIN_CALLS") or "3")
+AUDIT_FIX_MIN_CALLS_FOR_SCORES = int(os.getenv("AUDIT_FIX_MIN_CALLS_FOR_SCORES") or "5")
 
 INSTALLED_APPS = [
     "django.contrib.admin",

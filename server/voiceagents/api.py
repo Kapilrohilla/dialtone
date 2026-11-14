@@ -20,7 +20,6 @@ from .models import Agent
 from .serializers import (
     AgentDetailSerializer,
     AgentListItemSerializer,
-    AgentVersionSerializer,
     AgentWriteSerializer,
     merge_settings,
 )
@@ -187,8 +186,9 @@ class AgentDuplicateView(_Base):
 
 class AgentVersionsView(_Base):
     def get(self, request, pk):
-        agent = self.agent(pk)
-        return Response(AgentVersionSerializer(agent.versions.select_related("published_by"), many=True).data)
+        from audits.impact import versions_payload
+
+        return Response(versions_payload(self.agent(pk)))
 
 
 class ExpressionsView(_Base):

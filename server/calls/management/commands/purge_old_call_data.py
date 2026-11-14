@@ -9,6 +9,7 @@ from django.db import transaction
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 
+from audits.fixes import purge_fix_quotes
 from audits.models import CallAudit
 from calls.models import CallEvent, CallReport, Recording, TurnLabel, recording_relpath
 
@@ -120,7 +121,9 @@ class Command(BaseCommand):
         n = old.count()
         if dry_run:
             return n
+        purged = []
         for audit in old.iterator():
+            purged.append(audit.pk)
             scores = audit.scores if isinstance(audit.scores, dict) else {}
             for area in scores.values():
                 for item in area.get("evidence") or [] if isinstance(area, dict) else []:
@@ -131,4 +134,5 @@ class Command(BaseCommand):
                 if isinstance(m, dict):
                     m["quote"] = ""
             CallAudit.objects.filter(pk=audit.pk).update(scores=scores, moments=moments, summary="", quotes_purged=True)
+        purge_fix_quotes(purged)  # audit fixes keep copies of the quotes as their evidence
         return n
