@@ -148,6 +148,10 @@ these environment variables.
 | `AGENT_SIM_URL` | `http://127.0.0.1:8790` | Where the server reaches the simulator. |
 | `SUGGEST_LLM_MODEL` | `gemini-3.6-flash` | Model behind the workflow builder's *Suggest with AI*. |
 | `SUGGEST_DAILY_LIMIT` | `20` | Suggestion runs per workspace per day (failed runs don't count). |
+| `AUDIT_FIX_DAILY_LIMIT` | `20` | *Suggest fixes* runs (from call audits) per workspace per day (failed runs don't count). |
+| `AUDIT_FIX_AUTO_MIN_CONFIDENCE` | `0.8` | Confidence (0–1) a fix needs before *Auto-apply audit fixes to draft* applies it. |
+| `AUDIT_FIX_AUTO_MIN_CALLS` | `3` | Audited calls a problem must appear in before *Auto-apply audit fixes to draft* applies its fix. |
+| `AUDIT_FIX_MIN_CALLS_FOR_SCORES` | `5` | Audited calls each version needs before **Versions** compares its scores with the version before. |
 
 ## Deploy-time variables (not in `.env`)
 

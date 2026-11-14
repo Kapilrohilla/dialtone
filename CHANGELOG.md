@@ -9,6 +9,17 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Audit fixes**: *Suggest fixes* turns the problems call audits found into ready-to-apply changes, from one
+  call (its **Audit** section) or from the last N audited calls of an agent's latest version or workflow
+  revision (**Audit fixes** in the agent editor). Repeated problems are grouped and fixes ranked by how often
+  they appear × the score they cost; each links to its supporting moments. Workflow fixes (new answers,
+  expressions, rewritten step words) reuse `WorkflowSuggestion` with source "audit"; agent fixes (script
+  sections, knowledge snippets, settings) are a new `AgentSuggestion`. Both pass the existing checks or are
+  dropped. Accepting writes to the draft only; **Versions** shows the fixes each version includes and its
+  audit scores against the version before. Optional workspace setting **Auto-apply audit fixes to draft**
+  (off by default). `/api/calls/{room}/audit/fixes`, `/api/agents/{id}/audit-fixes`, `/api/audit-fixes/…`;
+  daily cap `AUDIT_FIX_DAILY_LIMIT`
+  ([KAP-37](https://linear.app/kapil-rohilla/issue/KAP-37/call-audits-suggested-fixes-turn-audit-problems-into-workflow-and)).
 - **Call audits**: Gemini scores the AI side of finished calls (naturalness, listening, empathy, pacing,
   flow, accuracy) against weights and instructions set per workspace under Settings → Calls. Scores show
   in Call history and the call slide-over; `GET`/`POST /api/calls/{room}/audit`, and an `audit_sweep`

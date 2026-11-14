@@ -122,6 +122,62 @@
                 }
             }
         },
+        "/api/agents/{id}/audit-fixes": {
+            "get": {
+                "operationId": "agents_audit_fixes_retrieve",
+                "description": "GET: the agent's latest run over recent calls, or 204. POST: start one over the last N audited calls of the\nlatest version (``by: \"version\"``) or of the workflow revision it uses (``by: \"workflow_revision\"``).",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "agents"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "agents_audit_fixes_create",
+                "description": "GET: the agent's latest run over recent calls, or 204. POST: start one over the last N audited calls of the\nlatest version (``by: \"version\"``) or of the workflow revision it uses (``by: \"workflow_revision\"``).",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "agents"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
         "/api/agents/{id}/duplicate": {
             "post": {
                 "operationId": "agents_duplicate_create",
@@ -318,6 +374,130 @@
                 }
             }
         },
+        "/api/audit-fixes/{run_id}": {
+            "get": {
+                "operationId": "audit_fixes_retrieve",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "run_id",
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "audit-fixes"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/audit-fixes/{run_id}/{target}/{item_id}": {
+            "patch": {
+                "operationId": "audit_fixes_partial_update",
+                "description": "PATCH: save an edit (``edited_payload``, validated like the original) or dismiss / restore a fix.",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "item_id",
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^\\d+$"
+                        },
+                        "required": true
+                    },
+                    {
+                        "in": "path",
+                        "name": "run_id",
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^\\d+$"
+                        },
+                        "required": true
+                    },
+                    {
+                        "in": "path",
+                        "name": "target",
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^agent|workflow$"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "audit-fixes"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/audit-fixes/{run_id}/{target}/{item_id}/accept": {
+            "post": {
+                "operationId": "audit_fixes_accept_create",
+                "description": "POST: accept a fix. Writes to the draft (a new workflow revision, or the agent); never publishes.",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "item_id",
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^\\d+$"
+                        },
+                        "required": true
+                    },
+                    {
+                        "in": "path",
+                        "name": "run_id",
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^\\d+$"
+                        },
+                        "required": true
+                    },
+                    {
+                        "in": "path",
+                        "name": "target",
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^agent|workflow$"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "audit-fixes"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
         "/api/auth/csrf": {
             "get": {
                 "operationId": "auth_csrf_retrieve",
@@ -471,6 +651,62 @@
             "post": {
                 "operationId": "calls_audit_create",
                 "description": "GET: the call's current audit, or {\"status\": \"none\"}. POST (editors): audit the call now, or re-audit.",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "room",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "calls"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/calls/{room}/audit/fixes": {
+            "get": {
+                "operationId": "calls_audit_fixes_retrieve",
+                "description": "GET: the call's latest run, or 204. POST: \"Suggest fixes\" for this call's audit.",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "room",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "calls"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "calls_audit_fixes_create",
+                "description": "GET: the call's latest run, or 204. POST: \"Suggest fixes\" for this call's audit.",
                 "parameters": [
                     {
                         "in": "path",
