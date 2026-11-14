@@ -1,0 +1,73 @@
+/* The floating voice test call: bottom-right, above page content and slide-overs, below toasts. */
+.dock {
+  position: fixed;
+  right: var(--gutter);
+  bottom: var(--gutter);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  width: 360px;
+  max-width: calc(100vw - 2 * var(--gutter));
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--ink) 18%, transparent);
+}
+.header { display: flex; align-items: center; gap: 8px; padding: 12px 12px 12px 16px; border-bottom: 1px solid var(--border); }
+.title { display: flex; flex: 1; flex-direction: column; min-width: 0; }
+.kicker { color: var(--muted); font-size: 12px; font-weight: 500; }
+.name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); font-size: 15px; font-weight: 600; }
+.open { display: inline-flex; align-items: center; gap: 4px; color: var(--blue); font-size: 13px; font-weight: 500; text-decoration: none; white-space: nowrap; }
+.open:hover { text-decoration: underline; }
+.icon {
+  display: inline-flex; flex: none; align-items: center; justify-content: center; width: 32px; height: 32px;
+  border: 0; border-radius: var(--radius); background: none; color: var(--ink-2); cursor: pointer;
+}
+.icon:hover { background: var(--well); }
+.body { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; }
+.statusRow { display: flex; align-items: center; gap: 10px; }
+.status { margin: 0; color: var(--amber); font-size: 14px; font-weight: 500; }
+.meter { display: inline-flex; flex: none; align-items: center; gap: 3px; height: 20px; }
+.meter span { width: 3px; height: 6px; border-radius: 2px; background: var(--amber); opacity: 0.5; }
+.meter[data-active] span { opacity: 1; animation: level 0.9s ease-in-out infinite; }
+.meter[data-active] span:nth-child(2) { animation-delay: -0.2s; }
+.meter[data-active] span:nth-child(3) { animation-delay: -0.45s; }
+.meter[data-active] span:nth-child(4) { animation-delay: -0.1s; }
+.meter[data-active] span:nth-child(5) { animation-delay: -0.6s; }
+@keyframes level { 0%, 100% { height: 6px; } 50% { height: 18px; } }
+@media (prefers-reduced-motion: reduce) { .meter[data-active] span { animation: none; height: 14px; } }
+.endedText { margin: 0; color: var(--ink-2); font-size: 15px; }
+.error { margin: 0; color: var(--bad); font-size: 14px; }
+.log { display: flex; flex-direction: column; gap: 6px; }
+.line { margin: 0; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; color: var(--ink); font-size: 14px; line-height: 1.5; }
+.you { color: var(--amber); font-size: 13px; font-weight: 600; }
+.agent { color: var(--blue); font-size: 13px; font-weight: 600; }
+.footer { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border); }
+
+/* Collapsed: the timer and a round hang-up button. */
+.pill {
+  position: fixed;
+  right: var(--gutter);
+  bottom: var(--gutter);
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--ink) 18%, transparent);
+}
+.pillOpen {
+  display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px;
+  border: 0; border-radius: 999px; background: none; color: var(--ink); font-size: 15px; font-weight: 500; cursor: pointer;
+}
+.pillOpen:hover { background: var(--well); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+.dot[data-reconnecting] { background: var(--amber); }
+.pillHangUp {
+  display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px;
+  border: 0; border-radius: 50%; background: var(--bad); color: #fff; cursor: pointer;
+}
+.pillHangUp:hover { background: color-mix(in srgb, var(--bad) 88%, var(--ink)); }

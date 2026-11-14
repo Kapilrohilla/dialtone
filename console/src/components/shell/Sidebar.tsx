@@ -1,12 +1,11 @@
 "use client";
 
-import { BookOpen, Bot, GitBranch, History, LayoutDashboard, Plug, Radio, Settings } from "lucide-react";
+import { BookOpen, Bot, CircleHelp, GitBranch, Headset, History, LayoutDashboard, LogOut, Plug, Radio, Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
-import { Chip, Menu } from "@/components/ui";
+import { Chip } from "@/components/ui";
 import { useLiveCalls, useLogoUrl, useLogout, useMe, useProjectName } from "@/lib/queries";
-import type { Role } from "@/lib/types";
 import { ThemeToggle } from "./ThemeToggle";
 import styles from "./Sidebar.module.css";
 
@@ -21,7 +20,8 @@ const NAV: { href: string; label: string; Icon: LucideIcon }[] = [
   { href: "/settings", label: "Settings", Icon: Settings },
 ];
 
-const ROLE_LABEL: Record<Role, string> = { owner: "Owner", admin: "Admin", editor: "Editor", viewer: "Viewer" };
+const DOCS_URL = "https://kapilrohilla.github.io/dialtone/docs/";
+const SUPPORT_URL = "https://github.com/Kapilrohilla/dialtone/issues";
 
 const isActive = (pathname: string, href: string) => (href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`));
 
@@ -78,15 +78,19 @@ export function Sidebar() {
         })}
       </nav>
       <div className={styles.footer}>
+        <a href={DOCS_URL} target="_blank" rel="noopener noreferrer" className={styles.item}>
+          <CircleHelp size={20} strokeWidth={1.75} aria-hidden="true" />
+          <span className={styles.label}>Documentation</span>
+        </a>
+        <a href={SUPPORT_URL} target="_blank" rel="noopener noreferrer" className={styles.item}>
+          <Headset size={20} strokeWidth={1.75} aria-hidden="true" />
+          <span className={styles.label}>Support</span>
+        </a>
         <ThemeToggle />
-        <div className={styles.user}>
-          <span className={styles.avatar} aria-hidden="true">{initials(me?.name)}</span>
-          <span className={styles.who}>
-            <span className={styles.name}>{me?.name}</span>
-            {me && <span className={styles.role}>{ROLE_LABEL[me.role]}</span>}
-          </span>
-          <Menu label="User menu" placement="right" items={[{ label: "Sign out", onSelect: () => logout.mutate() }]} />
-        </div>
+        <button type="button" className={`${styles.item} ${styles.logout}`} onClick={() => logout.mutate()} disabled={logout.isPending}>
+          <LogOut size={20} strokeWidth={1.75} aria-hidden="true" />
+          <span className={styles.label}>Log out</span>
+        </button>
       </div>
     </aside>
   );

@@ -397,7 +397,7 @@ describe("agent script editor", () => {
     serve();
     const { user } = open();
     await user.click(await screen.findByRole("button", { name: "Voice test" }));
-    const panel = screen.getByRole("dialog", { name: "Voice test" });
+    const panel = await screen.findByRole("region", { name: "Voice test" });
     expect(await within(panel).findByRole("alert")).toHaveTextContent("LiveKit isn't set up.");
     expect(asked).toBe(1);
   });

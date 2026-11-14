@@ -1,20 +1,18 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { ChevronDown, ExternalLink, PhoneOff, X } from "lucide-react";
+import Link from "next/link";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Room, TextStreamReader } from "livekit-client";
-import { Button, SlideOver } from "@/components/ui";
+import { Button } from "@/components/ui";
 import { ApiError } from "@/lib/api";
 import { useWebCall } from "@/lib/queries";
-import styles from "./Simulator.module.css";
-
-export type VoiceTestProps = {
-  /** The agent whose draft answers. */
-  agentId: number;
-  onClose: () => void;
-};
+import styles from "./VoiceTest.module.css";
 
 type Phase = "connecting" | "waiting" | "live" | "ended" | "failed";
 type Line = { id: string; speaker: "you" | "agent"; text: string };
+export type VoiceTestAgent = { id: number; name: string };
+type LiveKit = typeof import("livekit-client");
 
 /** What LiveKit voice agents publish as the `lk.agent.state` attribute. */
 const AGENT_STATES: Record<string, string> = {
@@ -41,38 +39,95 @@ function elapsed(seconds: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
+const hasAgent = (r: Room) => [...r.remoteParticipants.values()].some((p) => p.isAgent);
+
+type VoiceTestContext = {
+  /** Calls `agent`'s draft. If that agent is already on a call, just opens the dock. */
+  start: (agent: VoiceTestAgent) => void;
+};
+
+const Ctx = createContext<VoiceTestContext | null>(null);
+
+export function useVoiceTest(): VoiceTestContext {
+  const ctx = useContext(Ctx);
+  if (!ctx) throw new Error("useVoiceTest needs a <VoiceTestProvider> above it.");
+  return ctx;
+}
+
 /**
- * Talk to the agent's draft from the browser over WebRTC. No phone call, so no SIP minutes: the dashboard
+ * Talk to an agent's draft from the browser over WebRTC. No phone call, so no SIP minutes: the dashboard
  * hands out a LiveKit token whose room dispatches the voice agent, which runs the same pipeline as a real
- * call. Mount it to start the call; unmounting hangs up.
+ * call.
+ *
+ * The call lives here, in the console layout, not on the agent page: moving between console pages keeps it
+ * going in a floating dock. It hangs up on Hang up, on closing the browser tab, or when the console itself
+ * goes away (signing out).
  */
-export function VoiceTest({ agentId, onClose }: VoiceTestProps) {
-  const webCall = useWebCall(agentId);
+export function VoiceTestProvider({ children }: { children: ReactNode }) {
+  const webCall = useWebCall();
+  const [agent, setAgent] = useState<VoiceTestAgent | null>(null);
   const [phase, setPhase] = useState<Phase>("connecting");
   const [error, setError] = useState<string | null>(null);
   const [agentState, setAgentState] = useState<string | null>(null);
   const [lines, setLines] = useState<Line[]>([]);
   const [muted, setMuted] = useState(false);
-  const [seconds, setSeconds] = useState(0);
+  const [reconnecting, setReconnecting] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  /** When the agent joined, and the clock; a hidden tab throttles timers, so the time is worked out, not counted. */
+  const [liveSince, setLiveSince] = useState<number | null>(null);
+  const [now, setNow] = useState(0);
   const room = useRef<Room | null>(null);
+  const lkRef = useRef<LiveKit | null>(null);
   const audio = useRef<HTMLDivElement>(null);
+  /** Bumped per call (and on hang up), so events from an earlier call never touch the current one. */
+  const run = useRef(0);
   /** False once unmounted, so a call that connects afterwards is hung up straight away. */
   const alive = useRef(true);
-  /** Bumped per call, so events from an earlier call never touch the current one. */
-  const run = useRef(0);
-  const started = useRef(false);
+  const phaseRef = useRef<Phase>(phase);
+  phaseRef.current = phase;
+  const agentRef = useRef<VoiceTestAgent | null>(agent);
+  agentRef.current = agent;
 
   function upsertLine(id: string, speaker: Line["speaker"], text: string) {
-    setLines((now) => {
-      const at = now.findIndex((l) => l.id === id);
-      if (at === -1) return text ? [...now, { id, speaker, text }] : now;
-      const next = now.slice();
+    setLines((cur) => {
+      const at = cur.findIndex((l) => l.id === id);
+      if (at === -1) return text ? [...cur, { id, speaker, text }] : cur;
+      const next = cur.slice();
       next[at] = { id, speaker, text };
       return next;
     });
   }
 
-  async function start() {
+  function goLive() {
+    setPhase("live");
+    const t = Date.now();
+    setLiveSince((s) => s ?? t);
+    setNow(t);
+  }
+
+  /** Ends the current call in the UI and drops our side of the room. */
+  const endCall = useCallback(() => {
+    run.current += 1;
+    const r = room.current;
+    room.current = null;
+    void r?.disconnect();
+    setReconnecting(false);
+    setNow(Date.now());
+    setPhase((p) => (p === "failed" ? p : "ended"));
+    // An end you might not have seen (the dock was a pill): show it.
+    setCollapsed(false);
+  }, []);
+
+  /** The room's real state, for when events may have been missed (a background tab, a reconnect). */
+  const recheck = useCallback(() => {
+    const r = room.current;
+    const lk = lkRef.current;
+    if (!r || !lk) return;
+    if (r.state === lk.ConnectionState.Disconnected) endCall();
+    else if (phaseRef.current === "live" && r.state === lk.ConnectionState.Connected && !hasAgent(r)) endCall();
+  }, [endCall]);
+
+  async function connect(target: VoiceTestAgent) {
     const at = ++run.current;
     const current = () => alive.current && at === run.current;
     setPhase("connecting");
@@ -80,11 +135,12 @@ export function VoiceTest({ agentId, onClose }: VoiceTestProps) {
     setAgentState(null);
     setLines([]);
     setMuted(false);
-    setSeconds(0);
+    setReconnecting(false);
+    setLiveSince(null);
 
     let access;
     try {
-      access = await webCall.mutateAsync();
+      access = await webCall.mutateAsync(target.id);
     } catch (e) {
       if (!current()) return;
       setError(e instanceof ApiError ? e.detail : "The voice test couldn't start.");
@@ -94,6 +150,8 @@ export function VoiceTest({ agentId, onClose }: VoiceTestProps) {
     if (!current()) return;
 
     const lk = await import("livekit-client");
+    lkRef.current = lk;
+    if (!current()) return;
     const r = new lk.Room({
       adaptiveStream: false,
       audioCaptureDefaults: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
@@ -109,13 +167,29 @@ export function VoiceTest({ agentId, onClose }: VoiceTestProps) {
       track.detach().forEach((el) => el.remove());
     });
     r.on(lk.RoomEvent.ParticipantConnected, (p) => {
-      if (current() && p.isAgent) setPhase("live");
+      if (current() && p.isAgent) goLive();
+    });
+    // The agent hung up (or crashed): the call is over even if the room lingers.
+    r.on(lk.RoomEvent.ParticipantDisconnected, (p) => {
+      if (current() && p.isAgent) endCall();
     });
     r.on(lk.RoomEvent.ParticipantAttributesChanged, (changed, p) => {
       if (current() && p.isAgent && changed["lk.agent.state"]) setAgentState(changed["lk.agent.state"]);
     });
+    r.on(lk.RoomEvent.Reconnecting, () => {
+      if (current()) setReconnecting(true);
+    });
+    r.on(lk.RoomEvent.SignalReconnecting, () => {
+      if (current()) setReconnecting(true);
+    });
+    r.on(lk.RoomEvent.Reconnected, () => {
+      if (!current()) return;
+      setReconnecting(false);
+      recheck();
+    });
+    // Also what a failed reconnect ends in.
     r.on(lk.RoomEvent.Disconnected, () => {
-      if (current()) setPhase((p) => (p === "failed" ? p : "ended"));
+      if (current()) endCall();
     });
     // The agent's and your speech as text, one stream per segment. A segment can be sent again (your
     // words while you're still speaking), so each new stream replaces that segment's text.
@@ -134,6 +208,7 @@ export function VoiceTest({ agentId, onClose }: VoiceTestProps) {
       await r.connect(access.url, access.token);
     } catch {
       if (!current()) return;
+      room.current = null;
       setError(
         `Couldn't reach LiveKit at ${access.url}. If you use the console through \`make tunnel\`, restart it so it forwards port 7880.`,
       );
@@ -146,23 +221,34 @@ export function VoiceTest({ agentId, onClose }: VoiceTestProps) {
     }
     // Opened by a click, so the browser lets the agent's audio play.
     void r.startAudio();
-    setPhase([...r.remoteParticipants.values()].some((p) => p.isAgent) ? "live" : "waiting");
+    if (hasAgent(r)) goLive();
+    else setPhase("waiting");
     try {
       await r.localParticipant.setMicrophoneEnabled(true);
     } catch (e) {
       if (!current()) return;
       setError(micError(e));
       setPhase("failed");
-      void r.disconnect();
+      endCall();
     }
   }
 
-  function hangUp() {
+  const start = useCallback((target: VoiceTestAgent) => {
+    const busy = phaseRef.current !== "ended" && phaseRef.current !== "failed";
+    if (agentRef.current?.id === target.id && busy) {
+      setCollapsed(false);
+      return;
+    }
+    // Calling another agent replaces the call in progress.
     run.current += 1;
     void room.current?.disconnect();
     room.current = null;
-    setPhase("ended");
-  }
+    setAgent(target);
+    setCollapsed(false);
+    void connect(target);
+    // connect only reads refs and stable setters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function toggleMute() {
     const r = room.current;
@@ -171,69 +257,127 @@ export function VoiceTest({ agentId, onClose }: VoiceTestProps) {
     setMuted(!muted);
   }
 
+  function close() {
+    endCall();
+    setAgent(null);
+  }
+
   useEffect(() => {
     alive.current = true;
-    if (!started.current) {
-      started.current = true;
-      void start();
-    }
+    // Closing or reloading the tab hangs up at once, rather than leaving the agent talking to nobody.
+    const onPageHide = () => void room.current?.disconnect();
+    // A background tab can miss the end of the call: look again when it's back.
+    const onVisible = () => {
+      if (document.visibilityState === "visible") recheck();
+    };
+    window.addEventListener("pagehide", onPageHide);
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
+      window.removeEventListener("pagehide", onPageHide);
+      document.removeEventListener("visibilitychange", onVisible);
       alive.current = false;
+      run.current += 1;
       void room.current?.disconnect();
       room.current = null;
     };
-    // Once per mount: the call.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [recheck]);
 
   useEffect(() => {
     if (phase !== "live") return;
-    const timer = setInterval(() => setSeconds((s) => s + 1), 1000);
+    const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, [phase]);
 
-  function callAgain() {
-    void start();
-  }
-
+  const seconds = liveSince === null ? 0 : Math.max(0, Math.floor((now - liveSince) / 1000));
+  const over = phase === "ended" || phase === "failed";
   const status =
     phase === "connecting" ? "Connecting…"
     : phase === "waiting" ? "Waiting for the agent to join…"
+    : phase === "live" && reconnecting ? "Reconnecting…"
     : phase === "live" ? `${AGENT_STATES[agentState ?? ""] ?? "Connected"} · ${elapsed(seconds)}${muted ? " · Muted" : ""}`
     : null;
 
-  const footer =
-    phase === "ended" || phase === "failed" ? (
-      <div className={styles.ended}>
-        <span className={styles.endedText}>{phase === "ended" ? "The call ended." : "The call didn't start."}</span>
-        <Button onClick={callAgain}>Call again</Button>
-      </div>
-    ) : (
-      <div className={styles.composerRow}>
-        <Button onClick={() => void toggleMute()} disabled={phase === "connecting"} aria-pressed={muted}>
-          {muted ? "Unmute" : "Mute"}
-        </Button>
-        <Button variant="danger" onClick={hangUp}>Hang up</Button>
-      </div>
-    );
-
   return (
-    <SlideOver open onClose={onClose} title="Voice test" footer={footer}>
-      <p className={styles.note}>
-        Talk to the draft through your microphone, like a phone call but in the browser. No phone number is
-        called, so no call minutes are used. The call is listed in call history as a web test.
-      </p>
-      {status && <p className={styles.step} aria-live="polite">{status}</p>}
-      {error && <p role="alert" className={styles.error}>{error}</p>}
-      <div role="log" aria-label="Conversation" aria-live="polite" className={styles.log}>
-        {lines.map((l) => (
-          <div key={l.id} className={styles.turn}>
-            <span className={l.speaker === "you" ? styles.caller : styles.agent}>{l.speaker === "you" ? "You" : "Agent"}</span>
-            <p className={styles.text}>{l.text}</p>
+    <Ctx.Provider value={{ start }}>
+      {children}
+      {agent && collapsed && !over && (
+        <div className={styles.pill} role="region" aria-label="Voice test">
+          <button type="button" className={styles.pillOpen} onClick={() => setCollapsed(false)} aria-label="Open voice test">
+            <span className={styles.dot} data-reconnecting={reconnecting || undefined} aria-hidden="true" />
+            <span className="mono">{phase === "live" ? elapsed(seconds) : "…"}</span>
+          </button>
+          <button type="button" className={styles.pillHangUp} onClick={endCall} aria-label="Hang up">
+            <PhoneOff size={16} strokeWidth={2} aria-hidden="true" />
+          </button>
+        </div>
+      )}
+      {agent && !(collapsed && !over) && (
+        <section className={styles.dock} role="region" aria-label="Voice test">
+          <header className={styles.header}>
+            <div className={styles.title}>
+              <span className={styles.kicker}>Voice test</span>
+              <span className={styles.name}>{agent.name}</span>
+            </div>
+            <Link href={`/agents/${agent.id}`} className={styles.open}>
+              Open agent
+              <ExternalLink size={14} strokeWidth={1.75} aria-hidden="true" />
+            </Link>
+            {over ? (
+              <button type="button" className={styles.icon} onClick={close} aria-label="Close">
+                <X size={18} strokeWidth={1.75} aria-hidden="true" />
+              </button>
+            ) : (
+              <button type="button" className={styles.icon} onClick={() => setCollapsed(true)} aria-label="Collapse">
+                <ChevronDown size={18} strokeWidth={1.75} aria-hidden="true" />
+              </button>
+            )}
+          </header>
+          <div className={styles.body}>
+            {status && (
+              <div className={styles.statusRow}>
+                <span
+                  className={styles.meter}
+                  data-active={(phase === "live" && !reconnecting && agentState === "speaking") || undefined}
+                  aria-hidden="true"
+                >
+                  <span />
+                  <span />
+                  <span />
+                  <span />
+                  <span />
+                </span>
+                <p className={styles.status} aria-live="polite">{status}</p>
+              </div>
+            )}
+            {phase === "ended" && <p className={styles.endedText}>The call ended.</p>}
+            {phase === "failed" && <p className={styles.endedText}>The call didn&apos;t start.</p>}
+            {error && <p role="alert" className={styles.error}>{error}</p>}
+            {lines.length > 0 && (
+              <div role="log" aria-label="Conversation" aria-live="polite" className={styles.log}>
+                {lines.slice(-2).map((l) => (
+                  <p key={l.id} className={styles.line}>
+                    <span className={l.speaker === "you" ? styles.you : styles.agent}>{l.speaker === "you" ? "You" : "Agent"}</span>{" "}
+                    {l.text}
+                  </p>
+                ))}
+              </div>
+            )}
           </div>
-        ))}
-      </div>
+          <footer className={styles.footer}>
+            {over ? (
+              <Button size="sm" onClick={() => void connect(agent)}>Call again</Button>
+            ) : (
+              <>
+                <Button size="sm" onClick={() => void toggleMute()} disabled={phase === "connecting"} aria-pressed={muted}>
+                  {muted ? "Unmute" : "Mute"}
+                </Button>
+                <Button size="sm" variant="danger" onClick={endCall}>Hang up</Button>
+              </>
+            )}
+          </footer>
+        </section>
+      )}
       <div ref={audio} hidden />
-    </SlideOver>
+    </Ctx.Provider>
   );
 }

@@ -1,10 +1,11 @@
 import userEvent from "@testing-library/user-event";
 import { act, screen, waitFor, within } from "@testing-library/react";
+import { useState, type ReactNode } from "react";
 import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "@/test/render";
 import { server } from "@/test/server";
-import { VoiceTest } from "./VoiceTest";
+import { useVoiceTest } from "./VoiceTest";
 
 type Handler = (...args: unknown[]) => void;
 type StreamHandler = (reader: AsyncIterable<string> & { info: { id: string; attributes?: Record<string, string> } }, from: { identity: string }) => Promise<void>;
@@ -17,10 +18,12 @@ class FakeRoom {
   handlers = new Map<string, Handler[]>();
   streams = new Map<string, StreamHandler>();
   remoteParticipants = new Map<string, { isAgent: boolean }>();
+  state = "connected";
   connect = vi.fn(async () => {
     if (FakeRoom.connectError) throw FakeRoom.connectError;
   });
   disconnect = vi.fn(async () => {
+    this.state = "disconnected";
     this.emit("disconnected");
   });
   startAudio = vi.fn(async () => {});
@@ -62,9 +65,14 @@ vi.mock("livekit-client", () => ({
     TrackSubscribed: "trackSubscribed",
     TrackUnsubscribed: "trackUnsubscribed",
     ParticipantConnected: "participantConnected",
+    ParticipantDisconnected: "participantDisconnected",
     ParticipantAttributesChanged: "participantAttributesChanged",
+    Reconnecting: "reconnecting",
+    SignalReconnecting: "signalReconnecting",
+    Reconnected: "reconnected",
     Disconnected: "disconnected",
   },
+  ConnectionState: { Disconnected: "disconnected", Connected: "connected" },
   Track: { Kind: { Audio: "audio" } },
 }));
 
@@ -89,12 +97,48 @@ beforeEach(() => {
   FakeRoom.micError = null;
 });
 
+/** A page with the Voice test button, as the agent editor has. */
+function AgentPage({ id = 3, name = "Maya" }: { id?: number; name?: string }) {
+  const voice = useVoiceTest();
+  return <button onClick={() => voice.start({ id, name })}>Voice test</button>;
+}
+
+function OtherPage() {
+  return <p>Call history</p>;
+}
+
+/** The routed page inside the console layout (renderWithProviders supplies the voice test provider). */
+let navigate: (page: ReactNode) => void = () => {};
+function Pages({ initial }: { initial: ReactNode }) {
+  const [page, setPage] = useState(initial);
+  navigate = setPage;
+  return page;
+}
+
+/** Renders the console with the agent page and starts a call. */
+async function call() {
+  const user = userEvent.setup();
+  const view = renderWithProviders(<Pages initial={<AgentPage />} />);
+  await user.click(screen.getByRole("button", { name: "Voice test" }));
+  return { user, ...view };
+}
+
+const dock = () => screen.getByRole("region", { name: "Voice test" });
+
+function setVisibility(state: "hidden" | "visible") {
+  Object.defineProperty(document, "visibilityState", { configurable: true, get: () => state });
+  document.dispatchEvent(new Event("visibilitychange"));
+}
+
+beforeEach(() => setVisibility("visible"));
+
 describe("VoiceTest", () => {
   it("connects with the dashboard's token, turns the mic on and waits for the agent", async () => {
     const calls = serveToken();
-    renderWithProviders(<VoiceTest agentId={3} onClose={() => {}} />);
-    expect(screen.getByRole("dialog", { name: "Voice test" })).toBeInTheDocument();
-    expect(await screen.findByText("Waiting for the agent to join…")).toBeInTheDocument();
+    await call();
+    expect(await within(dock()).findByText("Waiting for the agent to join…")).toBeInTheDocument();
+    expect(within(dock()).getByText("Maya")).toBeInTheDocument();
+    expect(within(dock()).getByRole("link", { name: "Open agent" })).toHaveAttribute("href", "/agents/3");
     expect(calls).toHaveLength(1);
     expect(room().connect).toHaveBeenCalledWith("ws://localhost:7880", "tok");
     expect(room().localParticipant.setMicrophoneEnabled).toHaveBeenCalledWith(true);
@@ -106,27 +150,26 @@ describe("VoiceTest", () => {
     expect(await screen.findByText(/^Speaking · /)).toBeInTheDocument();
   });
 
-  it("shows both sides of the conversation from the transcription streams", async () => {
+  it("shows the last two lines of the conversation from the transcription streams", async () => {
     serveToken();
-    renderWithProviders(<VoiceTest agentId={3} onClose={() => {}} />);
+    await call();
     await screen.findByText("Waiting for the agent to join…");
 
+    await act(() => room().stream("agent-xyz", "a0", ["Hello."]));
     await act(() => room().stream("agent-xyz", "a1", ["Namaste! ", "Main Maya bol rahi hoon."]));
     await act(() => room().stream("web-test-1", "u1", ["haan"]));
     // The same segment again (still speaking): replaces, doesn't append.
     await act(() => room().stream("web-test-1", "u1", ["haan ji boliye"]));
 
     const log = screen.getByRole("log", { name: "Conversation" });
-    expect(within(log).getByText("Namaste! Main Maya bol rahi hoon.")).toBeInTheDocument();
-    expect(within(log).getByText("haan ji boliye")).toBeInTheDocument();
-    expect(within(log).queryByText("haan")).not.toBeInTheDocument();
-    expect(within(log).getAllByText(/^(You|Agent)$/).map((n) => n.textContent)).toEqual(["Agent", "You"]);
+    expect(log).toHaveTextContent("Agent Namaste! Main Maya bol rahi hoon.");
+    expect(log).toHaveTextContent("You haan ji boliye");
+    expect(log).not.toHaveTextContent("Hello.");
   });
 
   it("mutes, hangs up and calls again", async () => {
     const calls = serveToken();
-    const user = userEvent.setup();
-    renderWithProviders(<VoiceTest agentId={3} onClose={() => {}} />);
+    const { user } = await call();
     await screen.findByText("Waiting for the agent to join…");
     const first = room();
 
@@ -144,18 +187,149 @@ describe("VoiceTest", () => {
     expect(room()).not.toBe(first);
   });
 
-  it("ends when the agent hangs up", async () => {
+  it("collapses to a pill with a timer and a hang-up button", async () => {
     serveToken();
-    renderWithProviders(<VoiceTest agentId={3} onClose={() => {}} />);
+    const { user } = await call();
+    await screen.findByText("Waiting for the agent to join…");
+    act(() => room().emit("participantConnected", { isAgent: true }));
+    await screen.findByText(/^Connected · 0:00/);
+
+    await user.click(screen.getByRole("button", { name: "Collapse" }));
+    expect(screen.queryByText(/^Connected/)).not.toBeInTheDocument();
+    expect(within(dock()).getByText("0:00")).toBeInTheDocument();
+    await user.click(within(dock()).getByRole("button", { name: "Open voice test" }));
+    expect(screen.getByText(/^Connected · 0:00/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Collapse" }));
+    await user.click(within(dock()).getByRole("button", { name: "Hang up" }));
+    expect(room().disconnect).toHaveBeenCalled();
+    expect(screen.getByText("The call ended.")).toBeInTheDocument();
+  });
+
+  it("ends when the room disconnects", async () => {
+    serveToken();
+    await call();
     await screen.findByText("Waiting for the agent to join…");
     act(() => room().emit("disconnected"));
     expect(await screen.findByText("The call ended.")).toBeInTheDocument();
   });
 
+  it("ends when the agent leaves, and drops the room", async () => {
+    serveToken();
+    await call();
+    await screen.findByText("Waiting for the agent to join…");
+    act(() => room().emit("participantConnected", { isAgent: true }));
+    await screen.findByText(/^Connected · /);
+    // Someone else leaving isn't the end.
+    act(() => room().emit("participantDisconnected", { isAgent: false }));
+    expect(screen.getByText(/^Connected · /)).toBeInTheDocument();
+
+    act(() => room().emit("participantDisconnected", { isAgent: true }));
+    expect(await screen.findByText("The call ended.")).toBeInTheDocument();
+    expect(room().disconnect).toHaveBeenCalled();
+    expect(screen.queryByText(/^Connected/)).not.toBeInTheDocument();
+  });
+
+  it("says it's reconnecting, and ends when the reconnect fails", async () => {
+    serveToken();
+    await call();
+    await screen.findByText("Waiting for the agent to join…");
+    act(() => room().emit("participantConnected", { isAgent: true }));
+    await screen.findByText(/^Connected · /);
+
+    act(() => room().emit("reconnecting"));
+    expect(await screen.findByText("Reconnecting…")).toBeInTheDocument();
+    act(() => room().emit("disconnected"));
+    expect(await screen.findByText("The call ended.")).toBeInTheDocument();
+    expect(screen.queryByText("Reconnecting…")).not.toBeInTheDocument();
+  });
+
+  it("ends after a reconnect if the agent is gone", async () => {
+    serveToken();
+    await call();
+    await screen.findByText("Waiting for the agent to join…");
+    act(() => room().emit("participantConnected", { isAgent: true }));
+    await screen.findByText(/^Connected · /);
+    act(() => room().emit("reconnecting"));
+    act(() => room().emit("reconnected"));
+    expect(await screen.findByText("The call ended.")).toBeInTheDocument();
+  });
+
+  it("ends a call that disconnected while the tab was hidden, once the tab is back", async () => {
+    serveToken();
+    await call();
+    await screen.findByText("Waiting for the agent to join…");
+    const r = room();
+    r.remoteParticipants.set("agent", { isAgent: true });
+    act(() => r.emit("participantConnected", { isAgent: true }));
+    await screen.findByText(/^Connected · /);
+
+    setVisibility("hidden");
+    // The disconnect happened in the background and its event never reached the page.
+    r.state = "disconnected";
+    expect(screen.getByText(/^Connected · /)).toBeInTheDocument();
+    act(() => setVisibility("visible"));
+    expect(await screen.findByText("The call ended.")).toBeInTheDocument();
+  });
+
+  it("keeps a healthy call when the tab comes back", async () => {
+    serveToken();
+    await call();
+    await screen.findByText("Waiting for the agent to join…");
+    room().remoteParticipants.set("agent", { isAgent: true });
+    act(() => room().emit("participantConnected", { isAgent: true }));
+    await screen.findByText(/^Connected · /);
+    setVisibility("hidden");
+    act(() => setVisibility("visible"));
+    expect(screen.getByText(/^Connected · /)).toBeInTheDocument();
+    expect(room().disconnect).not.toHaveBeenCalled();
+  });
+
+  it("keeps the call going when you move to another console page", async () => {
+    serveToken();
+    await call();
+    await screen.findByText("Waiting for the agent to join…");
+    act(() => room().emit("participantConnected", { isAgent: true }));
+    await screen.findByText(/^Connected · /);
+
+    act(() => navigate(<OtherPage />));
+    expect(screen.getByText("Call history")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Voice test" })).not.toBeInTheDocument();
+    expect(within(dock()).getByText(/^Connected · /)).toBeInTheDocument();
+    expect(room().disconnect).not.toHaveBeenCalled();
+  });
+
+  it("opening the same agent's voice test again keeps the call; another agent's replaces it", async () => {
+    const calls = serveToken();
+    server.use(http.post("*/api/agents/4/web-call", () => HttpResponse.json({ url: "ws://localhost:7880", token: "tok4", room: "web-4" })));
+    const { user } = await call();
+    await screen.findByText("Waiting for the agent to join…");
+    const first = room();
+    await user.click(screen.getByRole("button", { name: "Collapse" }));
+    await user.click(screen.getByRole("button", { name: "Voice test" }));
+    expect(screen.getByText("Waiting for the agent to join…")).toBeInTheDocument();
+    expect(calls).toHaveLength(1);
+
+    act(() => navigate(<AgentPage id={4} name="Ravi" />));
+    await user.click(screen.getByRole("button", { name: "Voice test" }));
+    await waitFor(() => expect(room()).not.toBe(first));
+    expect(first.disconnect).toHaveBeenCalled();
+    expect(await within(dock()).findByText("Ravi")).toBeInTheDocument();
+    await waitFor(() => expect(room().connect).toHaveBeenCalledWith("ws://localhost:7880", "tok4"));
+  });
+
+  it("hangs up when the browser tab closes", async () => {
+    serveToken();
+    await call();
+    await screen.findByText("Waiting for the agent to join…");
+    window.dispatchEvent(new Event("pagehide"));
+    expect(room().disconnect).toHaveBeenCalled();
+  });
+
   it("explains when LiveKit can't be reached", async () => {
     serveToken();
     FakeRoom.connectError = new Error("could not establish signal connection");
-    renderWithProviders(<VoiceTest agentId={3} onClose={() => {}} />);
+    await call();
     expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't reach LiveKit at ws://localhost:7880");
     expect(screen.getByText("The call didn't start.")).toBeInTheDocument();
   });
@@ -163,22 +337,24 @@ describe("VoiceTest", () => {
   it("explains a blocked microphone and hangs up", async () => {
     serveToken();
     FakeRoom.micError = Object.assign(new Error("denied"), { name: "NotAllowedError" });
-    renderWithProviders(<VoiceTest agentId={3} onClose={() => {}} />);
+    await call();
     expect(await screen.findByRole("alert")).toHaveTextContent("The browser blocked the microphone");
     await waitFor(() => expect(room().disconnect).toHaveBeenCalled());
     expect(screen.getByText("The call didn't start.")).toBeInTheDocument();
   });
 
-  it("shows the dashboard's error when there's no token", async () => {
+  it("shows the dashboard's error when there's no token, and closes", async () => {
     serveToken(403);
-    renderWithProviders(<VoiceTest agentId={3} onClose={() => {}} />);
+    const { user } = await call();
     expect(await screen.findByRole("alert")).toHaveTextContent("You can't edit this agent.");
     expect(FakeRoom.last).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("region", { name: "Voice test" })).not.toBeInTheDocument();
   });
 
-  it("hangs up when closed", async () => {
+  it("hangs up when the console goes away", async () => {
     serveToken();
-    const { unmount } = renderWithProviders(<VoiceTest agentId={3} onClose={() => {}} />);
+    const { unmount } = await call();
     await screen.findByText("Waiting for the agent to join…");
     unmount();
     expect(room().disconnect).toHaveBeenCalled();

@@ -34,6 +34,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- The sidebar footer has **Documentation** and **Support** links (open in a new tab) and a **Log out**
+  button, in place of the avatar, name, role and user menu ([KAP-40](https://linear.app/kapil-rohilla/issue/KAP-40/voice-test-call-drops-on-tab-switch-and-panel-stays-live-after-hang-up)).
 - Dark mode in the default Saffron theme is warm (page `#221F1C`) instead of cool slate, matching the
   light theme's hue. Inputs get a 3:1 field edge, and the Saffron accent ink is `#8A5800` (was `#9A6200`)
   so it passes WCAG AA on its pill.
@@ -46,6 +48,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Voice test** calls run in a floating dock (collapsible to a timer pill) that stays up while you move
+  between console pages, instead of hanging up when you leave the agent page. The dock now ends the call
+  when the agent leaves, when a reconnect fails, or when the tab comes back to find the room gone, and shows
+  *Reconnecting…* in between; it no longer stays on "live" after the call ended. Closing the browser tab
+  hangs up ([KAP-40](https://linear.app/kapil-rohilla/issue/KAP-40/voice-test-call-drops-on-tab-switch-and-panel-stays-live-after-hang-up)).
 - The *Test chat* text simulator failed on every message because its default model,
   `gemini-2.5-flash`, has been retired by Google. `SIM_LLM_MODEL` now defaults to `gemini-3.6-flash`
   ([KAP-36](https://linear.app/kapil-rohilla/issue/KAP-36/simulator-replace-retired-gemini-25-flash-default-try-it-test-call)).
