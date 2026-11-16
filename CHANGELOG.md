@@ -25,7 +25,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and `/api/calls/{room}/disposition`. Other changes: `disposition_list` on `/api/agents/{id}`,
   `disposition`, `disposition_history` and `disposition_options` on calls, and `webhook_url` on
   `/api/workspace`
-  ([KAP-46](https://linear.app/kapil-rohilla/issue/KAP-46/call-disposition-capture-disposition-lists-per-agent)).
+  ([KAP-46](https://linear.app/kapil-rohilla/issue/KAP-46/call-disposition-capture-disposition-lists-per-agent), [#26](https://github.com/Kapilrohilla/dialtone/pull/26)).
 - **Agent personality**: each agent has a **Personality** in the editor: five presets (Warm Helper, the
   default and today's behaviour, Friendly Dost, Calm Professional, Upbeat Sales, Empathetic Support) and a
   **Fine-tune** with six 1–5 traits, address style (sir/ma'am, ji, first name, none), reactions, reply
