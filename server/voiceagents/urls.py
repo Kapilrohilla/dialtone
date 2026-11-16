@@ -15,5 +15,6 @@ urlpatterns = [
     path("agents/<int:pk>/web-call", webcall.AgentWebCallView.as_view()),
     path("workflows/<int:pk>/simulate", simulate.WorkflowSimulateView.as_view()),
     path("voices", api.VoicesView.as_view()),
+    path("personality-presets", api.PersonalityPresetsView.as_view()),
     path("expressions", api.ExpressionsView.as_view()),
 ]

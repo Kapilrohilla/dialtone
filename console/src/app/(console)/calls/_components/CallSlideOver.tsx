@@ -127,7 +127,8 @@ function CallBody({
     if (at != null) rec.playFrom(at);
   }
 
-  const meta = [call.agent_name, formatWhen(call.started_at, timeZone).replace(/^Today/, "today").replace(/^Yesterday/, "yesterday")].filter(Boolean).join(", ");
+  const personality = call.agent_personality ? `${call.agent_personality} personality` : null;
+  const meta = [call.agent_name, personality, formatWhen(call.started_at, timeZone).replace(/^Today/, "today").replace(/^Yesterday/, "yesterday")].filter(Boolean).join(", ");
 
   return (
     <>

@@ -6,6 +6,7 @@ Like ``workflows/suggestions.py``, the same checks run on Gemini's output (bad f
 """
 from workflows.suggestions import MAX_REASON_CHARS, Invalid, _text
 
+from . import personality as personality_mod
 from .serializers import TEXT_SETTINGS
 from .tokens import long_pause_errors, short_pause_errors, unknown_expressions, variables
 
@@ -15,8 +16,13 @@ MAX_KNOWLEDGE_CHARS = 1500
 MAX_LANGUAGE_CHARS = 60
 MAX_PERSONA_CHARS = 60
 
+# Personality values an audit fix may change (KAP-41): fix key -> the trait it sets, plus the reply length.
+PERSONALITY_TRAIT_KEYS = {f"personality_{t}": t for t in personality_mod.TRAITS}
+PERSONALITY_VERBOSITY = "personality_verbosity"
+
 # The settings an audit fix may change, and what "the current value" is for each.
-SETTING_KEYS = ("language", "persona_name", "name_pronunciation", "consent_line", "mood_adaptation")
+SETTING_KEYS = ("language", "persona_name", "name_pronunciation", "consent_line", "mood_adaptation",
+                *PERSONALITY_TRAIT_KEYS, PERSONALITY_VERBOSITY)
 
 __all__ = ["Invalid", "validate_script", "validate_knowledge", "validate_settings", "validate_agent_item",
            "current_settings", "section"]
@@ -40,13 +46,27 @@ def section(agent, section_id) -> dict | None:
 
 def current_settings(agent) -> dict:
     st = agent.settings if isinstance(agent.settings, dict) else {}
+    p = personality_mod.resolve(agent.personality)
     return {
         "language": agent.language or "",
         "persona_name": agent.persona_name or "",
         "name_pronunciation": st.get("name_pronunciation") or "",
         "consent_line": st.get("consent_line") or "",
         "mood_adaptation": bool(st.get("mood_adaptation", True)),
+        **{key: p["traits"][trait] for key, trait in PERSONALITY_TRAIT_KEYS.items()},
+        PERSONALITY_VERBOSITY: p["verbosity"],
     }
+
+
+def personality_update(changes: dict) -> dict:
+    """The personality part of validated setting changes, as a partial personality update."""
+    out: dict = {}
+    traits = {PERSONALITY_TRAIT_KEYS[k]: v for k, v in changes.items() if k in PERSONALITY_TRAIT_KEYS}
+    if traits:
+        out["traits"] = traits
+    if PERSONALITY_VERBOSITY in changes:
+        out["verbosity"] = changes[PERSONALITY_VERBOSITY]
+    return out
 
 
 def _reason(payload) -> str:
@@ -103,6 +123,17 @@ def validate_knowledge(payload, agent) -> dict:
 # -- settings ----------------------------------------------------------------------------------------
 
 def _setting(key: str, value):
+    if key in PERSONALITY_TRAIT_KEYS:
+        # An editor's edit arrives as text ("4").
+        if isinstance(value, str) and value.strip().isdigit():
+            value = int(value.strip())
+        if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= 5:
+            raise Invalid("Personality levels go from 1 to 5.", "changes")
+        return value
+    if key == PERSONALITY_VERBOSITY:
+        if value not in personality_mod.VERBOSITIES:
+            raise Invalid("Reply length must be brief, normal or explanatory.", "changes")
+        return value
     if key == "mood_adaptation":
         if not isinstance(value, bool):
             raise Invalid("Mood adaptation must be on or off.", "changes")

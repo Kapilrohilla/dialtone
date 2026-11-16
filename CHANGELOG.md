@@ -9,6 +9,16 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Agent personality**: each agent has a **Personality** in the editor: five presets (Warm Helper, the
+  default and today's behaviour, Friendly Dost, Calm Professional, Upbeat Sales, Empathetic Support) and a
+  **Fine-tune** with six 1–5 traits, address style (sir/ma'am, ji, first name, none), reactions, reply
+  length, thinking sounds, favourite and avoided phrases, a character description and a baseline pace.
+  The worker compiles it into the tone guide and a personality layer placed after the fixed rules, which it
+  can't override; a caller's mood still wins (humour dropped for frustrated, angry or wary callers) and the
+  mood's TTS speed multiplies the pace on Sarvam and ElevenLabs. Snapshotted with each version, part of
+  outdated detection and duplicate; audit fixes can change traits and reply length. **Try a line** shows
+  sample replies from the text simulator. `personality` on `/api/agents/{id}`, `GET /api/personality-presets`
+  ([KAP-41](https://linear.app/kapil-rohilla/issue/KAP-41/add-personality-in-agents)).
 - **Audit fixes**: *Suggest fixes* turns the problems call audits found into ready-to-apply changes, from one
   call (its **Audit** section) or from the last N audited calls of an agent's latest version or workflow
   revision (**Audit fixes** in the agent editor). Repeated problems are grouped and fixes ranked by how often
@@ -48,6 +58,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- An agent with a male voice (Charon, Orus, Puck) no longer calls itself a "female calling executive" or
+  says "bol rahi hoon": its persona line, opening, tone guide and mood notes follow the voice's gender
+  (`gender` in both `voices.json` catalogues) unless the personality sets one
+  ([KAP-41](https://linear.app/kapil-rohilla/issue/KAP-41/add-personality-in-agents)).
 - **Voice test** calls run in a floating dock (collapsible to a timer pill) that stays up while you move
   between console pages, instead of hanging up when you leave the agent page. The dock now ends the call
   when the agent leaves, when a reconnect fails, or when the tab comes back to find the room gone, and shows

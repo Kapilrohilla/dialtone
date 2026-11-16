@@ -1,6 +1,8 @@
 import type {
   Agent,
   AgentListItem,
+  AgentPersonality,
+  PersonalityPreset,
   AgentVersion,
   AuditFixEvidence,
   AuditFixRun,
@@ -65,6 +67,48 @@ export const script = [
   },
 ];
 
+export const presets: PersonalityPreset[] = [
+  {
+    id: "warm_helper",
+    name: "Warm Helper",
+    summary: "Friendly, confident and respectful. The classic calling executive.",
+    sample: "Achha, ji sir. Ye option aapke liye kaafi achha rahega.",
+    values: {
+      traits: { warmth: 4, energy: 3, formality: 2, humour: 2, directness: 3, empathy: 4 },
+      address_style: "sir_maam",
+      backchannels: "natural",
+      disfluencies: false,
+      verbosity: "normal",
+      pace: 1.0,
+      signature_phrases: [],
+    },
+  },
+  {
+    id: "friendly_dost",
+    name: "Friendly Dost",
+    summary: "Casual and cheerful, like a helpful friend. Light humour, lots of warmth.",
+    sample: "Arre haan ji, bilkul! Koi tension nahi, sab ho jayega.",
+    values: {
+      traits: { warmth: 5, energy: 4, formality: 1, humour: 3, directness: 3, empathy: 4 },
+      address_style: "ji",
+      backchannels: "expressive",
+      disfluencies: true,
+      verbosity: "normal",
+      pace: 1.05,
+      signature_phrases: ["koi tension nahi", "bilkul ji"],
+    },
+  },
+];
+
+export const personality: AgentPersonality = {
+  ...structuredClone(presets[0].values),
+  preset: "warm_helper",
+  self_gender: "auto",
+  avoid_phrases: [],
+  description: "",
+  resolved_gender: "female",
+};
+
 export const agent: Agent = {
   id: 3,
   name: "Driver lead qualifier",
@@ -83,6 +127,7 @@ export const agent: Agent = {
   knowledge: [7],
   workflow: 2,
   published_version: 4,
+  personality,
   created_at: "2026-10-01T10:00:00Z",
 };
 
@@ -191,8 +236,8 @@ export const dashboard: Dashboard = {
 export const phoneNumbers: PhoneNumber[] = [{ number: NUMBER, trunk_name: "Northwind inbound", agent_name: agent.name }];
 
 export const voices: Voice[] = [
-  { id: "Kore", name: "Kore", description: "Female, firm", sample: "/voices/kore.wav" },
-  { id: "priya", name: "Priya", description: "Female, Hindi", sample: null },
+  { id: "Kore", name: "Kore", gender: "female", description: "Female, firm", sample: "/voices/kore.wav" },
+  { id: "priya", name: "Priya", gender: "female", description: "Female, Hindi", sample: null },
 ];
 
 const step = (id: string, type: Step["type"], name: string, x: number, y: number, extra: Partial<Step> = {}): Step => ({

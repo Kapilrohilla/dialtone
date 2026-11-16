@@ -12,9 +12,11 @@ export type PublishDialogProps = {
   liveAgent?: { id: number; name: string } | null;
   onClose: () => void;
   onPublished?: () => void;
+  /** Something worth checking that doesn't block publishing, e.g. a voice that doesn't match the agent's gender. */
+  warning?: string | null;
 };
 
-export function PublishDialog({ agent, liveAgent, onClose, onPublished }: PublishDialogProps) {
+export function PublishDialog({ agent, liveAgent, onClose, onPublished, warning }: PublishDialogProps) {
   const publish = usePublish();
   const replaced = liveAgent && agent && liveAgent.id !== agent.id ? liveAgent : null;
   const failure = publish.error;
@@ -51,6 +53,7 @@ export function PublishDialog({ agent, liveAgent, onClose, onPublished }: Publis
       <p className={styles.dialogText}>
         {replaced ? `${replaced.name} will stop answering calls.` : "It will answer the next call."}
       </p>
+      {warning && <p className={styles.dialogText}>Check before publishing: {warning}</p>}
       {listed.length > 0 && (
         <div role="alert" className={styles.errors}>
           <p className={styles.errorsTitle}>Fix these first:</p>

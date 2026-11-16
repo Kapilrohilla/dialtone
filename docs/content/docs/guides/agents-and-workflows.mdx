@@ -13,6 +13,7 @@ roles: owner, admin, editor or viewer.
 | Piece | Where | What it does |
 |---|---|---|
 | **Persona and language** | Agent editor | The name the agent introduces itself with and the languages it speaks. |
+| **Personality** | Agent editor | How the agent sounds: a preset, fine-tuned traits, how it addresses callers, favourite phrases, its gender and pace (see below). |
 | **Script** | Agent editor | Titled sections of instructions (your job, opening, qualifying questions, objections, closing…). Supports expressions such as `[[expr:name]]` and lead variables such as `{{lead.city}}`. |
 | **Knowledge** | **Knowledge** | Documents with revisions (pricing, policies, FAQs). The agent quotes only what is written in the attached documents. |
 | **Workflow** | **Workflows** | A graph of steps the conversation follows (see below). Optional: without one the agent follows the script. |
@@ -20,6 +21,44 @@ roles: owner, admin, editor or viewer.
 
 The demo agent from `seed_demo` (**Rental enquiry assistant** for the fictional Northwind Car Rentals) shows
 all of them; its script and knowledge are also in `examples/car-rental-agent/`.
+
+## Personality
+
+Every agent has a **Personality** (agent editor, under **Voice**). Pick one of five presets, or fine-tune:
+
+| Preset | Sounds like |
+|---|---|
+| **Warm Helper** (default) | Friendly, confident and respectful: exactly how agents spoke before personalities existed. |
+| **Friendly Dost** | Casual and cheerful, says "ji" instead of "sir", light humour. |
+| **Calm Professional** | Composed, slightly formal, short answers, no jokes. |
+| **Upbeat Sales** | Energetic and enthusiastic, never pushy. |
+| **Empathetic Support** | Patient and gentle, takes time to explain. |
+
+**Fine-tune** has six 1–5 sliders (warmth, energy, formality, humour, directness, empathy), how the agent
+calls the driver (sir/ma'am, ji, by first name from `{{lead.name}}`, or nothing), how often it reacts
+("achha", "haan ji"), reply length, light thinking sounds ("hmm", "ek second"), up to 5 favourite phrases
+(60 characters each), up to 10 phrases it never says, a character description (600 characters) and a
+speaking pace (0.85–1.15). Changing any preset value marks the personality **Custom**; **Reset** goes back
+to the preset.
+
+- **Gender.** **Speaks as: Auto** follows the voice: a male voice (Charon, Orus, Puck) makes the agent talk
+  about itself in masculine forms ("bol raha hoon"). You can set female, male or neutral (no gendered
+  words); the editor and the publish dialog warn when that conflicts with the voice.
+- **Rules come first.** The personality never overrides the fixed rules: the agent never claims to be a
+  human, says it's an AI when a caller sincerely asks, never asks for documents and quotes only approved
+  information. Free text (description and phrases) is
+  placed after those rules and can't replace them.
+- **Mood wins.** With mood adaptation on, a frustrated, angry or wary caller makes the agent drop humour and
+  calm down, whatever the personality says.
+- **Pace.** On Sarvam and ElevenLabs the pace sets the voice's speed (a caller's mood multiplies it, kept
+  within 0.8–1.2). Gemini Live has no speed control, so the agent is told the pace instead.
+- **Try a line** shows the agent's opening and its answer to a sample question from the saved draft (text
+  simulator); the voice test also uses the draft personality.
+
+The personality is part of each published version (resolved values, so later preset changes never alter a
+version), marks a published agent outdated when changed, and is copied by **Duplicate**. Presets are listed
+at `GET /api/personality-presets`; `PATCH /api/agents/{id}` takes a partial `personality` (`{"preset": "…"}`
+applies that preset's values).
 
 ## Workflows
 
@@ -77,7 +116,8 @@ With call audits on (**Settings → Calls**), every audited call gets a score an
 
 Workflow fixes add a missing answer out of a step, add expressions, or rewrite a step's words; agent fixes
 rewrite a script section, add a knowledge snippet for questions the agent couldn't answer, or change
-settings (language, persona name, name pronunciation, consent line, mood adaptation). Every fix links to the
+settings (language, persona name, name pronunciation, consent line, mood adaptation, personality traits
+and reply length). Every fix links to the
 calls, lines and quotes behind it and passes the same checks as an edit; fixes that fail them are left out.
 
 **Accept** writes to the draft only: a new workflow revision, or the agent's draft. Callers keep the

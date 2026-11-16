@@ -11,6 +11,8 @@ import type {
   CallFeedback,
   CallFeedbackInput,
   AgentListItem,
+  AgentPersonality,
+  PersonalityPreset,
   AgentTextSetting,
   AgentVersion,
   AuditFix,
@@ -418,6 +420,8 @@ export function useCreateAgent() {
 export type AgentUpdate = Partial<
   Pick<Agent, "name" | "description" | "language" | "persona_name" | "voice_id" | "script" | "custom_expressions" | "knowledge" | "workflow" | "phone_number">
 > & {
+  /** Deep-merged over the saved personality by the server; {preset} alone applies that preset's values. */
+  personality?: Partial<Omit<AgentPersonality, "traits" | "resolved_gender">> & { traits?: Partial<AgentPersonality["traits"]> };
   /** Deep-merged over the saved settings by the server, so send only what changed. */
   settings?: { mood_adaptation?: boolean; dead_air?: Partial<Agent["settings"]["dead_air"]> } & Partial<Pick<Agent["settings"], AgentTextSetting>>;
 };
@@ -485,6 +489,17 @@ export function useExpressions() {
 
 export function useVoices() {
   return useQuery({ queryKey: voicesKey, queryFn: () => apiFetch<VoicesResponse>("/api/voices"), staleTime: 300_000 });
+}
+
+export const personalityPresetsKey = ["personality-presets"] as const;
+
+/** The personality presets; static, shipped with the server. */
+export function usePersonalityPresets() {
+  return useQuery({
+    queryKey: personalityPresetsKey,
+    queryFn: () => apiFetch<PersonalityPreset[]>("/api/personality-presets"),
+    staleTime: Infinity,
+  });
 }
 
 // ---- knowledge ----

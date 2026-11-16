@@ -7,6 +7,7 @@ from calls.numbers import strip_nul
 from workspaces.serializers import StrictBooleanField
 
 from .models import Agent, AgentVersion, default_settings
+from . import personality as personality_mod
 from . import voices
 from .publish import is_outdated
 from .tokens import BUILTIN_EXPRESSIONS
@@ -50,12 +51,18 @@ class AgentDetailSerializer(AgentListSerializer):
     knowledge = serializers.SerializerMethodField()
     workflow = serializers.PrimaryKeyRelatedField(read_only=True)
     published_version = serializers.SerializerMethodField()
+    personality = serializers.SerializerMethodField()
 
     class Meta(AgentListSerializer.Meta):
         fields = AgentListSerializer.Meta.fields + [
             "language", "persona_name", "voice_id", "settings", "script", "custom_expressions",
-            "knowledge", "workflow", "published_version", "created_at",
+            "knowledge", "workflow", "published_version", "personality", "created_at",
         ]
+
+    def get_personality(self, obj) -> dict:
+        """The resolved personality, plus the gender the agent speaks as ("auto" follows the voice)."""
+        p = personality_mod.resolve(obj.personality)
+        return {**p, "resolved_gender": personality_mod.resolved_gender(p, obj.voice_id, settings.AGENT_PIPELINE)}
 
     def get_knowledge(self, obj):
         return sorted(obj.knowledge.values_list("id", flat=True))
@@ -148,6 +155,7 @@ class AgentWriteSerializer(serializers.Serializer):
     custom_expressions = serializers.JSONField(required=False)
     knowledge = serializers.ListField(child=serializers.IntegerField(), required=False, max_length=200)
     workflow = serializers.IntegerField(required=False, allow_null=True)
+    personality = serializers.JSONField(required=False)
 
     def validate_name(self, value):
         value = value.strip()

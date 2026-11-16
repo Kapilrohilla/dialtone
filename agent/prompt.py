@@ -19,16 +19,24 @@ agent's published config first, then the worker's env, then a generic default:
 
 A per-agent value counts only when it is a non-blank string. AGENT_CONSENT_LINE set to an empty string
 turns the spoken recording notice off.
+
+The agent's personality (KAP-41, personality.py) comes from snapshot["personality"]; without one it is the
+"warm_helper" preset, which reproduces the tone guide used before personalities. The gender the agent speaks
+as follows personality.self_gender, or with "auto" the gender of the voice the call speaks with.
 """
 
 import logging
 import os
 import re
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from dotenv import load_dotenv
+
+import personality as persona_mod
+import voices
+from personality import Personality
 
 load_dotenv()
 
@@ -50,24 +58,38 @@ class Identity:
         "Saying the company name:" (AGENT_NAME_PRONUNCIATION).
     consent: the recording notice appended to the opening line of a recorded call; empty means none
         (AGENT_CONSENT_LINE).
+    gender: how the agent refers to itself: "female", "male" or "neutral" (resolved, never "auto").
+    personality: the agent's personality (personality.py); the default reproduces the original tone guide.
     """
 
     company: str = ""
     persona: str = ""
     pronunciation: str = ""
     consent: str = DEFAULT_CONSENT_LINE
+    gender: str = "female"
+    personality: Personality = field(default_factory=Personality)
 
 
 def _text(value) -> str | None:
     return value.strip() if isinstance(value, str) and value.strip() else None
 
 
+def self_gender(p: Personality, voice_id: str | None = None) -> str:
+    """The gender the agent speaks as: the personality's, or with "auto" the gender of the voice the call speaks
+    with (female when the catalog doesn't say)."""
+    if p.self_gender in persona_mod.GENDERS:
+        return p.self_gender
+    return voices.gender(voice_id if isinstance(voice_id, str) else None) or "female"
+
+
 def identity(snapshot: Mapping | None = None) -> Identity:
     """The agent's identity: the snapshot's values (persona_name, settings.company_name,
-    settings.name_pronunciation, settings.consent_line) win over the AGENT_* env vars, which win over
-    the generic defaults. Env is read on every call, so tests and workers see the current environment."""
+    settings.name_pronunciation, settings.consent_line, personality, voice_id) win over the AGENT_* env vars,
+    which win over the generic defaults. Env is read on every call, so tests and workers see the current
+    environment."""
     snap = snapshot if isinstance(snapshot, Mapping) else {}
     settings = snap.get("settings") if isinstance(snap.get("settings"), Mapping) else {}
+    p = persona_mod.from_snapshot(snap)
     return Identity(
         company=_text(settings.get("company_name")) or os.getenv("AGENT_COMPANY_NAME", "").strip(),
         persona=_text(snap.get("persona_name")) or os.getenv("AGENT_PERSONA_NAME", "").strip(),
@@ -75,6 +97,8 @@ def identity(snapshot: Mapping | None = None) -> Identity:
             _text(settings.get("name_pronunciation")) or os.getenv("AGENT_NAME_PRONUNCIATION", "").strip()
         ),
         consent=_text(settings.get("consent_line")) or os.getenv("AGENT_CONSENT_LINE", DEFAULT_CONSENT_LINE).strip(),
+        gender=self_gender(p, snap.get("voice_id")),
+        personality=p,
     )
 
 
@@ -113,17 +137,19 @@ DISPOSITIONS = (
 )
 
 
-def persona_line(persona_name: str = "", company: str = "") -> str:
-    """"You are …": the persona name and company when configured, a generic assistant otherwise."""
+def persona_line(persona_name: str = "", company: str = "", gender: str = "female") -> str:
+    """"You are …": the persona name and company when configured, a generic calling executive otherwise. The
+    gender word only for a female or male agent."""
+    what = f"{gender} calling executive" if gender in ("female", "male") else "calling executive"
     who = f"You are {persona_name}, a" if persona_name else "You are a"
-    return f"{who} female calling executive" + (f" for {company}." if company else ".")
+    return f"{who} {what}" + (f" for {company}." if company else ".")
 
 
 def _persona(who: Identity) -> str:
     # Script (ops own it once the console has a config).
     about = f" {who.company} is a fleet partner" if who.company else " You call for a fleet partner"
     return (
-        persona_line(who.persona, who.company) + about + "\n"
+        persona_line(who.persona, who.company, who.gender) + about + "\n"
         "that gives driver partners vehicles to drive on Uber. You are on a phone call with a potential driver partner."
     )
 
@@ -146,7 +172,7 @@ def _disclosure(who: Identity) -> str:
     )
 
 
-# System layer: tone guide.
+# System layer: tone guide. The default personality's version; how_you_talk() builds each agent's.
 _HOW_YOU_TALK = """
 How you talk:
 - Natural spoken Hindi/Hinglish, like a friendly, confident calling executive in India. Use common English
@@ -163,6 +189,16 @@ How you talk:
 - No markdown, lists, emojis or symbols. Say numbers the way people say them on the phone.
 - Drivers speak colloquial Hindi, English, regional accents and mixes of these; follow their meaning.
 """.strip()
+
+
+def how_you_talk(who: Identity) -> str:
+    """System layer: the tone guide for the agent's personality and gender."""
+    return persona_mod.how_you_talk(who.personality, who.gender)
+
+
+def personality_block(who: Identity) -> str:
+    """The personality layer (free text), placed after the system layer; "" when the agent has none."""
+    return persona_mod.block(who.personality)
 
 
 def _company_name(who: Identity) -> str:
@@ -292,7 +328,7 @@ def system_layer(who: Identity | None = None) -> str:
     return _join(
         [
             _disclosure(who),
-            _HOW_YOU_TALK,
+            how_you_talk(who),
             _company_name(who),
             _DOCUMENTS_RULE,
             _KNOWLEDGE_RULE,
@@ -305,16 +341,21 @@ def system_layer(who: Identity | None = None) -> str:
     )
 
 
+def _the_call(who: Identity) -> str:
+    return persona_mod.gendered(_THE_CALL, who.gender)
+
+
 def script_fallback(who: Identity | None = None) -> str:
     who = who or identity()
-    return _join([_persona(who), _JOB, _THE_CALL])
+    return _join([_persona(who), _JOB, _the_call(who)])
 
 
 def base_instructions(who: Identity | None = None) -> str:
     """The built-in prompt: the system-layer and script sections interleaved as they always were."""
     who = who or identity()
     return _join(
-        [_persona(who), _JOB, _disclosure(who), _HOW_YOU_TALK, _company_name(who), _THE_CALL, _NEVER, _RECORDING]
+        [_persona(who), _JOB, _disclosure(who), how_you_talk(who), _company_name(who), _the_call(who), _NEVER,
+         _RECORDING]
     )
 
 
@@ -350,6 +391,22 @@ def lead_instructions(lead: dict) -> str:
     return f"Lead record (already known, so don't ask again; correct it if the driver says otherwise):\n{facts}"
 
 
+def _intro(persona_name: str | None, company: str, gender: str) -> str:
+    """" main Maya, Northwind se bol rahi hoon." in the agent's gender; "" with neither a name nor a company.
+    Neutral uses "mera naam … hai", which has no gendered verb."""
+    if gender == "neutral":
+        if persona_name and company:
+            return f" mera naam {persona_name} hai, {company} se."
+        if company:
+            return f" {company} se call hai."
+        return f" mera naam {persona_name} hai." if persona_name else ""
+    verb = "bol raha hoon" if gender == "male" else "bol rahi hoon"
+    if company:
+        name = f"{persona_name}, {company}" if persona_name else company
+        return f" main {name} se {verb}."
+    return f" main {persona_name} {verb}." if persona_name else ""
+
+
 def opening_line(
     lead: dict, persona_name: str | None = None, recording: bool = False, who: Identity | None = None
 ) -> str:
@@ -358,19 +415,16 @@ def opening_line(
     who: the company and consent line (identity(snapshot)); None uses the env/defaults."""
     who = who or identity()
     previously = bool(lead.get("previously_interested"))
-    if who.company:
-        name = f"{persona_name}, {who.company}" if persona_name else who.company
-        intro = f" main {name} se bol rahi hoon."
-    else:
-        intro = f" main {persona_name} bol rahi hoon." if persona_name else ""
+    intro = _intro(persona_name, who.company, who.gender)
+    hello = persona_mod.greeting(who.personality, lead)
     if previously:
         line = (
-            f"Namaste sir,{intro} Aapne Uber par gaadi "
+            f"{hello},{intro} Aapne Uber par gaadi "
             "chalane ke liye interest dikhaya tha. Kya abhi ek minute baat kar sakte hain?"
         )
     else:
         line = (
-            f"Namaste sir,{intro} Hum Uber par gaadi chalane "
+            f"{hello},{intro} Hum Uber par gaadi chalane "
             "ke liye driving opportunities provide karte hain. Kya aap iske baare mein jaanna chahenge?"
         )
     if recording and who.consent:
@@ -381,10 +435,12 @@ def opening_line(
 def opening_instructions(
     lead: dict, persona_name: str | None = None, recording: bool = False, who: Identity | None = None
 ) -> str:
+    who = who or identity()
     return (
         f"Your opening line: {opening_line(lead, persona_name, recording, who)}\n"
         "If the driver speaks first (e.g. \"hello\", \"haan ji\", \"kaun?\"), let them finish, acknowledge "
-        "it briefly (\"Ji, hello sir!\"), then say your opening line. Say the opening line only once."
+        f"it briefly (\"{persona_mod.hello(who.personality)}\"), then say your opening line. Say the opening line "
+        "only once."
     )
 
 
@@ -538,7 +594,10 @@ def build_instructions(
     """The prompt for a call with a console config: system layer, script, then the current step. The
     snapshot's identity (persona_name, settings.company_name, …) wins over the env, see identity()."""
     who = identity(snapshot)
-    parts = [system_layer(who), persona_line(who.persona, who.company)]
+    parts = [system_layer(who)]
+    if personality_block(who):
+        parts.append(personality_block(who))
+    parts.append(persona_line(who.persona, who.company, who.gender))
     hints = custom_hints(snapshot)
     for section in snapshot.get("script") or []:
         body = delivery_notes(fill_variables(section.get("body_rendered") or "", lead), hints).strip()

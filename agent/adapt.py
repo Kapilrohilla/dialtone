@@ -7,7 +7,7 @@ from livekit.agents.utils import is_given
 from livekit.plugins import elevenlabs, sarvam
 
 from mood import Emotion
-from tone import TONE_POLICY, mood_message
+from tone import effective_speed, mood_message
 
 logger = logging.getLogger("phone-agent")
 
@@ -17,18 +17,25 @@ ELEVENLABS_DEFAULT_SIMILARITY = 0.75
 
 
 async def apply_mood(
-    agent, tts, emotion: Emotion, base_instructions: str, handoff_available: bool = False
+    agent,
+    tts,
+    emotion: Emotion,
+    base_instructions: str,
+    handoff_available: bool = False,
+    pace: float = 1.0,
+    gender: str = "female",
 ) -> None:
-    """Replace the mood note in the agent's instructions and, where the TTS allows, set its pace.
+    """Replace the mood note in the agent's instructions and, where the TTS allows, set its pace: the
+    personality's baseline `pace` times the mood's speed (tone.effective_speed).
 
     Uses update_instructions rather than a system message in the chat history: Gemini Live drops
     system messages from history but takes instruction updates mid-session without reconnecting,
     and replacing the note keeps old notes from piling up.
     """
-    note = mood_message(emotion, handoff_available=handoff_available)
+    note = mood_message(emotion, handoff_available=handoff_available, gender=gender)
     await agent.update_instructions(f"{base_instructions}\n\n{note}")
     if tts is not None:
-        set_tts_speed(tts, TONE_POLICY[emotion].tts_speed)
+        set_tts_speed(tts, effective_speed(pace, emotion))
 
 
 def sends_mood_notes(pipeline: str) -> bool:

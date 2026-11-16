@@ -1,5 +1,5 @@
 import userEvent from "@testing-library/user-event";
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { delay, http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 import type { AgentUpdate } from "@/lib/queries";
@@ -24,10 +24,13 @@ function serve(agent: Agent = baseAgent, respond?: (body: AgentUpdate) => Respon
       patches.push(body);
       const answer = await respond?.(body);
       if (answer) return answer;
-      const { settings, ...rest } = body;
+      const { settings, personality, ...rest } = body;
       current = {
         ...current,
         ...rest,
+        personality: personality
+          ? { ...current.personality, ...personality, traits: { ...current.personality.traits, ...personality.traits } }
+          : current.personality,
         settings: settings
           ? { ...current.settings, ...settings, dead_air: { ...current.settings.dead_air, ...settings.dead_air } }
           : current.settings,
@@ -600,5 +603,87 @@ describe("agent script editor", () => {
     await user.click(toggle);
     await waitFor(() => expect(events).toEqual(["start false", "end false", "start true", "end true"]));
     await waitFor(() => expect(screen.queryByText("Saving…")).not.toBeInTheDocument());
+  });
+});
+
+describe("agent personality", () => {
+  const puck: Voice = { id: "Puck", name: "Puck", gender: "male", description: "Male, upbeat", sample: "/voices/puck.wav" };
+
+  it("picks a preset, fine-tunes it to custom and resets it", async () => {
+    const patches = serve();
+    const { user } = open();
+    const dost = await screen.findByRole("radio", { name: /Friendly Dost/ });
+    expect(screen.getByRole("radio", { name: /Warm Helper/ })).toHaveAttribute("aria-checked", "true");
+    await user.click(dost);
+    await waitFor(() => expect(patches).toEqual([{ personality: { preset: "friendly_dost" } }]));
+    expect(dost).toHaveAttribute("aria-checked", "true");
+    expect(screen.queryByText("Custom")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Fine-tune" }));
+    expect(screen.getByRole("textbox", { name: "Favourite phrases" })).toHaveValue("koi tension nahi\nbilkul ji");
+    const humour = screen.getByRole("slider", { name: /Humour/ });
+    expect(humour).toHaveValue("3");
+    fireEvent.change(humour, { target: { value: "4" } });
+    await waitFor(() => expect(patches.at(-1)).toEqual({ personality: { traits: { humour: 4 } } }));
+    expect(screen.getByText("Custom")).toBeInTheDocument();
+    expect(dost).toHaveAttribute("aria-checked", "false");
+
+    await user.click(screen.getByRole("button", { name: "Reset to Friendly Dost" }));
+    await waitFor(() => expect(patches.at(-1)).toEqual({ personality: { preset: "friendly_dost" } }));
+    expect(screen.queryByText("Custom")).not.toBeInTheDocument();
+    expect(screen.getByRole("slider", { name: /Humour/ })).toHaveValue("3");
+  });
+
+  it("saves phrases and the character when the field loses focus", async () => {
+    const patches = serve();
+    const { user } = open();
+    await user.click(await screen.findByRole("button", { name: "Fine-tune" }));
+    await user.type(screen.getByRole("textbox", { name: "Never say" }), "sahayata{Enter}  {Enter}sahayata");
+    await user.tab();
+    await waitFor(() => expect(patches).toEqual([{ personality: { avoid_phrases: ["sahayata"] } }]));
+    await user.type(screen.getByRole("textbox", { name: "Character" }), " Ex-driver from Delhi ");
+    expect(screen.getByText(/^22\/600\./)).toBeInTheDocument();
+    await user.tab();
+    await waitFor(() => expect(patches.at(-1)).toEqual({ personality: { description: "Ex-driver from Delhi" } }));
+  });
+
+  it("follows the voice for gender and warns about a mismatch, also when publishing", async () => {
+    server.use(http.get("*/api/voices", () => HttpResponse.json({ pipeline: "gemini-live", voices: [...voices, puck] })));
+    const patches = serve({ ...baseAgent, status: "draft", voice_id: "Puck" });
+    const { user } = open();
+    const speaks = await screen.findByRole("combobox", { name: "Speaks as" });
+    expect(await within(speaks).findByRole("option", { name: "Auto (Male, from voice Puck)" })).toBeInTheDocument();
+    await user.selectOptions(speaks, "female");
+    await waitFor(() => expect(patches).toEqual([{ personality: { self_gender: "female" } }]));
+    expect(screen.getByText(/The voice Puck is male, but the agent speaks as a woman/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Publish" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/Check before publishing: The voice Puck is male/)).toBeInTheDocument();
+  });
+
+  it("shows sample replies with Try a line", async () => {
+    const bodies: unknown[] = [];
+    server.use(
+      http.post("*/api/agents/3/simulate", async ({ request }) => {
+        const body = (await request.json()) as { messages: unknown[] };
+        bodies.push(body);
+        const reply = body.messages.length === 0 ? "Namaste ji, main Maya bol rahi hoon." : "Deposit ki details team batayegi.";
+        return HttpResponse.json({ reply, state: { n: body.messages.length }, step: null, outcome: null, ended: false });
+      }),
+    );
+    serve();
+    const { user } = open();
+    await user.click(await screen.findByRole("button", { name: "Try a line" }));
+    const list = await screen.findByRole("list", { name: "Sample replies" });
+    expect(await within(list).findByText("Deposit ki details team batayegi.")).toBeInTheDocument();
+    expect(within(list).getByText("Namaste ji, main Maya bol rahi hoon.")).toBeInTheDocument();
+    expect(bodies[1]).toMatchObject({ state: { n: 0 }, messages: [{ role: "agent" }, { role: "caller" }] });
+  });
+
+  it("is read only for viewers", async () => {
+    serve();
+    open("viewer");
+    expect(await screen.findByRole("radio", { name: /Friendly Dost/ })).toBeDisabled();
+    expect(screen.getByRole("combobox", { name: "Speaks as" })).toBeDisabled();
   });
 });
