@@ -56,7 +56,7 @@ def test_greeting_instructions_acknowledge_hello_first():
     assert text.endswith("Namaste sir, main Northwind Car Rentals se bol rahi hoon.")
 
 
-OPENING = "Namaste sir, main Maya, Northwind Car Rentals se AI calling assistant bol rahi hoon."
+OPENING = "Namaste sir, main Maya, Northwind Car Rentals se bol rahi hoon."
 
 
 def test_leaving_the_start_step_before_speaking_is_refused_with_the_opening():

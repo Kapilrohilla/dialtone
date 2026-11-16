@@ -150,15 +150,15 @@ def test_opening_line_consent_only_when_recording():
 
 def test_opening_line_uses_persona():
     assert "main Maya, Northwind Car Rentals se" in opening_line({}, persona_name="Maya")
-    assert "main Maya, Northwind Car Rentals ki" in opening_line({"previously_interested": True}, persona_name="Maya")
+    assert "main Maya, Northwind Car Rentals se" in opening_line({"previously_interested": True}, persona_name="Maya")
     # No persona given: the company only.
-    assert opening_line({}).startswith("Namaste sir, main Northwind Car Rentals se AI calling assistant")
+    assert opening_line({}).startswith("Namaste sir, main Northwind Car Rentals se bol rahi hoon.")
 
 
 def test_snapshot_identity_wins_over_env():
     snap = snapshot(settings={"company_name": "Contoso Fleet", "consent_line": "Recorded for training."})
     a = agent.PhoneAgent(LEAD, agent.GEMINI_LANGUAGE_RULES, console(snap), recording=True)
-    assert a.opening.startswith("Namaste sir, main Maya, Contoso Fleet se AI calling assistant")
+    assert a.opening.startswith("Namaste sir, main Maya, Contoso Fleet se bol rahi hoon.")
     assert a.opening.endswith(" Recorded for training.")
     assert "Northwind" not in a.instructions and "for Contoso Fleet." in a.instructions
 
