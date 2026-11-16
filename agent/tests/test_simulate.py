@@ -136,7 +136,7 @@ async def test_sim_greeting_turn_returns_reply_and_start_step(make_client):
     text = first["instructions"]
     assert "You are Maya" in text and "Qualify the driver." in text
     assert "Current step: Greet" in text and "Greet Ramesh." in text
-    assert "Your opening line: Namaste sir, main Maya, Northwind Car Rentals se AI calling assistant" in text
+    assert "Your opening line: Namaste sir, main Maya, Northwind Car Rentals se bol rahi hoon." in text
     names = {t["name"] for t in first["tools"]}
     assert {"record_outcome", "end_call", "transfer_to_telecaller", "go_to_city", "go_to_greet",
             "go_to_not_interested"} <= names

@@ -92,7 +92,8 @@ def test_builtin_matches_today(tmp_path, monkeypatch):
 
 def test_system_layer_contents():
     for needle in [
-        "You are an AI assistant. Say so in your opening",
+        "don't call yourself an AI or an assistant",
+        "say honestly that you're an AI assistant",
         "How you talk:",
         "Never ask for Aadhaar, PAN, bank details or any document numbers.",
         "Never:\n- Pressure a driver",
@@ -108,7 +109,7 @@ def test_system_layer_contents():
 
 
 def test_script_fallback_contents():
-    assert SCRIPT_FALLBACK.startswith("You are a female AI calling assistant")
+    assert SCRIPT_FALLBACK.startswith("You are a female calling executive")
     assert "Your job:" in SCRIPT_FALLBACK
     assert "The call:\n1. Opening:" in SCRIPT_FALLBACK
     assert "7. Close:" in SCRIPT_FALLBACK
@@ -120,17 +121,17 @@ def test_system_layer_always_present_with_snapshot(rules):
     text = build_instructions(snapshot(script=[]), {}, rules)
     assert text.startswith(SYSTEM_LAYER)
     assert (
-        "You are Maya, a female AI calling assistant." in text
+        "You are Maya, a female calling executive." in text
     )
 
 
 def test_generic_without_identity(tmp_path, monkeypatch):
     fresh = fresh_prompt(tmp_path, monkeypatch, env={})
     text = fresh.builtin_instructions(LEAD, fresh.GEMINI_LANGUAGE_RULES, recording=True)
-    assert text.startswith("You are a female AI calling assistant. You call for a fleet partner\nthat gives")
-    assert "never claim to be a human or an employee." in text
+    assert text.startswith("You are a female calling executive. You call for a fleet partner\nthat gives")
+    assert "Never claim to be a human or an employee." in text
     assert "Saying the company name:" not in text
-    assert "Namaste sir, main AI calling assistant bol rahi hoon." in text
+    assert "Namaste sir, Aapne Uber par gaadi" in text
     assert text.count(prompt.DEFAULT_CONSENT_LINE) == 1
     for word in ("None", "{", "Northwind", "Maya"):
         assert word not in text, word
@@ -157,8 +158,8 @@ def test_snapshot_identity_reaches_the_prompt(rules, monkeypatch):
     snap = snapshot(script=[], settings={"company_name": "Northwind Car Rentals",
                                          "name_pronunciation": '"NORTH-wind"'})
     text = build_instructions(snap, {}, rules)
-    assert "You are Maya, a female AI calling assistant for Northwind Car Rentals." in text
-    assert "never claim to be a human or a Northwind Car Rentals employee." in text
+    assert "You are Maya, a female calling executive for Northwind Car Rentals." in text
+    assert "Never claim to be a human or a Northwind Car Rentals employee." in text
     assert 'Saying the company name:\n- Say "Northwind Car Rentals" like this: "NORTH-wind"' in text
     assert "Env Company" not in text
 

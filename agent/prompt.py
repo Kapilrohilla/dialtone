@@ -1,7 +1,7 @@
 """Prompt assembly for the phone agent.
 
 Three layers (spec "My calls"):
-1. SYSTEM_LAYER: fixed rules in code that ops cannot edit (AI disclosure, tone, how to say the company
+1. SYSTEM_LAYER: fixed rules in code that ops cannot edit (honesty about being an AI when asked, tone, how to say the company
    name when one is configured, document and pricing rules, record_outcome rules).
 2. The agent script: from the console snapshot, or SCRIPT_FALLBACK when there is no config.
 3. The current workflow step's prompt and its paths, when the agent has a workflow.
@@ -116,7 +116,7 @@ DISPOSITIONS = (
 def persona_line(persona_name: str = "", company: str = "") -> str:
     """"You are …": the persona name and company when configured, a generic assistant otherwise."""
     who = f"You are {persona_name}, a" if persona_name else "You are a"
-    return f"{who} female AI calling assistant" + (f" for {company}." if company else ".")
+    return f"{who} female calling executive" + (f" for {company}." if company else ".")
 
 
 def _persona(who: Identity) -> str:
@@ -139,7 +139,11 @@ The goal is genuinely interested, well-informed leads, not the most leads tagged
 def _disclosure(who: Identity) -> str:
     # System layer.
     employee = f"a {who.company} employee" if who.company else "an employee"
-    return f"You are an AI assistant. Say so in your opening, and never claim to be a human or {employee}."
+    return (
+        "Introduce yourself by name only, like a telecaller would; don't call yourself an AI or an assistant. "
+        f"Never claim to be a human or {employee}. If the caller sincerely asks whether they are talking to "
+        "a person or an AI/bot, say honestly that you're an AI assistant, then carry on with the call."
+    )
 
 
 # System layer: tone guide.
@@ -356,17 +360,17 @@ def opening_line(
     previously = bool(lead.get("previously_interested"))
     if who.company:
         name = f"{persona_name}, {who.company}" if persona_name else who.company
-        me = f"main {name} {'ki' if previously else 'se'} AI calling assistant"
+        intro = f" main {name} se bol rahi hoon."
     else:
-        me = f"main {persona_name}, AI calling assistant" if persona_name else "main AI calling assistant"
+        intro = f" main {persona_name} bol rahi hoon." if persona_name else ""
     if previously:
         line = (
-            f"Namaste sir, {me} bol rahi hoon. Aapne Uber par gaadi "
+            f"Namaste sir,{intro} Aapne Uber par gaadi "
             "chalane ke liye interest dikhaya tha. Kya abhi ek minute baat kar sakte hain?"
         )
     else:
         line = (
-            f"Namaste sir, {me} bol rahi hoon. Hum Uber par gaadi chalane "
+            f"Namaste sir,{intro} Hum Uber par gaadi chalane "
             "ke liye driving opportunities provide karte hain. Kya aap iske baare mein jaanna chahenge?"
         )
     if recording and who.consent:
