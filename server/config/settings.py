@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     "workflows",
     "runtime",
     "audits",
+    "dispositions",
 ]
 
 MIDDLEWARE = [

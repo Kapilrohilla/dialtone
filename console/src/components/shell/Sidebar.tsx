@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, Bot, CircleHelp, GitBranch, Headset, History, LayoutDashboard, LogOut, Plug, Radio, Settings } from "lucide-react";
+import { BookOpen, Bot, CircleHelp, GitBranch, Headset, History, LayoutDashboard, ListChecks, LogOut, Plug, Radio, Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
@@ -14,6 +14,7 @@ const NAV: { href: string; label: string; Icon: LucideIcon }[] = [
   { href: "/agents", label: "Agents", Icon: Bot },
   { href: "/workflows", label: "Workflows", Icon: GitBranch },
   { href: "/knowledge", label: "Knowledge base", Icon: BookOpen },
+  { href: "/dispositions", label: "Dispositions", Icon: ListChecks },
   { href: "/live", label: "Live calls", Icon: Radio },
   { href: "/calls", label: "Call history", Icon: History },
   { href: "/integrations", label: "Integrations", Icon: Plug },

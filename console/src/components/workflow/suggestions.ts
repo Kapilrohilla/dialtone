@@ -1,4 +1,4 @@
-import { DISPOSITIONS } from "@/lib/outcomes";
+import { CODE_RE } from "@/lib/dispositions";
 import { MAX_PAUSE_S, MIN_PAUSE_S, parse } from "@/lib/tokens";
 import type { AnswerPayload, ExpressionPayload, Graph, Step, Suggestion } from "@/lib/types";
 
@@ -60,7 +60,8 @@ export function answerError(graph: Graph, stepId: string, p: AnswerPayload, take
       if (!(n.then.label ?? "").trim()) return "The next path's name can't be empty.";
       return null;
     }
-    if (n.type === "end") return DISPOSITIONS.some((d) => d.code === n.outcome) ? null : "Choose an outcome for the new end step.";
+    // Any well-formed code: disposition lists can add their own. The server checks it against them.
+    if (n.type === "end") return CODE_RE.test(n.outcome ?? "") ? null : "Choose an outcome for the new end step.";
     return "A new step must say something or end the call.";
   }
   const to = graph.steps.find((s) => s.id === target.step_id);

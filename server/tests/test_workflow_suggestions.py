@@ -84,7 +84,7 @@ def test_answer_with_a_new_step():
         "A step with this name already exists. Rename the new step."
     assert reason(validate_answer, answer(target=new_step(type="collect")), g, "s3") == \
         "A new step must say something or end the call."
-    assert reason(validate_answer, answer(target=new_step(type="end", outcome="NOPE")), g, "s3") == \
+    assert reason(validate_answer, answer(target=new_step(type="end", outcome="not a code")), g, "s3") == \
         "Choose an outcome for the new end step."
     assert reason(validate_answer, answer(target=new_step(then={"step_id": "s1", "label": "x"})), g, "s3") == \
         "A path can't lead to the start step."

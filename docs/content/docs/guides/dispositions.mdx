@@ -1,0 +1,82 @@
+---
+title: Dispositions
+description: Disposition lists, how the AI picks one at the end of a call, changing it later, and the webhook.
+---
+
+A **disposition** is the outcome of a call, such as `INTERESTED` or `CBR` (call back requested). The AI
+picks one at the end of each call from the **disposition list** attached to its agent.
+
+## Disposition lists
+
+Create lists under **Dispositions** in the sidebar. A list has a name and up to 30 dispositions. Each
+disposition has:
+
+| Field | |
+| --- | --- |
+| Code | 1–32 capital letters, digits or `_`, starting with a letter, e.g. `CBR`. Unique in the list. |
+| Name | What people see, e.g. "Call back requested". |
+| Description | When to use it. The AI reads it, so say exactly when it applies. |
+| Report group | One of Interested, Call back, Not interested, Dropped or Not reached. It decides the chip colour, the dashboard totals and the **Report group** filter. |
+| Capture fields | Up to five values to capture with it (text, date and time, or number), each optional or required. For example, `CBR` can capture a required `callback_time`. |
+
+One disposition is the **fallback**. It is used when the outcome is unclear, or when the AI picks a code that
+isn't in the list. The editor's **What the AI reads** panel shows the exact lines that go into the agent's
+instructions.
+
+## Attaching a list to an agent
+
+Each agent has one **Disposition list** in its settings panel. The list is copied into the agent when you
+publish it. Edits to the list reach callers only when you republish, and the agent shows **Republish** until
+then.
+
+An agent with **no list** records no disposition. Its calls show "No disposition".
+
+When you publish, any workflow end or transfer step that ends with a code outside the agent's list blocks
+the publish.
+
+## How a call gets its disposition
+
+| Who | When |
+| --- | --- |
+| AI | It calls `record_outcome` with a code from the list, plus any capture fields. The worker refuses codes that aren't in the list and asks for missing required fields. |
+| System | Nobody answered, voicemail, or the caller stayed silent: the list's first **Not reached** code. The line dropped after the caller spoke: the first **Dropped** code that isn't the fallback. The workflow loop limit was reached: the fallback. |
+| System | The server checks the code against the list the call ran with. Anything else is stored as the fallback, with the AI's pick noted in the reason. |
+| Person | Anyone who can edit can **Change** the disposition on the call detail in Call history, with a note. |
+
+Every change is kept in the call's **History**, marked as AI, System or the person's name. A person's change
+is never overwritten by the agent's report.
+
+## Outputs
+
+- **Call history:** filter by disposition (or "No disposition") and by report group.
+- **CSV export:** adds the columns `Disposition code`, `Disposition`, `Disposition set by` and
+  `Disposition fields`.
+- **Webhook:** see below.
+
+## The `call.disposition` webhook
+
+Owners and admins set a **Disposition webhook** URL under **Settings → Call handling**. Each time a call's
+disposition is set or changed, the server POSTs:
+
+```json
+{
+  "event": "call.disposition",
+  "call": {"room": "call-…", "caller": "+9198…", "called": "+9180…", "started_at": "…", "ended_at": "…"},
+  "agent": {"id": 4, "name": "Driver hiring agent", "version": 7},
+  "disposition": {"code": "CBR", "name": "Call back requested", "group": "Call back",
+                  "fields": {"callback_time": "today 6 pm"}, "source": "ai", "note": "Driving now",
+                  "changed_by": null},
+  "previous_code": null,
+  "at": "2026-11-16T09:02:11Z"
+}
+```
+
+`source` is `ai`, `system` or `user`. The `X-Signature` header is `sha256=` followed by the HMAC-SHA256 of the
+raw body, keyed with the signing secret shown in Settings. Check it before you trust the body. Delivery is
+tried three times (immediately, then after 5 s and 30 s), and failures are logged by the server.
+
+## Existing workspaces
+
+Upgrading gives every existing workspace a **Driver hiring** list with the 14 built-in codes. The list is
+attached to all of the workspace's agents, so live agents keep recording dispositions. Agents published
+before the upgrade keep using those same codes until they are republished.

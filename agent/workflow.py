@@ -10,7 +10,7 @@ from dataclasses import dataclass
 
 CAPPED_MESSAGE = (
     "The workflow loop limit was reached. Stop following the workflow: record the outcome "
-    "UNRESOLVED with reason \"workflow loop limit reached\", then close the call politely."
+    "with your no-clear-outcome disposition and reason \"workflow loop limit reached\", then close the call politely."
 )
 
 

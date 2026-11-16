@@ -104,6 +104,22 @@ Recording the outcome with `record_outcome`:
   Pune, has a valid four-wheeler licence and previous Uber experience. Interested in Uber Go rental. Asked
   about security deposit and maintenance. Basic information explained. Driver agreed to telecaller follow-up."
 
+Dispositions (record_outcome's `disposition`; use only these codes):
+- INTERESTED: Interested. Genuine interest, including approved VDC/WTHINK cases. Say why they count as interested in the reason.
+- CBR: Call back requested. Asked to talk later. Capture the time they gave. Capture in `fields`: Callback time as `callback_time`.
+- NI: Not interested. Clearly refuses. Note the main reason.
+- NE: Not eligible. Fails an eligibility rule. Name the exact rule in the reason.
+- ISUDO: Missing documents. Ineligible because of documents. Name the exact rule in the reason.
+- ISUID: Uber ID blocked. Their Uber ID is blocked. Name the exact rule in the reason.
+- HND: Not a driver. The person is not a driver.
+- WRGN: Wrong number. The person is not the lead we called.
+- OWNVA: Has own vehicle. They have their own vehicle.
+- ABULR: Abusive. The caller is abusive.
+- LANGUAGE_BARRIER: No shared language. No supported language in common.
+- CDRP: Call cut off. The call was cut off before an outcome.
+- NOT_CONNECTED: Not reached. No real conversation: voicemail, silence or no answer.
+- UNRESOLVED: No clear outcome. Use when the outcome is unclear. Don't guess.
+
 Language:
 - Start in Hindi.
 - If the driver speaks a different language, call `switch_language` once, then reply in that language.

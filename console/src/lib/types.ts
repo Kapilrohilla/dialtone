@@ -30,6 +30,10 @@ export type Workspace = {
   audit_instructions: string;
   /** Audit fixes that pass checks, are confident and show in 3+ calls are applied to the draft on their own. */
   audit_fix_auto_apply: boolean;
+  /** Where `call.disposition` events are POSTed; "" when off (and for people who aren't owners or admins). */
+  webhook_url: string;
+  /** Signs webhook bodies (HMAC-SHA256, X-Signature); "" when there is no URL or for non-admins. */
+  webhook_secret: string;
 };
 
 export type Me = {
@@ -153,6 +157,8 @@ export type AgentListItem = {
   is_outdated: boolean;
   /** Workflow id, or null. */
   workflow: number | null;
+  /** Disposition list id, or null: the agent records no disposition. Missing from older servers. */
+  disposition_list?: number | null;
   calls_this_week: number;
 };
 
@@ -166,6 +172,8 @@ export type Agent = Omit<AgentListItem, "calls_this_week"> & {
   /** Knowledge document ids. */
   knowledge: number[];
   published_version: number | null;
+  /** Disposition list id; null: the agent records no disposition. */
+  disposition_list: number | null;
   personality: AgentPersonality;
   created_at: string;
 };
@@ -233,6 +241,53 @@ export type VoicesResponse = { pipeline: string; voices: Voice[] };
 // server/calls/serializers.py and api.py
 export type OutcomeGroup = "Interested" | "Call back" | "Not interested" | "Dropped" | "Not reached";
 
+// server/dispositions (KAP-46): the outcomes the AI picks from at the end of a call.
+export type DispositionFieldType = "text" | "datetime" | "number";
+
+/** Something captured with a disposition, e.g. the call back time. */
+export type DispositionField = { key: string; label: string; type: DispositionFieldType; required: boolean };
+
+export type DispositionItem = { code: string; name: string; description: string; group: OutcomeGroup; fields: DispositionField[] };
+
+/** GET /api/dispositions, ordered by name. */
+export type DispositionListRow = {
+  id: number;
+  name: string;
+  /** In the order the AI reads them. */
+  items: DispositionItem[];
+  /** The code used when the AI can't pick one. */
+  fallback_code: string;
+  used_by: { id: number; name: string }[];
+  updated_at: string;
+};
+
+export type DispositionList = DispositionListRow & {
+  /** Unanswered calls get this code: the first "Not reached" item, else the fallback. */
+  not_reached_code: string;
+  /** Calls cut off early get this code: the first "Dropped" item other than the fallback, else the fallback. */
+  dropped_code: string;
+  updated_by: string | null;
+};
+
+export type DispositionListUpdate = Partial<Pick<DispositionList, "name" | "items" | "fallback_code">>;
+
+/** Who set a disposition: the AI at the end of the call, the system (not reached, dropped), or a person. */
+export type DispositionSource = "ai" | "system" | "user";
+
+export type CallDisposition = { code: string; name: string; group: OutcomeGroup; source: DispositionSource };
+
+export type CallDispositionDetail = CallDisposition & {
+  reason: string;
+  fields: { key: string; label: string; type: string; value: string }[];
+  set_at: string;
+  set_by: string | null;
+};
+
+export type DispositionChange = { code: string; name: string; group: OutcomeGroup; source: DispositionSource; by: string | null; note: string; at: string };
+
+/** POST /api/calls/:room/disposition */
+export type DispositionChangeInput = { code: string; note: string; fields: Record<string, string> };
+
 export type CallRow = {
   room: string;
   started_at: string | null;
@@ -250,6 +305,8 @@ export type CallRow = {
   recording_status?: RecordingStatus;
   /** The current audit's overall score (0–100); null when the call isn't scored. Missing from older servers. */
   audit_score?: number | null;
+  /** null: no disposition (the agent had no list). Missing from older servers. */
+  disposition?: CallDisposition | null;
 };
 
 /** "processing" covers starting and still recording. */
@@ -273,6 +330,11 @@ export type CallDetail = CallRow & {
   recording_started_at: string | null;
   /** Caller stops speaking -> agent reply heard (agent/response_gap.py); null for calls before it was measured. */
   response_gap: ResponseGap | null;
+  disposition?: CallDispositionDetail | null;
+  /** Every change, oldest first. */
+  disposition_history?: DispositionChange[];
+  /** The call's agent's list; null when it had none (the disposition can't be changed). */
+  disposition_options?: { list_name: string; items: DispositionItem[] } | null;
 };
 
 export type GapStats = { avg_ms?: number; p50_ms?: number; p95_ms?: number; max_ms?: number };

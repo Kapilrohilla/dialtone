@@ -28,6 +28,33 @@ function serve(role: Role = "owner", failure?: string) {
 const checkIn = () => screen.getByRole("switch", { name: "Check in when the caller goes quiet" });
 
 describe("calls settings", () => {
+  it("saves the disposition webhook URL and shows its signing secret", async () => {
+    const { patches } = serve("owner");
+    server.use(
+      http.patch("*/api/workspace", async ({ request }) => {
+        const body = (await request.json()) as Partial<Workspace>;
+        patches.push(body);
+        return HttpResponse.json({ ...me.workspace, ...body, webhook_secret: "whsec_123" });
+      }),
+    );
+    const user = userEvent.setup();
+    renderWithProviders(<CallsSettingsPage />, { route: "/settings/calls" });
+    const url = await screen.findByRole("textbox", { name: "Webhook URL" });
+    expect(screen.getByRole("button", { name: "Save URL" })).toBeDisabled();
+    await user.type(url, "https://crm.example/hooks");
+    await user.click(screen.getByRole("button", { name: "Save URL" }));
+    expect(await screen.findByText("Webhook saved. The next disposition is sent there.")).toBeInTheDocument();
+    expect(patches).toEqual([{ webhook_url: "https://crm.example/hooks" }]);
+    expect(screen.getByRole("textbox", { name: "Signing secret" })).toHaveValue("whsec_123");
+  });
+
+  it("hides the webhook from editors", async () => {
+    serve("editor");
+    renderWithProviders(<CallsSettingsPage />, { route: "/settings/calls" });
+    expect(await screen.findByText("Only owners and admins can see and change the webhook.")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Webhook URL" })).not.toBeInTheDocument();
+  });
+
   it("turns check-ins off for the whole account, straight away", async () => {
     const { patches } = serve("admin");
     const { queryClient } = renderWithProviders(<CallsSettingsPage />, { route: "/settings/calls" });

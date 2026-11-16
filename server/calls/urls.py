@@ -16,6 +16,7 @@ urlpatterns += [
     path("api/calls", api.CallListView.as_view()),
     path("api/calls/export.csv", api.CallExportView.as_view()),
     path("api/calls/<str:room>", api.CallDetailView.as_view()),
+    path("api/calls/<str:room>/disposition", api.CallDispositionView.as_view()),
     path("api/calls/<str:room>/needs-person", api.NeedsPersonView.as_view()),
     path("api/calls/<str:room>/recording", api.CallRecordingView.as_view()),
     path("api/calls/<str:room>/feedback", api.CallFeedbackView.as_view()),

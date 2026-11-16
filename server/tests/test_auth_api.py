@@ -45,7 +45,7 @@ def test_me_shape(member):
     assert body["is_superuser"] is False
     assert set(body["workspace"]) == {"id", "name", "slug", "dead_air_enabled", "recording_enabled", "audit_enabled",
                                       "audit_sample_pct", "audit_weights", "audit_instructions",
-                                      "audit_fix_auto_apply"}
+                                      "audit_fix_auto_apply", "webhook_url", "webhook_secret"}
     assert set(body["preferences"]) == {"appearance", "notify_needs_person", "notify_daily_summary", "time_zone"}
     assert body["role"] == "admin"
     assert body["workspace"]["slug"] == "northwind"

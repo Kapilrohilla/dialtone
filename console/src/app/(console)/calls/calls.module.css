@@ -103,3 +103,16 @@
 .feedbackItem { display: flex; flex-direction: column; gap: 2px; }
 .feedbackHead { margin: 0; color: var(--ink); font-size: 14px; }
 .feedbackScores { margin: 0; color: var(--muted); font-size: 13px; }
+.noDisposition { color: var(--muted); font-style: italic; font-size: 14px; }
+.dispositionCard { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); }
+.dispositionHead { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.dispositionName { font-size: 16px; font-weight: 500; }
+.dispositionAction { margin-left: auto; }
+.dispositionMeta { margin: 0; color: var(--muted); font-size: 14px; }
+.history { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+.history li { display: flex; justify-content: space-between; gap: 16px; }
+.historyAt { flex: none; color: var(--muted); font-size: 13px; }
+.changeForm { display: flex; flex-direction: column; gap: 16px; min-width: min(440px, 80vw); }
+.changeHint { margin: -8px 0 0; color: var(--muted); font-size: 14px; }
+.changeError { color: var(--bad); font-size: 14px; }
+.changeError p { margin: 0; }

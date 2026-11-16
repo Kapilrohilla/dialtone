@@ -14,7 +14,8 @@ import type { AuditEvidence, CallDetail } from "@/lib/types";
 import { AuditSection } from "./AuditSection";
 import { FeedbackSection } from "./FeedbackSection";
 import { ResponseTimeSection } from "./ResponseTimeSection";
-import { OutcomeChip } from "./CallsTable";
+import { DispositionChip } from "./CallsTable";
+import { DispositionSection } from "./DispositionSection";
 import styles from "../calls.module.css";
 
 const answerText = (v: unknown) => (typeof v === "string" ? v : typeof v === "object" && v !== null ? JSON.stringify(v) : String(v));
@@ -50,7 +51,7 @@ export function CallSlideOver({ room, timeZone, onClose, autoplay, onPlayback, c
   const title = call ? (
     <span className={styles.headTitle}>
       <span className={`${styles.headPhone} mono`}>{formatPhone(call.caller)}</span>
-      <OutcomeChip outcome={call.outcome} />
+      <DispositionChip call={call} />
     </span>
   ) : (
     "Call details"
@@ -80,7 +81,7 @@ function CallBody({
   onPlayback,
   controls,
   canRunAudit = false,
-}: { call: CallDetail; canRunAudit?: boolean } & Omit<CallSlideOverProps, "room" | "onClose">) {
+}: { call: CallDetail; /** Editors: may audit the call and change its disposition. */ canRunAudit?: boolean } & Omit<CallSlideOverProps, "room" | "onClose">) {
   const toast = useToast();
   // The transcript line an audit moment pointed at.
   const [focus, setFocus] = useState<{ index: number } | null>(null);
@@ -133,6 +134,7 @@ function CallBody({
   return (
     <>
       <p className={styles.headMeta}>{meta}</p>
+      <DispositionSection call={call} canChange={canRunAudit} timeZone={timeZone} />
       {url ? (
         <RecordingPlayer rec={rec} url={url} segments={segments} turns={call.transcript.length} onCopyLink={copyLink} />
       ) : (

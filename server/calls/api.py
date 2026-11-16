@@ -15,8 +15,7 @@ from zoneinfo import ZoneInfo
 
 from asgiref.sync import async_to_sync
 from django.conf import settings
-from django.db.models import Count, F, Func, OuterRef, Q, Subquery, Value
-from django.db.models.functions import Trim, Upper
+from django.db.models import Count, F, Func, OuterRef, Subquery, Value
 from django.http import Http404, HttpResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -31,7 +30,8 @@ from . import livekit_state
 from . import feedback as call_feedback
 from .models import Call, CallEvent, CallFeedback, Recording
 from .numbers import same_number
-from .outcomes import DISPLAY_OUTCOME, DROPPED, GROUPS, NOT_REACHED, codes_for, display_outcome
+from .dispositions import ChangeError, change_by_user
+from .outcomes import GROUPS, NOT_REACHED, normalise
 from .serializers import (
     _dict,
     _text,
@@ -42,7 +42,6 @@ from .serializers import (
     latest,
     outcome_data,
     recording_of,
-    report_of,
     transcript,
 )
 
@@ -122,11 +121,11 @@ def filtered_calls(request):
     if outcome := p.get("outcome", "").strip():
         if outcome not in GROUPS:
             raise ValidationError({"outcome": [f"Choose one of: {', '.join(GROUPS)}."]})
-        qs = qs.annotate(code=Upper(Trim("report__disposition")))
-        match = Q(code__in=codes_for(outcome))
-        if outcome == DROPPED:  # codes outside the 14 show as Dropped too
-            match |= Q(report__isnull=False) & ~Q(code="") & ~Q(code__in=list(DISPLAY_OUTCOME))
-        qs = qs.filter(match)
+        qs = qs.filter(disposition_group=outcome)
+    if disposition := p.get("disposition", "").strip():
+        # A code from any list, or "none" for calls without a disposition.
+        qs = qs.filter(disposition_code="") if disposition.lower() == "none" else qs.filter(
+            disposition_code=normalise(disposition))
     if agent := p.get("agent", "").strip():
         qs = qs.filter(agent_version__agent_id=_int(agent, "agent"))
     if mood := p.get("mood", "").strip():
@@ -253,7 +252,8 @@ def csv_cell(value):
 
 
 class CallExportView(_Base):
-    HEADERS = ["When", "Caller", "Agent", "Outcome", "Mood", "Duration", "Summary", "Score"]
+    HEADERS = ["When", "Caller", "Agent", "Outcome", "Disposition code", "Disposition", "Disposition set by",
+               "Disposition fields", "Mood", "Duration", "Summary", "Score"]
 
     def get(self, request):
         qs = filtered_calls(request)[:CSV_MAX_ROWS]
@@ -265,14 +265,35 @@ class CallExportView(_Base):
             row = call_row(call)
             when = timezone.localtime(call.started_at, IST).strftime("%Y-%m-%d %H:%M") if call.started_at else ""
             duration = row["duration_s"]
+            fields = "; ".join(f"{k}: {v}" for k, v in (call.disposition_fields or {}).items())
             writer.writerow([csv_cell(v) for v in (
-                when, row["caller"], row["agent_name"] or "", row["outcome"], row["mood"],
+                when, row["caller"], row["agent_name"] or "", row["outcome"], call.disposition_code,
+                call.disposition_name, SOURCE_LABELS.get(call.disposition_source, ""), fields, row["mood"],
                 "" if duration is None else duration, row["summary"],
                 "" if row["audit_score"] is None else row["audit_score"],
             )])
         response = HttpResponse(buf.getvalue().encode("utf-8"), content_type="text/csv; charset=utf-8")
         response["Content-Disposition"] = 'attachment; filename="calls.csv"'
         return response
+
+
+SOURCE_LABELS = {"ai": "AI", "system": "System", "user": "Person"}
+
+
+class CallDispositionView(_Base):
+    """A person changes the call's disposition; the change is added to its history."""
+
+    def post(self, request, room):
+        call = get_object_or_404(calls_of(request).select_related("agent_version"), room=room)
+        data = request.data if isinstance(request.data, dict) else {}
+        try:
+            change_by_user(call, data.get("code"), data.get("fields"), data.get("note"), request.user)
+        except ChangeError as e:
+            raise ValidationError(e.errors) from None
+        call = get_object_or_404(
+            with_audit_score(calls_of(request).select_related("report", "recording", "agent_version")), room=room)
+        events = list(CallEvent.objects.filter(call=call).order_by("seq"))
+        return Response(call_detail(call, events))
 
 
 class NeedsPersonView(_Base):
@@ -329,19 +350,18 @@ class DashboardView(_Base):
         calls = Call.objects.filter(workspace=workspace)
 
         today = list(calls.filter(started_at__gte=start, started_at__lt=end).select_related("report"))
-        groups = [display_outcome(r.disposition if (r := report_of(c)) else "") for c in today]
+        groups = [c.disposition_group for c in today]
         connected = [c for c, g in zip(today, groups) if g != NOT_REACHED]
         durations = [d for c in connected if (d := duration_s(c)) is not None]
 
         week = (
-            calls.filter(started_at__gte=day_start(day - timedelta(days=6)), started_at__lt=end,
-                         report__isnull=False)
-            .values("report__disposition").annotate(n=Count("id"))
+            calls.filter(started_at__gte=day_start(day - timedelta(days=6)), started_at__lt=end)
+            .exclude(disposition_group="").values("disposition_group").annotate(n=Count("id"))
         )
         week_counts = dict.fromkeys(GROUPS, 0)
         for row in week:
-            if group := display_outcome(row["report__disposition"]):
-                week_counts[group] += row["n"]
+            if row["disposition_group"] in week_counts:
+                week_counts[row["disposition_group"]] += row["n"]
 
         needs = (
             calls.filter(needs_person=True, needs_person_handled_at__isnull=True)

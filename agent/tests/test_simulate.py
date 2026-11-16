@@ -286,7 +286,7 @@ async def test_sim_tampered_state_and_bad_arguments_do_not_500(make_client):
         await client.close()
     assert data["outcome"] is None
     results = [m["output"] for m in model.calls[1]["messages"] if m["role"] == "tool_result"]
-    assert results[0].startswith("Use one of:")
+    assert results[0].startswith("MAYBE isn't one of your dispositions. Use one of: INTERESTED, CBR")
     assert results[1] == "Unknown tool."
     assert data["step"] == {"id": "s2", "name": "City"}
 
@@ -334,7 +334,12 @@ def test_record_outcome_schema_matches_live_agent():
     params = [p for p in inspect.signature(agent.PhoneAgent.record_outcome).parameters if p != "self"]
     schema = simulate.RECORD_OUTCOME_SCHEMA["parameters"]
     assert list(schema["properties"]) == params
-    assert schema["properties"]["disposition"]["enum"] == list(agent.DISPOSITIONS)
+    # The disposition enum is the agent's list (the built-in codes for a snapshot from before lists).
+    sim = simulate.Simulation({"script": []}, {}, None)
+    enum = sim.record_outcome_schema()["parameters"]["properties"]["disposition"]["enum"]
+    assert enum == list(agent.DISPOSITIONS)
+    no_list = simulate.Simulation({"script": [], "dispositions": None}, {}, None).record_outcome_schema()
+    assert "enum" not in no_list["parameters"]["properties"]["disposition"]
 
 
 def test_importing_simulate_starts_no_worker():

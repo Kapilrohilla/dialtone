@@ -3,7 +3,8 @@ import { useEffect, useId, useRef, useState } from "react";
 import { Button, Field } from "@/components/ui";
 import { SCORE_RANGES, scoreRangeOf } from "@/lib/audit";
 import { OUTCOME_GROUPS } from "@/lib/outcomes";
-import { useAgents, type CallFilters } from "@/lib/queries";
+import { codesOf } from "@/lib/dispositions";
+import { useAgents, useDispositionLists, type CallFilters } from "@/lib/queries";
 import styles from "../calls.module.css";
 
 const DEBOUNCE_MS = 300;
@@ -48,6 +49,9 @@ export type FiltersProps = {
 
 export function Filters({ filters, anyFilter, error, onChange, onClear }: FiltersProps) {
   const { data: agents } = useAgents();
+  const { data: lists } = useDispositionLists();
+  const codes = codesOf(lists ?? []).sort((a, b) => a.label.localeCompare(b.label));
+  const disposition = filters.disposition ?? "";
   const searchId = useId();
   const [more, setMore] = useState(Boolean(filters.mood || filters.city));
   const search = useDebouncedText(filters.q ?? "", (q) => onChange({ q }, "replace"));
@@ -72,12 +76,26 @@ export function Filters({ filters, anyFilter, error, onChange, onClear }: Filter
         </div>
         <Field
           control="select"
-          label="Outcome"
+          label="Disposition"
+          className={styles.select}
+          value={disposition}
+          onChange={(e) => onChange({ disposition: e.target.value })}
+        >
+          <option value="">All</option>
+          <option value="none">No disposition</option>
+          {disposition && disposition !== "none" && !codes.some((c) => c.code === disposition) && <option value={disposition}>{disposition}</option>}
+          {codes.map((c) => (
+            <option key={c.code} value={c.code}>{`${c.label} (${c.code})`}</option>
+          ))}
+        </Field>
+        <Field
+          control="select"
+          label="Report group"
           className={styles.select}
           value={filters.outcome}
           onChange={(e) => onChange({ outcome: e.target.value })}
         >
-          <option value="">Any outcome</option>
+          <option value="">Any report group</option>
           {OUTCOME_GROUPS.map((g) => (
             <option key={g} value={g}>{g}</option>
           ))}

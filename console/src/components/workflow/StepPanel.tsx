@@ -3,8 +3,8 @@
 import { useId, type ReactNode } from "react";
 import { TokenEditor } from "@/components/editor/TokenEditor";
 import { Button, Disclosure, Field } from "@/components/ui";
-import { DISPOSITIONS, OUTCOME_GROUPS } from "@/lib/outcomes";
 import type { Expression, Graph, KnowledgeListItem, Path, Step, StepType } from "@/lib/types";
+import { OutcomeOptions } from "./OutcomeOptions";
 import { PathRows } from "./PathRows";
 import styles from "./workflow.module.css";
 
@@ -137,15 +137,7 @@ function TypeFields({ step, readOnly, knowledge, onChange }: StepPanelProps & { 
   if (step.type === "end") {
     return (
       <Field label="Outcome" control="select" value={step.outcome ?? ""} disabled={readOnly} onChange={(e) => onChange({ outcome: e.target.value })}>
-        <option value="" disabled>Choose an outcome</option>
-        {step.outcome && !DISPOSITIONS.some((d) => d.code === step.outcome) && <option value={step.outcome}>An outcome that no longer exists</option>}
-        {OUTCOME_GROUPS.map((group) => (
-          <optgroup key={group} label={group}>
-            {DISPOSITIONS.filter((d) => d.group === group).map((d) => (
-              <option key={d.code} value={d.code}>{d.label}</option>
-            ))}
-          </optgroup>
-        ))}
+        <OutcomeOptions value={step.outcome ?? ""} />
       </Field>
     );
   }

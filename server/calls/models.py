@@ -64,6 +64,18 @@ class Call(models.Model):
     )
     needs_person = models.BooleanField(default=False)
     needs_person_handled_at = models.DateTimeField(null=True, blank=True)
+    # The current disposition (KAP-46): set from the report by the AI or the system, changed by a person.
+    # Every change is also kept in DispositionChange. Empty code = no disposition.
+    disposition_code = models.CharField(max_length=32, blank=True, db_index=True)
+    disposition_name = models.CharField(max_length=60, blank=True)
+    disposition_group = models.CharField(max_length=20, blank=True)
+    disposition_fields = models.JSONField(default=dict, blank=True)  # {key: value} for the item's capture fields
+    disposition_reason = models.TextField(blank=True)
+    disposition_source = models.CharField(max_length=10, blank=True)  # ai | system | user
+    disposition_set_at = models.DateTimeField(null=True, blank=True)
+    disposition_set_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
 
     class Meta:
         ordering = ["-started_at"]
@@ -169,7 +181,10 @@ class CallReport(models.Model):
         version = _agent_version(report.get("agent_version_id"))
         fields = {"agent_version": version, "workspace_id": version.agent.workspace_id} if version else {}
         call = Call.record_first(report["room"], **fields)
-        if not call.needs_person and _needs_person(report):
+        from .dispositions import apply_report
+
+        apply_report(call, report)
+        if not call.needs_person and (_needs_person(report) or call.disposition_group == "Call back"):
             # Only ever set here; a telecaller clears it by handling the call, never a re-sent report.
             call.needs_person = True
             call.save(update_fields=["needs_person"])
@@ -205,6 +220,31 @@ class CallReport(models.Model):
 
         transaction.on_commit(lambda call_id=call.pk: queue_after_report(call_id))
         return obj
+
+
+class DispositionChange(models.Model):
+    """One change of a call's disposition, oldest first; never edited or deleted (the call's history)."""
+
+    AI, SYSTEM, USER = "ai", "system", "user"
+    SOURCES = [(AI, "AI"), (SYSTEM, "System"), (USER, "User")]
+
+    call = models.ForeignKey(Call, on_delete=models.CASCADE, related_name="disposition_changes")
+    code = models.CharField(max_length=32)
+    name = models.CharField(max_length=60, blank=True)
+    group = models.CharField(max_length=20, blank=True)
+    fields = models.JSONField(default=dict, blank=True)
+    source = models.CharField(max_length=10, choices=SOURCES)
+    note = models.TextField(blank=True)  # the reason (AI/system) or the person's note
+    changed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    created_at = models.DateTimeField(default=djtz.now)
+
+    class Meta:
+        ordering = ["call", "created_at", "id"]
+
+    def __str__(self) -> str:
+        return f"{self.call.room}: {self.source} set {self.code}"
 
 
 class TurnLabel(models.Model):
