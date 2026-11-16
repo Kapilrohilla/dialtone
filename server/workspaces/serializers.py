@@ -29,8 +29,9 @@ AUDIT_SAMPLE_PCTS = (100, 50, 25, 10)
 def workspace_payload(ws, can_manage: bool = False):
     from audits.rubric import weights_for
 
-    # The webhook secret signs every event; only owners and admins see it.
-    hook = {"webhook_url": ws.webhook_url, "webhook_secret": ws.webhook_secret if can_manage else ""}
+    # The webhook URL and the secret that signs every event: only owners and admins see them.
+    hook = {"webhook_url": ws.webhook_url if can_manage else "",
+            "webhook_secret": ws.webhook_secret if can_manage else ""}
     return {**hook, "id": ws.id, "name": ws.name, "slug": ws.slug, "dead_air_enabled": ws.dead_air_enabled,
             "recording_enabled": ws.recording_enabled, "audit_enabled": ws.audit_enabled,
             "audit_sample_pct": ws.audit_sample_pct, "audit_weights": weights_for(ws),

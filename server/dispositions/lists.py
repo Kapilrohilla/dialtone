@@ -118,8 +118,26 @@ def from_snapshot(snap: dict | None) -> dict | None:
     """The list a published version runs with: its own, none, or (older snapshots) the legacy 14 codes."""
     if not isinstance(snap, dict) or "dispositions" not in snap:
         return legacy_snapshot()
-    lst = snap["dispositions"]
-    return lst if isinstance(lst, dict) and isinstance(lst.get("items"), list) else None
+    return normalised(snap["dispositions"])
+
+
+def normalised(lst) -> dict | None:
+    """A list snapshot made safe to use (dict items with a code; a fallback that is one of them), or None."""
+    if not isinstance(lst, dict) or not isinstance(lst.get("items"), list):
+        return None
+    items = []
+    for i in lst["items"]:
+        if isinstance(i, dict) and isinstance(i.get("code"), str) and i["code"]:
+            fields = [f for f in i.get("fields") or [] if isinstance(f, dict) and isinstance(f.get("key"), str)]
+            items.append({**i, "name": str(i.get("name") or i["code"]), "group": str(i.get("group") or DROPPED),
+                          "fields": fields})
+    if not items:
+        return None
+    fallback = lst.get("fallback")
+    if fallback not in {i["code"] for i in items}:
+        fallback = items[-1]["code"]
+    return {"id": lst.get("id"), "name": str(lst.get("name") or ""), "items": items,
+            **system_codes(items, fallback)}
 
 
 def fingerprint(lst: dict | None):

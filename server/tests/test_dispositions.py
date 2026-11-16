@@ -339,3 +339,19 @@ def test_workflow_end_step_may_use_a_list_code(workspace):
     assert any("unknown outcome" in e for e in validate_for(wf, graph))
     make_list(workspace, items=[*ITEMS, {**ITEMS[0], "code": "LOAN_OK"}])
     assert not any("unknown outcome" in e for e in validate_for(wf, graph))
+
+
+def test_malformed_list_snapshot_does_not_break_ingest(client, workspace):
+    agent = make_agent(workspace)
+    snap = {"dispositions": {"name": "x", "items": ["junk", {"code": "OK", "group": "Interested"}]}}
+    version = AgentVersion.objects.create(agent=agent, number=1, snapshot=snap)
+    assert post(client, report_for(version, "NOPE")).status_code == 200
+    call = Call.objects.get(room="call-d")
+    assert (call.disposition_code, call.disposition_source) == ("OK", "system")
+
+
+def test_webhook_url_hidden_from_non_admins(member, workspace):
+    workspace.webhook_url, workspace.webhook_secret = "https://hooks.example.com/d", "s3cret"
+    workspace.save()
+    assert member("editor").get("/api/workspace").data["webhook_url"] == ""
+    assert member("admin").get("/api/workspace").data["webhook_url"] == "https://hooks.example.com/d"

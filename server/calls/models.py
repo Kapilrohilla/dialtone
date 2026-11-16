@@ -139,11 +139,11 @@ NEEDS_PERSON_MOODS = {"angry", "frustrated"}
 
 
 def _needs_person(report: dict) -> bool:
-    """A telecaller should follow up: callback asked for, follow-up agreed, or the caller ended up upset."""
+    """A telecaller should follow up: follow-up agreed, or the caller ended up upset. (A callback request is
+    the disposition's report group, "Call back", checked in CallReport.store.)"""
     mood = _dict(report.get("mood"))
     return (
-        str(report.get("disposition") or "").strip().upper() == "CBR"
-        or bool(_dict(report.get("outcome")).get("telecaller_followup_agreed"))
+        bool(_dict(report.get("outcome")).get("telecaller_followup_agreed"))
         or str(mood.get("final") or "").lower() in NEEDS_PERSON_MOODS
         or str(mood.get("worst") or "").lower() in NEEDS_PERSON_MOODS
     )
@@ -183,6 +183,9 @@ class CallReport(models.Model):
         call = Call.record_first(report["room"], **fields)
         from .dispositions import apply_report
 
+        # Locked so a person's change (calls.dispositions.change_by_user) or a second copy of this report
+        # can't interleave: a re-sent report must never overwrite a person's change.
+        call = Call.objects.select_for_update().get(pk=call.pk)
         apply_report(call, report)
         if not call.needs_person and (_needs_person(report) or call.disposition_group == "Call back"):
             # Only ever set here; a telecaller clears it by handling the call, never a re-sent report.
