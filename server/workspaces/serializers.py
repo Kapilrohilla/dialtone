@@ -26,10 +26,13 @@ class PreferencesSerializer(serializers.ModelSerializer):
 AUDIT_SAMPLE_PCTS = (100, 50, 25, 10)
 
 
-def workspace_payload(ws):
+def workspace_payload(ws, can_manage: bool = False):
     from audits.rubric import weights_for
 
-    return {"id": ws.id, "name": ws.name, "slug": ws.slug, "dead_air_enabled": ws.dead_air_enabled,
+    # The webhook URL and the secret that signs every event: only owners and admins see them.
+    hook = {"webhook_url": ws.webhook_url if can_manage else "",
+            "webhook_secret": ws.webhook_secret if can_manage else ""}
+    return {**hook, "id": ws.id, "name": ws.name, "slug": ws.slug, "dead_air_enabled": ws.dead_air_enabled,
             "recording_enabled": ws.recording_enabled, "audit_enabled": ws.audit_enabled,
             "audit_sample_pct": ws.audit_sample_pct, "audit_weights": weights_for(ws),
             "audit_instructions": ws.audit_instructions, "audit_fix_auto_apply": ws.audit_fix_auto_apply}
@@ -43,6 +46,13 @@ class WorkspaceUpdateSerializer(serializers.Serializer):
     audit_weights = serializers.DictField(required=False)
     audit_instructions = serializers.CharField(max_length=1000, required=False, allow_blank=True)
     audit_fix_auto_apply = StrictBooleanField(required=False)
+    webhook_url = serializers.URLField(max_length=500, required=False, allow_blank=True)
+
+    def validate_webhook_url(self, value):
+        value = value.strip()
+        if value and not value.lower().startswith(("https://", "http://")):
+            raise serializers.ValidationError("Use an http:// or https:// URL.")
+        return value
 
     def validate_audit_sample_pct(self, value):
         if isinstance(value, bool) or not isinstance(value, int):

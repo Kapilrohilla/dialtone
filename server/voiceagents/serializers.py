@@ -42,21 +42,23 @@ class AgentListItemSerializer(AgentListSerializer):
 
     calls_this_week = serializers.IntegerField(read_only=True)
     workflow = serializers.PrimaryKeyRelatedField(read_only=True)  # the workflows list shows which agents use each one
+    disposition_list = serializers.PrimaryKeyRelatedField(read_only=True)  # the dispositions page lists agents without one
 
     class Meta(AgentListSerializer.Meta):
-        fields = AgentListSerializer.Meta.fields + ["workflow", "calls_this_week"]
+        fields = AgentListSerializer.Meta.fields + ["workflow", "disposition_list", "calls_this_week"]
 
 
 class AgentDetailSerializer(AgentListSerializer):
     knowledge = serializers.SerializerMethodField()
     workflow = serializers.PrimaryKeyRelatedField(read_only=True)
+    disposition_list = serializers.PrimaryKeyRelatedField(read_only=True)
     published_version = serializers.SerializerMethodField()
     personality = serializers.SerializerMethodField()
 
     class Meta(AgentListSerializer.Meta):
         fields = AgentListSerializer.Meta.fields + [
             "language", "persona_name", "voice_id", "settings", "script", "custom_expressions",
-            "knowledge", "workflow", "published_version", "personality", "created_at",
+            "knowledge", "workflow", "disposition_list", "published_version", "personality", "created_at",
         ]
 
     def get_personality(self, obj) -> dict:
@@ -155,6 +157,7 @@ class AgentWriteSerializer(serializers.Serializer):
     custom_expressions = serializers.JSONField(required=False)
     knowledge = serializers.ListField(child=serializers.IntegerField(), required=False, max_length=200)
     workflow = serializers.IntegerField(required=False, allow_null=True)
+    disposition_list = serializers.IntegerField(required=False, allow_null=True)
     personality = serializers.JSONField(required=False)
 
     def validate_name(self, value):

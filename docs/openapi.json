@@ -732,6 +732,35 @@
                 }
             }
         },
+        "/api/calls/{room}/disposition": {
+            "post": {
+                "operationId": "calls_disposition_create",
+                "description": "A person changes the call's disposition; the change is added to its history.",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "room",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "calls"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
         "/api/calls/{room}/feedback": {
             "get": {
                 "operationId": "calls_feedback_retrieve",
@@ -898,6 +927,149 @@
                 "description": "Members read; editors and up act.",
                 "tags": [
                     "dashboard"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/dispositions": {
+            "get": {
+                "operationId": "dispositions_retrieve",
+                "tags": [
+                    "dispositions"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "dispositions_create",
+                "tags": [
+                    "dispositions"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/dispositions/{id}": {
+            "get": {
+                "operationId": "dispositions_retrieve_2",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "dispositions"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            },
+            "patch": {
+                "operationId": "dispositions_partial_update",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "dispositions"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "dispositions_destroy",
+                "description": "Refused while an agent (other than an archived one) uses the list. Published versions keep\ntheir own copy of the list, so deleting never changes a live call.",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "dispositions"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/dispositions/{id}/duplicate": {
+            "post": {
+                "operationId": "dispositions_duplicate_create",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "dispositions"
                 ],
                 "security": [
                     {

@@ -83,6 +83,7 @@ export default function CallsSettingsPage() {
             </p>
           </section>
           <AuditSettings workspace={me.workspace} canChange={canChange} />
+          <WebhookSettings workspace={me.workspace} canChange={canChange} />
           <section className={styles.section} aria-labelledby="silent-h" style={{ borderBottom: 0, paddingBottom: 0 }}>
             <h2 id="silent-h">Silent callers</h2>
             <div className={styles.switches}>
@@ -233,6 +234,77 @@ function AuditSettings({ workspace, canChange }: { workspace: Workspace; canChan
           </Button>
         </div>
       </fieldset>
+    </section>
+  );
+}
+
+/** Where each disposition change is POSTed. Owners and admins only; the server sends others a blank URL and secret. */
+function WebhookSettings({ workspace, canChange }: { workspace: Workspace; canChange: boolean }) {
+  const update = useUpdateWorkspace();
+  const toast = useToast();
+  const saved = workspace.webhook_url ?? "";
+  const [url, setUrl] = useState(saved);
+  const [error, setError] = useState<string | null>(null);
+  const secret = workspace.webhook_secret ?? "";
+  const dirty = url.trim() !== saved;
+
+  function save() {
+    setError(null);
+    update.mutate(
+      { webhook_url: url.trim() },
+      {
+        onSuccess: (ws) => {
+          setUrl(ws.webhook_url ?? "");
+          toast.show(ws.webhook_url ? "Webhook saved. The next disposition is sent there." : "Webhook turned off.", "ok");
+        },
+        onError: (e) => {
+          const message = e instanceof ApiError ? (e.fields.webhook_url?.[0] ?? e.detail) : "Could not save.";
+          setError(message);
+          toast.show(message, "bad");
+        },
+      },
+    );
+  }
+
+  function copy() {
+    Promise.resolve(navigator.clipboard?.writeText(secret))
+      .then(() => toast.show("Signing secret copied.", "ok"))
+      .catch(() => toast.show("Could not copy the secret.", "bad"));
+  }
+
+  return (
+    <section className={styles.section} aria-labelledby="webhook-h">
+      <h2 id="webhook-h">Disposition webhook</h2>
+      <p className={styles.note}>
+        We POST a <code>call.disposition</code> event to this URL each time a call&rsquo;s disposition is set or changed, signed with HMAC-SHA256 in
+        the <code>X-Signature</code> header.
+      </p>
+      {canChange ? (
+        <>
+          <div className={styles.copyRow}>
+            <Field
+              label="Webhook URL"
+              type="url"
+              placeholder="https://example.com/hooks/dialtone"
+              value={url}
+              error={error}
+              onChange={(e) => setUrl(e.target.value)}
+            />
+            <Button variant="primary" disabled={!dirty} loading={update.isPending && update.variables?.webhook_url !== undefined} onClick={save}>
+              Save URL
+            </Button>
+          </div>
+          <p className={styles.note}>Leave the URL blank to turn the webhook off.</p>
+          {secret && (
+            <div className={styles.copyRow}>
+              <Field label="Signing secret" className={styles.mono} value={secret} readOnly />
+              <Button onClick={copy}>Copy</Button>
+            </div>
+          )}
+        </>
+      ) : (
+        <p className={styles.note}>Only owners and admins can see and change the webhook.</p>
+      )}
     </section>
   );
 }

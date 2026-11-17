@@ -1,3 +1,5 @@
+import secrets
+
 from django.contrib.auth import authenticate, get_user_model, login, logout, update_session_auth_hash
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.tokens import default_token_generator
@@ -180,7 +182,7 @@ class WorkspaceView(APIView):
         return [IsMember(), CanManageTeam()] if self.request.method == "PATCH" else [IsMember()]
 
     def get(self, request):
-        return Response(s.workspace_payload(workspace_for(request)))
+        return Response(s.workspace_payload(workspace_for(request), CanManageTeam().has_permission(request, self)))
 
     def patch(self, request):
         data = s.WorkspaceUpdateSerializer(data=request.data)
@@ -189,9 +191,12 @@ class WorkspaceView(APIView):
         fields = list(data.validated_data)
         for key, value in data.validated_data.items():
             setattr(ws, key, value)
+        if ws.webhook_url and not ws.webhook_secret:
+            ws.webhook_secret = secrets.token_hex(32)
+            fields.append("webhook_secret")
         if fields:
             ws.save(update_fields=fields)
-        return Response(s.workspace_payload(ws))
+        return Response(s.workspace_payload(ws, can_manage=True))
 
 
 class IntegrationRequestView(APIView):

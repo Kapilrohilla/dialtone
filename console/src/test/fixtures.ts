@@ -10,6 +10,9 @@ import type {
   CallPage,
   CallRow,
   Dashboard,
+  DispositionItem,
+  DispositionList,
+  DispositionListRow,
   Graph,
   Instance,
   KnowledgeDoc,
@@ -45,6 +48,8 @@ export const me: Me = {
     audit_weights: { naturalness: 25, listening: 20, empathy: 15, pacing: 15, flow: 15, accuracy: 10 },
     audit_instructions: "",
     audit_fix_auto_apply: false,
+    webhook_url: "",
+    webhook_secret: "",
   },
   preferences: { appearance: "system", notify_needs_person: true, notify_daily_summary: false, time_zone: "Asia/Kolkata" },
 };
@@ -127,6 +132,7 @@ export const agent: Agent = {
   knowledge: [7],
   workflow: 2,
   published_version: 4,
+  disposition_list: 5,
   personality,
   created_at: "2026-10-01T10:00:00Z",
 };
@@ -141,6 +147,7 @@ export const agentListItem: AgentListItem = {
   updated_by_name: agent.updated_by_name,
   is_outdated: agent.is_outdated,
   workflow: agent.workflow,
+  disposition_list: agent.disposition_list,
   calls_this_week: 42,
 };
 
@@ -185,6 +192,7 @@ export const callRow: CallRow = {
   summary: "Has a commercial yellow plate in Pune and wants to start next week.",
   has_recording: false,
   recording_status: "none",
+  disposition: { code: "INTERESTED", name: "Interested", group: "Interested", source: "ai" },
 };
 
 export const callDetail: CallDetail = {
@@ -201,6 +209,63 @@ export const callDetail: CallDetail = {
   recording_duration_s: null,
   recording_started_at: null,
   response_gap: null,
+  disposition: {
+    code: "INTERESTED",
+    name: "Interested",
+    group: "Interested",
+    source: "ai",
+    reason: "Wants to start next week.",
+    fields: [],
+    set_at: "2026-11-05T09:04:05Z",
+    set_by: null,
+  },
+  disposition_history: [{ code: "INTERESTED", name: "Interested", group: "Interested", source: "ai", by: null, note: "", at: "2026-11-05T09:04:05Z" }],
+  disposition_options: null,
+};
+
+/** The 14 codes the console used to ship, as the "Driver hiring" list. */
+export const dispositionItems: DispositionItem[] = [
+  { code: "INTERESTED", name: "Interested", description: "Driver wants to join and meets the basic rules. Say why in the reason.", group: "Interested", fields: [] },
+  {
+    code: "CBR",
+    name: "Call back requested",
+    description: "Driver asked to be called at another time. Capture the time they gave.",
+    group: "Call back",
+    fields: [{ key: "callback_time", label: "Callback time", type: "datetime", required: true }],
+  },
+  { code: "NI", name: "Not interested", description: "Driver clearly says no. Note the main reason.", group: "Not interested", fields: [] },
+  { code: "NE", name: "Not eligible", description: "Driver fails an eligibility rule. Name the exact rule.", group: "Not interested", fields: [] },
+  { code: "ISUDO", name: "Missing documents", description: "", group: "Not interested", fields: [] },
+  { code: "ISUID", name: "Uber ID blocked", description: "", group: "Not interested", fields: [] },
+  { code: "HND", name: "Not a driver", description: "", group: "Not interested", fields: [] },
+  { code: "WRGN", name: "Wrong number", description: "The person is not the lead we called.", group: "Not interested", fields: [] },
+  { code: "OWNVA", name: "Has own vehicle", description: "", group: "Not interested", fields: [] },
+  { code: "ABULR", name: "Abusive", description: "", group: "Not interested", fields: [] },
+  { code: "LANGUAGE_BARRIER", name: "No shared language", description: "", group: "Not interested", fields: [] },
+  { code: "CDRP", name: "Call cut off", description: "", group: "Dropped", fields: [] },
+  { code: "UNRESOLVED", name: "No clear outcome", description: "Use when the outcome is unclear. Don't guess.", group: "Dropped", fields: [] },
+  { code: "NOT_CONNECTED", name: "Not reached", description: "No real conversation: voicemail, silence or no answer.", group: "Not reached", fields: [] },
+];
+
+export const dispositionList: DispositionList = {
+  id: 5,
+  name: "Driver hiring",
+  items: dispositionItems,
+  fallback_code: "UNRESOLVED",
+  used_by: [{ id: agent.id, name: agent.name }],
+  updated_at: "2026-11-05T08:00:00Z",
+  not_reached_code: "NOT_CONNECTED",
+  dropped_code: "CDRP",
+  updated_by: "Kapil",
+};
+
+export const dispositionListRow: DispositionListRow = {
+  id: dispositionList.id,
+  name: dispositionList.name,
+  items: dispositionList.items,
+  fallback_code: dispositionList.fallback_code,
+  used_by: dispositionList.used_by,
+  updated_at: dispositionList.updated_at,
 };
 
 export const callPage: CallPage = { results: [callRow], count: 1, page: 1, pages: 1 };

@@ -10,8 +10,9 @@ from dataclasses import dataclass, field
 from django.db import transaction
 from django.db.models import Max
 
+from dispositions import lists as disposition_lists
 from knowledge.models import KnowledgeDocument, KnowledgeRevision
-from workflows.graph import validate
+from workflows.graph import validate, workspace_outcomes
 from workflows.models import Workflow, WorkflowRevision
 from workspaces.models import Workspace
 
@@ -132,7 +133,30 @@ def validation_errors(agent, resolved: Resolved | None = None) -> list[str]:
             KnowledgeDocument.objects.filter(workspace_id=agent.workspace_id, archived=False)
             .values_list("id", flat=True)
         )
-        errors.extend(validate(resolved.graph, ids, custom))
+        errors.extend(validate(resolved.graph, ids, custom, workspace_outcomes(agent.workspace_id)))
+        errors.extend(_outcome_errors(resolved.graph, _dispositions(agent)))
+    return errors
+
+
+def _dispositions(agent) -> dict | None:
+    lst = agent.disposition_list if agent.disposition_list_id else None
+    if lst is None or lst.workspace_id != agent.workspace_id:
+        return None
+    return disposition_lists.snapshot(lst)
+
+
+def _outcome_errors(graph, lst: dict | None) -> list[str]:
+    """End and transfer steps must end with a code from the agent's disposition list (when it has one)."""
+    if lst is None:
+        return []
+    codes, list_name = {i["code"] for i in lst["items"]}, lst["name"]
+    errors = []
+    for st in graph.get("steps") or [] if isinstance(graph, dict) else []:
+        outcome = st.get("outcome") if isinstance(st, dict) else None
+        if isinstance(outcome, str) and outcome and outcome not in codes:
+            name = st.get("name") if isinstance(st.get("name"), str) and st.get("name").strip() else st.get("id")
+            errors.append(f'The step "{name}" ends with {outcome}, which isn\'t in the disposition list '
+                          f'"{list_name}". Add it to the list or pick another outcome.')
     return errors
 
 
@@ -182,6 +206,8 @@ def build_snapshot(agent, number: int, resolved: Resolved | None = None) -> dict
         "variables": found,
         "knowledge": knowledge,
         "workflow": workflow,
+        # The whole list, so a later edit never changes a published version; None = no disposition captured.
+        "dispositions": _dispositions(agent),
     }
 
 
@@ -277,6 +303,7 @@ def _fingerprint(agent) -> dict:
         "personality": personality_mod.resolve(agent.personality),
         "knowledge": knowledge,
         "workflow": workflow,
+        "dispositions": disposition_lists.fingerprint(_dispositions(agent)),
     }
 
 
@@ -295,6 +322,8 @@ def _snapshot_fingerprint(s: dict) -> dict:
         "knowledge": sorted([k["id"], k["revision"]] for k in s.get("knowledge") or []),
         # Snapshots from before the workflow switch existed had it on.
         "workflow": [wf["id"], wf["revision"], wf.get("dead_air_enabled", True)] if wf else None,
+        # Snapshots from before disposition lists ran with the built-in driver-hiring codes.
+        "dispositions": disposition_lists.fingerprint(disposition_lists.from_snapshot(s)),
     }
 
 

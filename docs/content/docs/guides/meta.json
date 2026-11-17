@@ -2,6 +2,7 @@
   "title": "Guides",
   "pages": [
     "agents-and-workflows",
+    "dispositions",
     "sip-telephony",
     "browser-voice-test",
     "mood-evaluation",

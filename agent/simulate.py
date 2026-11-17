@@ -14,6 +14,7 @@ Run: python simulate.py  (listens on 127.0.0.1:${SIM_PORT:-8790}). Importing thi
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import logging
 import os
@@ -23,8 +24,8 @@ from typing import Protocol
 from aiohttp import web
 from livekit import api
 
+import dispositions as dispositions_mod
 from prompt import (
-    DISPOSITIONS,
     GEMINI_LANGUAGE_RULES,
     build_instructions,
     capped_outcome,
@@ -61,14 +62,9 @@ RECORD_OUTCOME_SCHEMA = {
         "properties": {
             "disposition": {
                 "type": "string",
-                "enum": list(DISPOSITIONS),
                 "description": (
-                    "INTERESTED: genuine interest, incl. approved VDC/WTHINK cases. NI: clearly refuses. "
-                    "NE: fails eligibility. CBR: asked to talk later. CDRP: call cut off with no outcome. "
-                    "ISUDO: ineligible because of documents. ISUID: Uber ID blocked. HND: not a driver. "
-                    "WRGN: wrong number. OWNVA: has own vehicle. ABULR: abusive. LANGUAGE_BARRIER: no shared "
-                    "supported language. NOT_CONNECTED: no real conversation, e.g. voicemail. "
-                    "UNRESOLVED: no clear outcome."
+                    "One code from the Dispositions in your instructions, exactly as written there. Leave "
+                    "empty if your instructions say this agent records none."
                 ),
             },
             "reason": {"type": "string", "description": "Why this disposition, from what the driver said."},
@@ -83,6 +79,13 @@ RECORD_OUTCOME_SCHEMA = {
             "preferred_plan": {"type": "string"},
             "main_question": {"type": "string"},
             "do_not_call": {"type": "boolean"},
+            "fields": {
+                "type": "string",
+                "description": (
+                    "What the chosen disposition asks you to capture, as JSON with the keys named there, "
+                    'e.g. {"callback_time": "today 6 pm"}. Empty if it asks for nothing.'
+                ),
+            },
         },
         "required": ["disposition", "reason", "summary"],
     },
@@ -198,9 +201,14 @@ def _bool(value) -> bool:
     return value if isinstance(value, bool) else False
 
 
-def clean_outcome(raw) -> dict | None:
+def _allowed(lst: dict | None, code) -> bool:
+    """A disposition the list takes; "" when the agent has no list."""
+    return code == "" if lst is None else code in dispositions_mod.codes(lst)
+
+
+def clean_outcome(raw, lst: dict | None = dispositions_mod.LEGACY) -> dict | None:
     """An outcome with record_outcome's fields, or None when `raw` isn't one (tampered state)."""
-    if not isinstance(raw, dict) or raw.get("disposition") not in DISPOSITIONS:
+    if not isinstance(raw, dict) or not _allowed(lst, raw.get("disposition")):
         return None
     out = {}
     for key, default in capped_outcome().items():
@@ -211,13 +219,18 @@ def clean_outcome(raw) -> dict | None:
         out["interest_strength"] = "none"
     if raw.get("end_step_outcome_overridden") is True:
         out["end_step_outcome_overridden"] = True
+    item = dispositions_mod.find(lst, out["disposition"])
+    out["fields"] = dispositions_mod.captured(item, dispositions_mod.parse_fields(raw.get("fields"))) if item else {}
+    if raw.get("set_by") == "system":
+        out["set_by"] = "system"
     return out
 
 
-def clean_refused(raw) -> dict | None:
+def clean_refused(raw, lst: dict | None = dispositions_mod.LEGACY) -> dict | None:
     """The end-step refusal kept in the state ({"step_id", "disposition"}), or None."""
     if (isinstance(raw, dict) and set(raw) == {"step_id", "disposition"}
-            and isinstance(raw["step_id"], str) and raw["disposition"] in DISPOSITIONS):
+            and isinstance(raw["step_id"], str) and isinstance(raw["disposition"], str)
+            and raw["disposition"] in dispositions_mod.codes(lst)):
         return {"step_id": raw["step_id"], "disposition": raw["disposition"]}
     return None
 
@@ -261,9 +274,11 @@ class Simulation:
         has_start = WorkflowRun(graph).start() is not None
         self.run = WorkflowRun.from_state(graph if has_start else {}, state)
         self.has_workflow = has_start
-        self.outcome = clean_outcome(state.get("outcome")) if state else None
+        # Like PhoneAgent.dispositions: the codes record_outcome takes (None: no disposition captured).
+        self.dispositions = dispositions_mod.for_snapshot(snapshot)
+        self.outcome = clean_outcome(state.get("outcome"), self.dispositions) if state else None
         # Like PhoneAgent.end_step_refused: carried between requests in the state.
-        self.end_step_refused = clean_refused(state.get("end_step_refused")) if state else None
+        self.end_step_refused = clean_refused(state.get("end_step_refused"), self.dispositions) if state else None
         self.ended = False
         self.path_names = {p.name for p in self.run.all_path_tools()} if has_start else set()
         # Like PhoneAgent.has_spoken: whether the agent has said anything yet (earlier turns or this reply).
@@ -282,9 +297,19 @@ class Simulation:
         )
         return f"{text}\n\n{opening_instructions(self.lead, self.persona, who=self.identity)}"
 
+    def end_step_codes(self) -> list[str]:
+        return dispositions_mod.codes(self.dispositions)
+
+    def record_outcome_schema(self) -> dict:
+        """record_outcome with `disposition` limited to the agent's codes (when it has a list)."""
+        schema = copy.deepcopy(RECORD_OUTCOME_SCHEMA)
+        if self.dispositions is not None:
+            schema["parameters"]["properties"]["disposition"]["enum"] = dispositions_mod.codes(self.dispositions)
+        return schema
+
     def tools(self) -> list[dict]:
         paths = [path_tool_schema(p) for p in self.run.all_path_tools()] if self.has_workflow else []
-        return paths + [RECORD_OUTCOME_SCHEMA, END_CALL_SCHEMA, TRANSFER_SCHEMA]
+        return paths + [self.record_outcome_schema(), END_CALL_SCHEMA, TRANSFER_SCHEMA]
 
     def call_tool(self, name, arguments) -> str:
         args = arguments if isinstance(arguments, dict) else {}
@@ -294,7 +319,7 @@ class Simulation:
             if self.outcome is None:
                 return "Call record_outcome first, then end the call."
             refusal = (None if self.run.stopped or self.outcome.get("end_step_outcome_overridden")
-                       else end_step_refusal(self.current_step(), self.outcome["disposition"]))
+                       else end_step_refusal(self.current_step(), self.outcome["disposition"], self.end_step_codes()))
             if refusal is not None:
                 return refusal
             self.ended = True
@@ -318,25 +343,35 @@ class Simulation:
             transition = self.run.take(name, value if isinstance(value, str) else None)
             if not transition.ok or transition.entered is None:
                 if transition.capped and self.outcome is None:
-                    self.outcome = capped_outcome()
+                    fallback = dispositions_mod.system_code(self.dispositions, "fallback")
+                    self.outcome = clean_outcome({**capped_outcome(fallback), "set_by": "system"}, self.dispositions)
                 return transition.message
             # The instructions are rebuilt for the new step before the next model call.
             return f"Now at step {transition.entered.name}."
         return "Unknown tool."
 
     def record_outcome(self, args: dict) -> str:
-        disposition = args.get("disposition")
-        if disposition not in DISPOSITIONS:
-            return f"Use one of: {', '.join(DISPOSITIONS)}."
+        # Like PhoneAgent.record_outcome: a code outside the list, or a missing required field, is refused.
+        values = {k: v for k, v in args.items() if isinstance(v, str)}
+        values.update(dispositions_mod.parse_fields(args.get("fields")))
+        refusal = dispositions_mod.refusal(self.dispositions, args.get("disposition"), values)
+        if refusal is not None:
+            return refusal
+        item = dispositions_mod.find(self.dispositions, args.get("disposition"))
+        disposition = item["code"] if item else ""
         refusal, overridden = None, False
         if not self.run.stopped:
             refusal, overridden, self.end_step_refused = end_step_check(
-                self.current_step(), disposition, self.end_step_refused
+                self.current_step(), disposition, self.end_step_refused, self.end_step_codes()
             )
         if refusal is not None:
             return refusal
-        # The override flag comes only from the end-step check, never from the model's arguments.
-        self.outcome = clean_outcome({**args, "disposition": disposition, "end_step_outcome_overridden": overridden})
+        # The override flag comes only from the end-step check, never from the model's arguments; set_by never
+        # comes from the model either.
+        fields = {k: values[k] for k in values if item and k in {f["key"] for f in item.get("fields") or []}}
+        self.outcome = clean_outcome(
+            {**{k: v for k, v in args.items() if k != "set_by"}, "disposition": disposition, "fields": fields,
+             "end_step_outcome_overridden": overridden}, self.dispositions)
         return "Recorded. Now say your closing line."
 
     def response(self, reply: str) -> dict:

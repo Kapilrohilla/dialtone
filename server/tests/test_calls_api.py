@@ -8,6 +8,7 @@ from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
+from calls.dispositions import apply_report
 from calls.models import Call, CallEvent, CallReport
 from calls.outcomes import DISPLAY_OUTCOME, display_outcome
 from tests.helpers import assert_isolated
@@ -38,6 +39,7 @@ def make_call(workspace, room, *, started=None, answered=None, ended=None, calle
     if disposition is not None:
         data = {"room": room, "disposition": disposition, "outcome": outcome or {}, **(data_extra or {})}
         CallReport.objects.create(call=call, disposition=disposition, final_mood=mood, data=data)
+        apply_report(call, data)  # what CallReport.store does: set the call's current disposition
     return call
 
 
@@ -76,8 +78,8 @@ def test_calls_list_shape_and_fields(member, workspace):
     body = member("viewer").get("/api/calls").json()
     assert body["count"] == 1 and body["page"] == 1 and body["pages"] == 1
     row = body["results"][0]
-    assert set(row) == {"room", "started_at", "caller", "agent_name", "outcome", "outcome_code", "mood",
-                        "duration_s", "summary", "has_recording", "recording_status", "audit_score"}
+    assert set(row) == {"room", "started_at", "caller", "agent_name", "outcome", "outcome_code", "disposition",
+                        "mood", "duration_s", "summary", "has_recording", "recording_status", "audit_score"}
     assert row["room"] == "r1" and row["agent_name"] == "Driver lead qualifier"
     assert row["outcome"] == "Interested" and row["outcome_code"] == "INTERESTED" and row["mood"] == "happy"
     assert row["duration_s"] == 120 and row["summary"] == "Wants the weekly plan"
@@ -261,10 +263,12 @@ def test_csv_export_headers_and_devanagari(member, workspace):
     raw = b"".join(r.streaming_content) if r.streaming else r.content
     assert raw.startswith(b"\xef\xbb\xbf")
     rows = list(csv.reader(io.StringIO(raw.decode("utf-8-sig"))))
-    assert rows[0] == ["When", "Caller", "Agent", "Outcome", "Mood", "Duration", "Summary", "Score"]
-    assert rows[1][1:] == ["+919876543210", "", "Not interested", "", "", "'=HYPERLINK(1)", ""]
-    assert rows[2] == ["2026-11-05 10:00", "+919876543210", "प्रिया agent", "Interested", "happy", "90",
-                       "ड्राइवर weekly plan चाहता है", ""]
+    assert rows[0] == ["When", "Caller", "Agent", "Outcome", "Disposition code", "Disposition",
+                       "Disposition set by", "Disposition fields", "Mood", "Duration", "Summary", "Score"]
+    assert rows[1][1:] == ["+919876543210", "", "Not interested", "NI", "Not interested", "AI", "", "", "",
+                           "'=HYPERLINK(1)", ""]
+    assert rows[2] == ["2026-11-05 10:00", "+919876543210", "प्रिया agent", "Interested", "INTERESTED",
+                       "Interested", "AI", "", "happy", "90", "ड्राइवर weekly plan चाहता है", ""]
     filtered = c.get("/api/calls/export.csv", {"outcome": "Interested"})
     raw = b"".join(filtered.streaming_content) if filtered.streaming else filtered.content
     assert len(list(csv.reader(io.StringIO(raw.decode("utf-8-sig"))))) == 2

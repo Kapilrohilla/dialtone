@@ -34,6 +34,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+import dispositions as dispositions_mod
 import personality as persona_mod
 import voices
 from personality import Personality
@@ -130,11 +131,8 @@ Language:
   casual spoken style. If you can't continue in a language you both speak, record LANGUAGE_BARRIER and close politely.
 """.strip()
 
-# The fixed 14 disposition codes (record_outcome's `disposition`).
-DISPOSITIONS = (
-    "INTERESTED", "NI", "NE", "CBR", "CDRP", "ISUDO", "ISUID", "HND", "WRGN", "OWNVA", "ABULR",
-    "LANGUAGE_BARRIER", "NOT_CONNECTED", "UNRESOLVED",
-)
+# The 14 built-in disposition codes. Console agents use their own list (dispositions.for_snapshot).
+DISPOSITIONS = dispositions_mod.LEGACY_CODES
 
 
 def persona_line(persona_name: str = "", company: str = "", gender: str = "female") -> str:
@@ -282,20 +280,33 @@ Never:
 - Treat a visit as confirmed unless the driver agreed to a specific visit arrangement.
 """.strip()
 
-# System layer: record_outcome rules.
-_RECORDING = """
-Recording the outcome with `record_outcome`:
-- Call it as soon as the outcome is clear, before your closing line; call it again if the outcome changes.
-- Go by what the driver actually meant, not isolated words.
-- A callback request stays CBR even if the line later drops.
-- Keep NI (not interested) separate from NE (not eligible), and give the exact eligibility reason.
-- If they ask not to be called again, set do_not_call.
-- With no clear outcome, use UNRESOLVED; don't guess.
+# System layer: record_outcome rules. Lines about particular codes appear only when the agent's list has them.
+_INTERESTED_RULE = """
 - For INTERESTED, the reason must say why they count as interested, and the summary must keep their
   objections and must not make tentative interest sound committed. Example summary: "Driver is based in
   Pune, has a valid four-wheeler licence and previous Uber experience. Interested in Uber Go rental. Asked
   about security deposit and maintenance. Basic information explained. Driver agreed to telecaller follow-up."
 """.strip()
+
+
+def recording_rules(lst: dict | None = dispositions_mod.LEGACY) -> str:
+    """How to use record_outcome with the agent's disposition list (None: no disposition is captured)."""
+    has = set(dispositions_mod.codes(lst))
+    lines = [
+        "Recording the outcome with `record_outcome`:",
+        "- Call it as soon as the outcome is clear, before your closing line; call it again if the outcome changes.",
+        "- Go by what the driver actually meant, not isolated words.",
+        "- A callback request stays CBR even if the line later drops." if "CBR" in has else "",
+        ("- Keep NI (not interested) separate from NE (not eligible), and give the exact eligibility reason."
+         if {"NI", "NE"} <= has else ""),
+        "- If they ask not to be called again, set do_not_call.",
+        f"- With no clear outcome, use {lst['fallback']}; don't guess." if lst else "",
+        _INTERESTED_RULE if "INTERESTED" in has else "",
+    ]
+    return "\n".join(line for line in lines if line) + "\n\n" + dispositions_mod.block(lst)
+
+
+_RECORDING = recording_rules()
 
 _DOCUMENTS_RULE = "Never ask for Aadhaar, PAN, bank details or any document numbers."
 
@@ -322,8 +333,9 @@ def _join(sections: Sequence[str]) -> str:
     return "\n\n".join(section for section in sections if section)
 
 
-def system_layer(who: Identity | None = None) -> str:
-    """The fixed rules, with the company named (and its pronunciation) only when configured."""
+def system_layer(who: Identity | None = None, lst: dict | None = dispositions_mod.LEGACY) -> str:
+    """The fixed rules, with the company named (and its pronunciation) only when configured, and the agent's
+    disposition list."""
     who = who or identity()
     return _join(
         [
@@ -336,7 +348,7 @@ def system_layer(who: Identity | None = None) -> str:
             _DELIVERY_RULE,
             _NEVER,
             _CLOSE_RULE,
-            _RECORDING,
+            recording_rules(lst),
         ]
     )
 
@@ -594,7 +606,7 @@ def build_instructions(
     """The prompt for a call with a console config: system layer, script, then the current step. The
     snapshot's identity (persona_name, settings.company_name, …) wins over the env, see identity()."""
     who = identity(snapshot)
-    parts = [system_layer(who)]
+    parts = [system_layer(who, dispositions_mod.for_snapshot(snapshot))]
     if personality_block(who):
         parts.append(personality_block(who))
     parts.append(persona_line(who.persona, who.company, who.gender))
@@ -608,23 +620,26 @@ def build_instructions(
     return "\n\n".join(parts)
 
 
-def end_step_refusal(step: dict | None, disposition: str) -> str | None:
-    """At an end step the agent must record that step's outcome; anything else is refused with this text."""
+def end_step_refusal(step: dict | None, disposition: str, codes: Sequence[str] | None = None) -> str | None:
+    """At an end step the agent must record that step's outcome; anything else is refused with this text.
+    With `codes` (the agent's disposition list), an outcome outside the list is not enforced."""
     if not step or step.get("type") != "end":
         return None
     outcome = step.get("outcome")
-    if not outcome or outcome == disposition:
+    if not outcome or outcome == disposition or (codes is not None and outcome not in codes):
         return None
     return f"This step ends with {outcome}. Call record_outcome with disposition {outcome}."
 
 
-def end_step_check(step: dict | None, disposition: str, refused: dict | None) -> tuple[str | None, bool, dict | None]:
+def end_step_check(
+    step: dict | None, disposition: str, refused: dict | None, codes: Sequence[str] | None = None
+) -> tuple[str | None, bool, dict | None]:
     """The end-step rule with its override (ruling P18): a disposition other than the end step's outcome
     is refused once; recording that same disposition again straight after overrides the step.
 
     `refused` is the previous refusal ({"step_id", "disposition"}) or None. Returns the refusal text (or
     None), whether the step's outcome was overridden, and the refusal to remember for the next call."""
-    refusal = end_step_refusal(step, disposition)
+    refusal = end_step_refusal(step, disposition, codes)
     if refusal is None:
         return None, False, None
     key = {"step_id": step.get("id"), "disposition": disposition}
@@ -633,10 +648,11 @@ def end_step_check(step: dict | None, disposition: str, refused: dict | None) ->
     return refusal, False, key
 
 
-def capped_outcome() -> dict:
-    """Outcome recorded when the workflow loop limit stops the workflow (same fields as record_outcome)."""
+def capped_outcome(fallback: str = "UNRESOLVED") -> dict:
+    """Outcome recorded when the workflow loop limit stops the workflow (same fields as record_outcome);
+    `fallback` is the disposition list's fallback code ("" when the agent has no list)."""
     return {
-        "disposition": "UNRESOLVED",
+        "disposition": fallback,
         "reason": "workflow loop limit reached",
         "summary": "",
         "interest_strength": "none",

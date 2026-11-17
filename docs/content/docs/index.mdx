@@ -68,8 +68,9 @@ call ends. See [Architecture](/docs/reference/architecture) for the details.
 - **Caller mood (off by default):** labels each caller reply and adapts tone and pace. See
   [Mood evaluation](/docs/guides/mood-evaluation).
 - **Live handoff (optional):** transfers an upset caller to a person when they agree (`HANDOFF_SIP_URI`).
-- **Outcome:** every call ends with one disposition (`INTERESTED`, `NI`, `CBR`, `UNRESOLVED`, …), a reason,
-  the captured answers and a summary, shown in the console's call history.
+- **Outcome:** every call ends with one disposition from the agent's disposition list, plus a reason, the
+  captured answers and a summary. It shows in the console's call history, where a person can change it, and
+  is sent to your `call.disposition` webhook. See [Dispositions](/docs/guides/dispositions).
 - **Recording:** optional, per workspace, with a spoken consent line.
 
 ## Requirements

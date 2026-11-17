@@ -382,7 +382,7 @@ async def test_loop_cap_records_unresolved():
     assert any(r == workflow.CAPPED_MESSAGE for r in results)
     assert a.outcome["disposition"] == "UNRESOLVED"
     assert a.outcome["reason"] == "workflow loop limit reached"
-    assert set(a.outcome) == set(agent.capped_outcome())
+    assert set(a.outcome) == set(agent.capped_outcome()) | {"set_by"} and a.outcome["set_by"] == "system"
     assert a.outcome["do_not_call"] is False and a.outcome["summary"] == ""
 
 

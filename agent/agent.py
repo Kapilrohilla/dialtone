@@ -79,7 +79,9 @@ from prompt import (  # noqa: F401  (re-exported: tests and callers use agent.X)
     opening_line,
     step_block,
 )
+import dispositions as dispositions_mod
 import voices
+from dispositions import refusal as disposition_refusal
 from recording import RecordingHandle, recording_wanted, report_field, start_recording
 from report import build_report, send_report
 from response_gap import GapAudioTap, ResponseGapTracker, watch_caller_speech
@@ -131,8 +133,6 @@ DEAD_AIR_PROMPTS = {
 }
 
 BUILTIN_CONFIG = Config("builtin", None, None)
-
-Disposition = Literal[DISPOSITIONS]
 
 
 SARVAM_LANGUAGE_RULES = f"""
@@ -287,6 +287,9 @@ class PhoneAgent(Agent):
         self.has_spoken = False
         # Live calls turn this on: until the agent has spoken, the workflow can't leave its start step.
         self.opening_guard = False
+        # The disposition list record_outcome accepts (None: no disposition captured); the built-in codes
+        # unless the console snapshot says otherwise.
+        self.dispositions: dict | None = dispositions_mod.for_snapshot(None)
         path_tools: list = []
         # Kept so a caller-mood note can be swapped in and out without losing the base prompt. With a
         # workflow it is the current step's prompt, updated on every step change (except on Gemini
@@ -303,6 +306,7 @@ class PhoneAgent(Agent):
                 step = workflow.current if workflow else None
                 paths = workflow.paths_from_current() if workflow else []
                 self.snapshot, self.persona_name, self.identity = snapshot, persona, who
+                self.dispositions = dispositions_mod.for_snapshot(snapshot)
                 self.base_instructions = self._snapshot_instructions(step, paths)
                 self.opening = opening_line(lead, persona, recording, who)
                 # Every path tool of the graph, registered once: tools never change mid-call (on Gemini
@@ -313,6 +317,7 @@ class PhoneAgent(Agent):
                 # A call must never fail because of console data: run today's built-in agent instead.
                 logger.warning("console config unusable, using the built-in prompt", exc_info=True)
                 self.snapshot = self.workflow = self.persona_name = self.identity = None
+                self.dispositions = dispositions_mod.for_snapshot(None)
                 self.base_instructions = builtin_instructions(lead, language_rules, recording)
                 self.opening = opening_line(lead, recording=recording)
                 path_tools = []
@@ -377,7 +382,7 @@ class PhoneAgent(Agent):
                 if transition.capped:
                     logger.warning("workflow loop limit reached", extra={"tool": tool_name})
                     if self.outcome is None:
-                        self.outcome = capped_outcome()
+                        self.outcome = self.system_outcome(capped_outcome(self.system_code("fallback")))
                 return transition.message
             step = transition.entered
             logger.info("workflow step", extra={"step": step.name, "path": run.path})
@@ -423,10 +428,22 @@ class PhoneAgent(Agent):
         run = self.workflow
         return asdict(run.current) if run is not None and run.current is not None else None
 
+    def system_code(self, kind: str) -> str:
+        """The list's code the system sets: "not_reached", "dropped" or "fallback" ("" with no list)."""
+        return dispositions_mod.system_code(self.dispositions, kind)
+
+    @staticmethod
+    def system_outcome(outcome: dict) -> dict:
+        """An outcome the system set (not the AI), so the console shows it as "System"."""
+        return {**outcome, "set_by": "system"}
+
+    def end_step_codes(self) -> list[str] | None:
+        return dispositions_mod.codes(self.dispositions) if self.dispositions is not None else []
+
     @function_tool
     async def record_outcome(
         self,
-        disposition: Disposition,
+        disposition: str,
         reason: str,
         summary: str,
         interest_strength: Literal["confirmed", "conditional", "tentative", "none"] = "none",
@@ -439,16 +456,14 @@ class PhoneAgent(Agent):
         preferred_plan: str = "",
         main_question: str = "",
         do_not_call: bool = False,
+        fields: str = "",
     ) -> str:
         """Record the call's outcome for the telecalling team. Call it before your closing line, and
         again if the outcome changes. Fill only what the driver actually said; leave the rest empty.
 
         Args:
-            disposition: INTERESTED: genuine interest, incl. approved VDC/WTHINK cases. NI: clearly refuses.
-                NE: fails eligibility. CBR: asked to talk later. CDRP: call cut off with no outcome.
-                ISUDO: ineligible because of documents. ISUID: Uber ID blocked. HND: not a driver.
-                WRGN: wrong number. OWNVA: has own vehicle. ABULR: abusive. LANGUAGE_BARRIER: no shared
-                supported language. NOT_CONNECTED: no real conversation, e.g. voicemail. UNRESOLVED: no clear outcome.
+            disposition: One code from the Dispositions in your instructions, exactly as written there.
+                Leave empty if your instructions say this agent records none.
             reason: Why this disposition, from what the driver said. For NE/ISUDO/ISUID, the exact rule they fail.
             summary: Two or three sentences for the telecaller: what you learned, what they asked, what was agreed.
             interest_strength: For INTERESTED: confirmed, conditional or tentative. Otherwise none.
@@ -461,12 +476,23 @@ class PhoneAgent(Agent):
             preferred_plan: Uber Go rental, Uber Black salary, Double Driver, or undecided.
             main_question: The driver's main question or objection.
             do_not_call: True if the driver asked not to be called again.
+            fields: What the chosen disposition asks you to capture, as JSON with the keys named there,
+                e.g. {"callback_time": "today 6 pm"}. Empty if it asks for nothing.
         """
+        values = {"callback_time": callback_time, "city": city, "licence": licence, "experience": experience,
+                  "uber_id": uber_id, "preferred_plan": preferred_plan, "main_question": main_question,
+                  **dispositions_mod.parse_fields(fields)}
+        refusal = disposition_refusal(self.dispositions, disposition, values)
+        if refusal is not None:
+            logger.info("outcome refused", extra={"disposition": disposition})
+            return refusal
+        item = dispositions_mod.find(self.dispositions, disposition)
+        disposition = item["code"] if item else ""
         refusal, overridden = None, False
         try:
             if not self.workflow_stopped():
                 refusal, overridden, self.end_step_refused = end_step_check(
-                    self.current_step(), disposition, self.end_step_refused
+                    self.current_step(), disposition, self.end_step_refused, self.end_step_codes()
                 )
         except Exception:
             logger.exception("end-step check failed")
@@ -488,6 +514,7 @@ class PhoneAgent(Agent):
             "preferred_plan": preferred_plan,
             "main_question": main_question,
             "do_not_call": do_not_call,
+            "fields": dispositions_mod.captured(item, values) if item else {},
         }
         if overridden:
             self.outcome["end_step_outcome_overridden"] = True
@@ -502,7 +529,8 @@ class PhoneAgent(Agent):
             return "Call record_outcome first, then end the call."
         try:
             refusal = (None if self.workflow_stopped() or self.outcome.get("end_step_outcome_overridden")
-                       else end_step_refusal(self.current_step(), self.outcome.get("disposition")))
+                       else end_step_refusal(self.current_step(), self.outcome.get("disposition"),
+                                             self.end_step_codes()))
         except Exception:
             logger.exception("end-step check failed")
             refusal = None
@@ -698,10 +726,10 @@ async def watch_dead_air(session: AgentSession, agent: PhoneAgent, watcher: Dead
             session.generate_reply(instructions=DEAD_AIR_PROMPTS[action])
             continue
         if agent.outcome is None:
-            agent.outcome = {
-                "disposition": "UNRESOLVED" if driver_spoke(session) else "NOT_CONNECTED",
+            agent.outcome = agent.system_outcome({
+                "disposition": agent.system_code("fallback" if driver_spoke(session) else "not_reached"),
                 "reason": f"caller silent for {watcher.config.hang_up_s:g} s",
-            }
+            })
         await session.generate_reply(instructions=DEAD_AIR_PROMPTS["hang_up"])
         await get_job_context().delete_room()
         return
@@ -750,10 +778,18 @@ async def entrypoint(ctx: JobContext) -> None:
         if agent is not None and agent.outcome:
             return agent.outcome
         spoke = session is not None and driver_spoke(session)
-        return {
-            "disposition": "CDRP" if spoke else "NOT_CONNECTED",
-            "reason": "call ended before an outcome was recorded",
-        }
+        kind = "dropped" if spoke else "not_reached"
+        code = agent.system_code(kind) if agent is not None else dispositions_mod.system_code(
+            dispositions_mod.for_snapshot(cfg.snapshot), kind)
+        return PhoneAgent.system_outcome({"disposition": code, "reason": "call ended before an outcome was recorded"})
+
+    def dispositions_used() -> tuple[bool, dict | None]:
+        """(send it, the list) — the list this call ran with, for voice tests whose draft has no saved version."""
+        if agent is not None and agent.snapshot is not None:
+            return True, agent.dispositions
+        if agent is None and cfg.snapshot is not None:
+            return True, dispositions_mod.for_snapshot(cfg.snapshot)
+        return False, None
 
     def step_path() -> list[str] | None:
         return list(agent.workflow.path) if agent is not None and agent.workflow is not None else None
@@ -793,6 +829,7 @@ async def entrypoint(ctx: JobContext) -> None:
             step_path=step_path(),
             captured=captured_answers(agent),
             recording=report_field(recording, recording_error),
+            dispositions=dispositions_used(),
         )
         await send_report(
             DASHBOARD_REPORT_URL, report, os.environ["LIVEKIT_API_KEY"], os.environ["LIVEKIT_API_SECRET"]

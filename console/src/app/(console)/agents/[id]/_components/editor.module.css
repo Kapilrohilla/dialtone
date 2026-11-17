@@ -169,3 +169,16 @@
 .traitEnds { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; }
 .tryLines { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
 .tryWho { font-weight: 600; margin-right: 4px; }
+.dispositionCallout {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--amber);
+  border-radius: var(--radius);
+  background: var(--amber-tint);
+  color: var(--ink);
+  font-size: 13px;
+}
+.dispositionCallout p { margin: 0; }
+.dispositionCallout svg { flex: none; margin-top: 2px; color: var(--amber); }

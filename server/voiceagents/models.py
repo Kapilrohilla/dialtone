@@ -31,6 +31,10 @@ class Agent(models.Model):
     workflow = models.ForeignKey(
         "workflows.Workflow", null=True, blank=True, on_delete=models.SET_NULL, related_name="agents"
     )
+    # The outcomes the AI picks from at the end of a call (KAP-46); none attached = no disposition captured.
+    disposition_list = models.ForeignKey(
+        "dispositions.DispositionList", null=True, blank=True, on_delete=models.SET_NULL, related_name="agents"
+    )
     # Set while status == published; the version callers get.
     published_version = models.ForeignKey(
         "AgentVersion", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"

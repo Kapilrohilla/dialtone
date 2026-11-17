@@ -29,7 +29,7 @@ from voiceagents.suggestions import (
 )
 from voiceagents.tokens import BUILTIN_EXPRESSIONS
 from workflows import suggest
-from workflows.graph import DISPOSITIONS
+from workflows.graph import workspace_outcomes
 from workflows.models import WorkflowSuggestion, WorkflowSuggestionSet
 from workflows.suggestions import (
     MAX_ANSWERS_PER_STEP, Invalid, fingerprints, validate_answer, validate_expression, validate_prompt,
@@ -106,7 +106,7 @@ _NEW_STEP = {
         "name": {"type": "string"},
         "type": {"type": "string", "enum": ["prompt", "end"]},
         "prompt": {"type": "string"},
-        "outcome": {"type": "string", "enum": sorted(DISPOSITIONS)},
+        "outcome": {"type": "string"},  # one of the prompt's end_outcomes
         "then_step_id": {"type": "string"},
         "then_label": {"type": "string"},
     },
@@ -277,6 +277,14 @@ def low_areas(audits: list[CallAudit]) -> list[dict]:
 
 # -- prompt ------------------------------------------------------------------------------------------
 
+def _end_outcomes(agent) -> list[str]:
+    """The codes a new end step may end with: the agent's disposition list, else the workspace's codes."""
+    lst = agent.disposition_list if agent.disposition_list_id else None
+    if lst is not None:
+        return [i["code"] for i in lst.items if isinstance(i, dict) and isinstance(i.get("code"), str)]
+    return sorted(workspace_outcomes(agent.workspace_id))
+
+
 def build_prompt(agent, graph, workflow_name: str, audits: list[CallAudit], problems: list[Problem]) -> str:
     call_no = {a.id: i for i, a in enumerate(audits, 1)}
     steps = suggest._steps(graph)
@@ -303,7 +311,7 @@ def build_prompt(agent, graph, workflow_name: str, audits: list[CallAudit], prob
         },
         "workflow": workflow,
         "allowed_expressions": {**BUILTIN_EXPRESSIONS, **custom},
-        "end_outcomes": sorted(DISPOSITIONS),
+        "end_outcomes": _end_outcomes(agent),
         "calls_audited": len(audits),
         "low_scoring_areas": low_areas(audits),
         "problems": [p.for_prompt(call_no[p.audit.id]) for p in problems],

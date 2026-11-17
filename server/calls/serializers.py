@@ -7,7 +7,6 @@ defensive: anything of the wrong type is treated as missing rather than raising.
 from urllib.parse import quote
 
 from .models import CallEvent, CallReport, Recording
-from .outcomes import display_outcome
 
 # The report outcome keys that answer qualification questions (agent.py record_outcome); the rest
 # (disposition, reason, summary, interest_strength, telecaller_followup_agreed, do_not_call) are not answers.
@@ -106,14 +105,17 @@ def call_row(call) -> dict:
     """One row of the calls list. Needs `report`, `recording` and `agent_version` loaded (select_related)."""
     report = report_of(call)
     rec = recording_of(call)
-    code = report.disposition if report else ""
     return {
         "room": call.room,
         "started_at": call.started_at,
         "caller": call.caller,
         "agent_name": agent_name(call),
-        "outcome": display_outcome(code),
-        "outcome_code": code,
+        # The current disposition's report group and code ("" for no disposition).
+        "outcome": call.disposition_group,
+        "outcome_code": call.disposition_code,
+        "disposition": {"code": call.disposition_code, "name": call.disposition_name,
+                        "group": call.disposition_group, "source": call.disposition_source}
+        if call.disposition_code else None,
         "mood": report.final_mood if report else "",
         "duration_s": duration_s(call),
         "summary": _text(outcome_data(call).get("summary")),
@@ -198,7 +200,40 @@ def call_detail(call, events) -> dict:
         "transcript": transcript(events),
         "response_gap": response_gap_of(report),
         **recording_fields(call),
+        **disposition_fields(call),
     }
+
+
+def _person(user) -> str | None:
+    return (user.first_name or user.email or user.username) if user else None
+
+
+def disposition_fields(call) -> dict:
+    """The current disposition with its capture fields, its history (oldest first), and the options a
+    person can change it to (None when the call's agent had no list)."""
+    from .dispositions import list_for_call
+
+    lst = list_for_call(call)
+    items = {i["code"]: i for i in lst["items"]} if lst else {}
+    current = None
+    if call.disposition_code:
+        defs = (items.get(call.disposition_code) or {}).get("fields") or []
+        labels = {f["key"]: f for f in defs}
+        values = call.disposition_fields if isinstance(call.disposition_fields, dict) else {}
+        current = {
+            "code": call.disposition_code, "name": call.disposition_name, "group": call.disposition_group,
+            "source": call.disposition_source, "reason": call.disposition_reason,
+            "fields": [{"key": k, "label": labels.get(k, {}).get("label", k), "type": labels.get(k, {}).get(
+                "type", "text"), "value": str(v)} for k, v in values.items()],
+            "set_at": call.disposition_set_at, "set_by": _person(call.disposition_set_by),
+        }
+    history = [
+        {"code": c.code, "name": c.name, "group": c.group, "source": c.source, "by": _person(c.changed_by),
+         "note": c.note, "at": c.created_at}
+        for c in call.disposition_changes.select_related("changed_by").order_by("created_at", "id")
+    ]
+    options = {"list_name": lst["name"], "items": lst["items"]} if lst else None
+    return {"disposition": current, "disposition_history": history, "disposition_options": options}
 
 
 def response_gap_of(report) -> dict | None:
