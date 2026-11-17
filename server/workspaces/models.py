@@ -20,6 +20,9 @@ class Workspace(models.Model):
     audit_instructions = models.TextField(blank=True, default="")  # extra notes for the rubric
     # Audit fixes (KAP-37): apply confident, repeated fixes to the draft by themselves. Never publishes.
     audit_fix_auto_apply = models.BooleanField(default=False)
+    # Disposition webhook (KAP-46): a `call.disposition` event is POSTed here, signed with the secret.
+    webhook_url = models.URLField(max_length=500, blank=True, default="")
+    webhook_secret = models.CharField(max_length=64, blank=True, default="")
 
     def __str__(self):
         return self.name

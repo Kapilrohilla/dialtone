@@ -114,7 +114,7 @@ def test_visit_cap_forces_close():
     assert run.take("go_to_b").ok  # B3
     t = run.take("go_to_a")  # A4 would exceed
     assert t.capped and not t.ok and t.entered is None
-    assert "UNRESOLVED" in t.message and "workflow loop limit reached" in t.message
+    assert "no-clear-outcome disposition" in t.message and "workflow loop limit reached" in t.message
     assert run.current.name == "B"
 
 

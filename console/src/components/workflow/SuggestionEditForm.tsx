@@ -4,8 +4,8 @@ import { ArrowLeft, Check, Sparkles } from "lucide-react";
 import { useId, useState } from "react";
 import { TokenEditor } from "@/components/editor/TokenEditor";
 import { Button, Field } from "@/components/ui";
-import { DISPOSITIONS, OUTCOME_GROUPS } from "@/lib/outcomes";
 import type { AnswerPayload, Expression, ExpressionPayload, Graph, Suggestion, SuggestedNewStep } from "@/lib/types";
+import { OutcomeOptions } from "./OutcomeOptions";
 import { PhraseChips } from "./PhraseChips";
 import { MAX_LABEL, MAX_STEP_NAME, suggestionError } from "./suggestions";
 import styles from "./workflow.module.css";
@@ -153,14 +153,7 @@ function AnswerFields({ graph, stepId, value, builtins, onChange }: AnswerFields
             </Field>
           ) : (
             <Field label="Outcome" control="select" value={newStep.outcome} onChange={(e) => setNew({ ...newStep, outcome: e.target.value })}>
-              <option value="" disabled>Choose an outcome</option>
-              {OUTCOME_GROUPS.map((group) => (
-                <optgroup key={group} label={group}>
-                  {DISPOSITIONS.filter((d) => d.group === group).map((d) => (
-                    <option key={d.code} value={d.code}>{d.label}</option>
-                  ))}
-                </optgroup>
-              ))}
+              <OutcomeOptions value={newStep.outcome} />
             </Field>
           )}
         </>

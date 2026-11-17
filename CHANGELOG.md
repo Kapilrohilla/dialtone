@@ -9,6 +9,23 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Disposition lists per agent**: a new **Dispositions** tab holds lists of call outcomes. Each disposition
+  has a code, name, description, report group and up to five capture fields (e.g. a required callback time
+  for `CBR`), and one is the list's fallback. Each agent has one **Disposition list** setting. The AI reads
+  only that list's codes and descriptions, and `record_outcome` refuses other codes and asks for missing
+  required fields. The server also stores the fallback for any code outside the list. With no answer, a
+  voicemail or a dropped line, the system sets the list's Not reached or Dropped code. An agent with no list
+  records no disposition ("No disposition"). On the call detail a person can **Change** the disposition, and
+  every change is kept as history (AI, system, person). Call history gets a disposition filter, the CSV
+  export gets four disposition columns, and a signed `call.disposition` webhook is sent on every change
+  (**Settings → Call handling**). Workflow end steps may use any code from the workspace's lists, and
+  publishing checks them against the agent's list. Existing workspaces get the 14 built-in codes as a
+  "Driver hiring" list attached to their agents. Agents published earlier keep those codes without a
+  republish. New endpoints: `/api/dispositions`, `/api/dispositions/{id}`, `/api/dispositions/{id}/duplicate`
+  and `/api/calls/{room}/disposition`. Other changes: `disposition_list` on `/api/agents/{id}`,
+  `disposition`, `disposition_history` and `disposition_options` on calls, and `webhook_url` on
+  `/api/workspace`
+  ([KAP-46](https://linear.app/kapil-rohilla/issue/KAP-46/call-disposition-capture-disposition-lists-per-agent), [#26](https://github.com/Kapilrohilla/dialtone/pull/26)).
 - **Agent personality**: each agent has a **Personality** in the editor: five presets (Warm Helper, the
   default and today's behaviour, Friendly Dost, Calm Professional, Upbeat Sales, Empathetic Support) and a
   **Fine-tune** with six 1–5 traits, address style (sir/ma'am, ji, first name, none), reactions, reply

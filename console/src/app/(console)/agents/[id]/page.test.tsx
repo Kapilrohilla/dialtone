@@ -281,6 +281,21 @@ describe("agent script editor", () => {
     expect(screen.getByRole("link", { name: "Open workflow" })).toHaveAttribute("href", "/workflows/2");
   });
 
+  it("attaches and detaches a disposition list", async () => {
+    const patches = serve({ ...baseAgent, disposition_list: null });
+    const { user } = open();
+    const select = await screen.findByRole("combobox", { name: "Disposition list" });
+    expect(screen.getByText(/This agent doesn.t record dispositions/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Create a list" })).toHaveAttribute("href", "/dispositions");
+    await within(select).findByRole("option", { name: "Driver hiring" });
+    await user.selectOptions(select, "Driver hiring");
+    await waitFor(() => expect(patches.at(-1)).toEqual({ disposition_list: 5 }));
+    expect(screen.getByText(/The AI picks one of these at the end of each call. 14 dispositions./)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Edit list" })).toHaveAttribute("href", "/dispositions/5");
+    await user.selectOptions(select, "No list");
+    await waitFor(() => expect(patches.at(-1)).toEqual({ disposition_list: null }));
+  });
+
   it("says when its workflow keeps check-ins off", async () => {
     serve();
     server.use(http.get("*/api/workflows", () => HttpResponse.json([{ ...baseWorkflow, dead_air_enabled: false }])));

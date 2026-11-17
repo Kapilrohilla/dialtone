@@ -17,7 +17,7 @@ from django.utils import timezone
 
 from voiceagents.tokens import BUILTIN_EXPRESSIONS
 
-from .graph import DISPOSITIONS
+from .graph import workspace_outcomes
 from .models import WorkflowSuggestion, WorkflowSuggestionSet
 from .suggestions import (
     ANSWER_STEP_TYPES, MAX_ANSWERS_PER_STEP, MAX_EXAMPLE_CHARS, MAX_EXAMPLES, MAX_REASON_CHARS, Invalid,
@@ -82,7 +82,7 @@ RESPONSE_SCHEMA = {
                             "name": {"type": "string"},
                             "type": {"type": "string", "enum": ["prompt", "end"]},
                             "prompt": {"type": "string"},
-                            "outcome": {"type": "string", "enum": sorted(DISPOSITIONS)},
+                            "outcome": {"type": "string"},  # one of the prompt's end_outcomes
                             "then_step_id": {"type": "string"},
                             "then_label": {"type": "string"},
                         },
@@ -180,7 +180,9 @@ def language_for(workflow) -> str:
 
 # -- prompt ------------------------------------------------------------------------------------------
 
-def build_prompt(graph, workflow_name: str, batch: list[str], kinds, custom: dict[str, str], language: str) -> str:
+def build_prompt(graph, workflow_name: str, batch: list[str], kinds, custom: dict[str, str], language: str,
+                 outcomes=None) -> str:
+    """`outcomes`: the codes a new end step may use (the workspace's lists plus the built-in ones)."""
     steps = {s["id"]: s for s in _steps(graph)}
     names = {sid: (s.get("name") or sid) for sid, s in steps.items()}
     looked_at = []
@@ -206,7 +208,7 @@ def build_prompt(graph, workflow_name: str, batch: list[str], kinds, custom: dic
         "language": language,
         "all_steps": [{"id": sid, "name": names[sid], "type": s.get("type")} for sid, s in steps.items()],
         "allowed_expressions": {**{n: h for n, h in BUILTIN_EXPRESSIONS.items()}, **custom},
-        "end_outcomes": sorted(DISPOSITIONS),
+        "end_outcomes": sorted(outcomes if outcomes is not None else workspace_outcomes(None)),
         "steps_to_improve": looked_at,
     }
     return "Improve these workflow steps.\n\n" + json.dumps(data, ensure_ascii=False, indent=1)
@@ -369,7 +371,8 @@ def generate(set_id: int) -> None:
         custom = custom_expressions_for(s.workflow)
         language = language_for(s.workflow)
         batches = [s.step_ids[i:i + BATCH_SIZE] for i in range(0, len(s.step_ids), BATCH_SIZE)]
-        prompts = [build_prompt(graph, s.workflow.name, b, s.kinds, custom, language) for b in batches]
+        outcomes = workspace_outcomes(s.workflow.workspace_id)
+        prompts = [build_prompt(graph, s.workflow.name, b, s.kinds, custom, language, outcomes) for b in batches]
 
         def run(prompt):
             try:

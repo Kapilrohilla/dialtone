@@ -7,7 +7,7 @@ from rest_framework.views import APIView
 from knowledge.models import KnowledgeDocument
 from workspaces.permissions import CanEdit, IsMember, workspace_for
 
-from .graph import validate
+from .graph import validate, workspace_outcomes
 from .models import Workflow, WorkflowRevision
 from .serializers import WorkflowListSerializer, WorkflowWriteSerializer
 
@@ -18,7 +18,7 @@ def validate_for(workflow, graph, custom_expressions=None):
     ids = set(
         KnowledgeDocument.objects.filter(workspace=workflow.workspace, archived=False).values_list("id", flat=True)
     )
-    return validate(graph, ids, custom_expressions)
+    return validate(graph, ids, custom_expressions, workspace_outcomes(workflow.workspace_id))
 
 
 def detail(workflow):

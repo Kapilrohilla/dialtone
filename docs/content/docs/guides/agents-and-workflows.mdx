@@ -76,18 +76,19 @@ step's instructions and one tool per path leaving it; calling the tool moves the
 
 Paths have a label (unique per step, up to 60 characters) and up to five example caller phrases. The
 console validates the graph as you edit and before publishing: every step must be reachable from the start,
-every non-end step needs a way out, and end steps need a known outcome. A loop limit stops runaway
-workflows and records the call as `UNRESOLVED`.
+every non-end step needs a way out, and end steps need a known outcome: a built-in code or one from any of
+the workspace's disposition lists. A loop limit stops runaway workflows and records the list's fallback code
+(e.g. `UNRESOLVED`).
 
 **Suggest with AI** in the workflow builder proposes changes to the graph (needs `GOOGLE_API_KEY`;
 `SUGGEST_DAILY_LIMIT` runs per workspace per day).
 
 ### Outcomes
 
-Every call ends with one disposition: `INTERESTED`, `NI` (not interested), `NE` (not eligible), `CBR`
-(callback requested), `CDRP` (caller dropped), `ISUDO`, `ISUID`, `HND` (handed off), `WRGN` (wrong
-number), `OWNVA`, `ABULR`, `LANGUAGE_BARRIER`, `NOT_CONNECTED` (the caller never spoke) or `UNRESOLVED`.
-If the caller hangs up before the agent records one, the call is logged as `CDRP`.
+Each agent has one **disposition list**, and every call ends with one disposition from it. The agent picks
+it with `record_outcome`. If the caller hangs up before the agent records one, the call gets the list's
+Dropped code, or its Not reached code if the caller never spoke. An agent with no list records no
+disposition. See [Dispositions](/docs/guides/dispositions).
 
 ## Trying an agent before publishing
 
@@ -158,8 +159,8 @@ answers, and script variables like `{{lead.city}}` are filled from it.
 ## Dead air
 
 If the caller goes quiet, the agent checks in after `nudge_s` (4 s) and again after `second_nudge_s` (9 s),
-then says goodbye and hangs up at `hang_up_s` (15 s), logged as `UNRESOLVED` (or `NOT_CONNECTED` if the
-caller never spoke). The agent's own speech doesn't restart the count; the caller speaking does. "Ek
+then says goodbye and hangs up at `hang_up_s` (15 s). The call is logged with the disposition list's fallback
+(e.g. `UNRESOLVED`), or its Not reached code (e.g. `NOT_CONNECTED`) if the caller never spoke. The agent's own speech doesn't restart the count; the caller speaking does. "Ek
 minute", "ruko" or "wait" triples the timings for that pause.
 
 The agent checks in only when all three switches are on:

@@ -10,6 +10,7 @@ from rest_framework import serializers, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from dispositions.models import DispositionList
 from knowledge.models import KnowledgeDocument
 from workflows.models import Workflow
 from workspaces.permissions import CanEdit, IsMember, workspace_for
@@ -46,7 +47,7 @@ def _detail(agent):
 
 
 def _resolve_links(data, workspace):
-    """Turn knowledge/workflow ids into objects of this workspace; 400 for anything else."""
+    """Turn knowledge/workflow/disposition list ids into objects of this workspace; 400 for anything else."""
     links = {}
     if "knowledge" in data:
         ids = set(data["knowledge"])
@@ -61,6 +62,13 @@ def _resolve_links(data, workspace):
             if wf is None:
                 raise serializers.ValidationError({"workflow": ["Choose a workflow from this workspace."]})
         links["workflow"] = wf
+    if "disposition_list" in data:
+        lst = None
+        if data["disposition_list"] is not None:
+            lst = DispositionList.objects.filter(workspace=workspace, pk=data["disposition_list"]).first()
+            if lst is None:
+                raise serializers.ValidationError({"disposition_list": ["Choose a disposition list from this workspace."]})
+        links["disposition_list"] = lst
     return links
 
 
@@ -80,6 +88,9 @@ def _save(agent, data, links, user):
     if "workflow" in links:
         agent.workflow = links["workflow"]
         fields.append("workflow")
+    if "disposition_list" in links:
+        agent.disposition_list = links["disposition_list"]
+        fields.append("disposition_list")
     agent.updated_by = user
     if agent.pk is None:
         agent.save()
@@ -183,6 +194,7 @@ class AgentDuplicateView(_Base):
                 custom_expressions=copy.deepcopy(src.custom_expressions),
                 personality=copy.deepcopy(src.personality),
                 workflow=src.workflow,
+                disposition_list=src.disposition_list,
                 updated_by=request.user,
             )
             copy_.knowledge.set(src.knowledge.all())

@@ -7,6 +7,7 @@ import { useWorkflows } from "@/lib/queries";
 import { AdvancedSection } from "./AdvancedSection";
 import { AuditFixesSection, type AuditFixesSectionProps } from "./AuditFixesSection";
 import { BehaviourSection } from "./BehaviourSection";
+import { DispositionSection } from "./DispositionSection";
 import { KnowledgeSection } from "./KnowledgeSection";
 import { PersonalitySection } from "./PersonalitySection";
 import { VersionsSection } from "./VersionsSection";
@@ -19,7 +20,7 @@ export type SidePanelProps = PanelSectionProps &
     markInvalid: MarkInvalid;
   };
 
-/** The 320px settings column: voice, personality, knowledge, workflow, behaviour, advanced, audit fixes, versions. */
+/** The 320px settings column: voice, personality, knowledge, workflow, disposition list, behaviour, advanced, audit fixes, versions. */
 export function SidePanel({ timingsError, markInvalid, beforeAccept, onAgentChanged, ...props }: SidePanelProps) {
   return (
     <aside aria-label="Agent settings" className={styles.side}>
@@ -27,6 +28,7 @@ export function SidePanel({ timingsError, markInvalid, beforeAccept, onAgentChan
       <PersonalitySection {...props} />
       <KnowledgeSection {...props} />
       <WorkflowSection {...props} />
+      <DispositionSection {...props} />
       <BehaviourSection {...props} />
       <AdvancedSection {...props} timingsError={timingsError} markInvalid={markInvalid} />
       <AuditFixesSection agent={props.agent} readOnly={props.readOnly} beforeAccept={beforeAccept} onAgentChanged={onAgentChanged} />

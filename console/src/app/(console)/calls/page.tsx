@@ -15,7 +15,7 @@ import { Filters } from "./_components/Filters";
 import styles from "./calls.module.css";
 
 const DEFAULT_TZ = "Asia/Kolkata";
-const TEXT_FILTERS = ["q", "outcome", "agent", "mood", "city", "score_min", "score_max"] as const;
+const TEXT_FILTERS = ["q", "outcome", "disposition", "agent", "mood", "city", "score_min", "score_max"] as const;
 
 export default function CallsPage() {
   // useSearchParams needs a Suspense boundary for the static build.
@@ -40,6 +40,7 @@ function Calls() {
   const filters: CallFilters = {
     q: params.get("q") ?? "",
     outcome: params.get("outcome") ?? "",
+    disposition: params.get("disposition") ?? "",
     agent: params.get("agent") ?? "",
     mood: params.get("mood") ?? "",
     city: params.get("city") ?? "",

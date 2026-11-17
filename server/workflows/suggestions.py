@@ -33,6 +33,9 @@ class Invalid(Exception):
 
 # -- graph helpers ---------------------------------------------------------------------------------
 
+OUTCOME_CODE_RE = re.compile(r"^[A-Z][A-Z0-9_]{0,31}$")
+
+
 def _steps(graph) -> dict[str, dict]:
     steps = graph.get("steps") if isinstance(graph, dict) else None
     out: dict[str, dict] = {}
@@ -177,7 +180,9 @@ def _new_step(new, steps: dict[str, dict], custom: dict[str, str]) -> dict:
         return {"name": name, "type": "prompt", "prompt": prompt, "then": {"step_id": to, "label": label}}
     if kind == "end":
         outcome = new.get("outcome")
-        if not isinstance(outcome, str) or outcome not in DISPOSITIONS:
+        # Any well-formed code: disposition lists add their own (KAP-46). The workflow's own validation and
+        # publishing check it against the workspace's lists and the agent's list.
+        if not isinstance(outcome, str) or not (outcome in DISPOSITIONS or OUTCOME_CODE_RE.match(outcome)):
             raise Invalid("Choose an outcome for the new end step.", "target")
         return {"name": name, "type": "end", "prompt": prompt, "outcome": outcome}
     raise Invalid("A new step must say something or end the call.", "target")

@@ -21,6 +21,10 @@ import type {
   CallDetail,
   CallPage,
   Dashboard,
+  DispositionChangeInput,
+  DispositionList,
+  DispositionListRow,
+  DispositionListUpdate,
   Expression,
   Instance,
   InstanceUpdate,
@@ -71,7 +75,7 @@ export function useUpdateWorkspace() {
   return useMutation({
     mutationFn: (
       body: Partial<
-        Pick<Workspace, "dead_air_enabled" | "recording_enabled" | "audit_enabled" | "audit_sample_pct" | "audit_weights" | "audit_instructions" | "audit_fix_auto_apply">
+        Pick<Workspace, "dead_air_enabled" | "recording_enabled" | "audit_enabled" | "audit_sample_pct" | "audit_weights" | "audit_instructions" | "audit_fix_auto_apply" | "webhook_url">
       >,
     ) => apiFetch<Workspace>("/api/workspace", { method: "PATCH", json: body }),
     onSuccess: (workspace) => qc.setQueryData<Me>(meKey, (me) => (me ? { ...me, workspace } : me)),
@@ -209,7 +213,10 @@ export const useEndCall = () => useLiveAction("end");
 
 export type CallFilters = {
   q?: string;
+  /** A report group. */
   outcome?: string;
+  /** A disposition code, or "none" for calls without one. */
+  disposition?: string;
   agent?: string;
   mood?: string;
   city?: string;
@@ -221,7 +228,7 @@ export type CallFilters = {
   page?: number;
 };
 
-const FILTER_ORDER = ["q", "outcome", "agent", "mood", "city", "from", "to", "score_min", "score_max", "page"] as const;
+const FILTER_ORDER = ["q", "outcome", "disposition", "agent", "mood", "city", "from", "to", "score_min", "score_max", "page"] as const;
 
 /** The filters as a query string (no leading "?"), empty ones left out. Shared by the list, the CSV link and the page URL. */
 export function callsQuery(filters: CallFilters): string {
@@ -341,6 +348,20 @@ export function useSaveCallFeedback(room: string) {
   });
 }
 
+/** Sets a call's disposition by hand (editors). Answers with the updated call; the list rows show it too.
+ *  Field errors (`code`, `fields.<key>`) stay on the error for the dialog. */
+export function useChangeCallDisposition(room: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: DispositionChangeInput) =>
+      apiFetch<CallDetail>(`/api/calls/${encodeURIComponent(room)}/disposition`, { method: "POST", json: body }),
+    onSuccess: (call) => {
+      qc.setQueryData(["call", room], call);
+      return Promise.all([qc.invalidateQueries({ queryKey: ["calls"] }), qc.invalidateQueries({ queryKey: ["call", room] })]);
+    },
+  });
+}
+
 // ---- dashboard ----
 
 export const dashboardKey = ["dashboard"] as const;
@@ -404,6 +425,8 @@ function useInvalidateAgents() {
       id === undefined ? undefined : qc.invalidateQueries({ queryKey: agentKey(id) }),
       id === undefined ? undefined : qc.invalidateQueries({ queryKey: agentVersionsKey(id) }),
       qc.invalidateQueries({ queryKey: dashboardKey }),
+      // A list's "Used by" follows the agents.
+      qc.invalidateQueries({ queryKey: dispositionListsKey }),
     ]);
 }
 
@@ -418,7 +441,7 @@ export function useCreateAgent() {
 }
 
 export type AgentUpdate = Partial<
-  Pick<Agent, "name" | "description" | "language" | "persona_name" | "voice_id" | "script" | "custom_expressions" | "knowledge" | "workflow" | "phone_number">
+  Pick<Agent, "name" | "description" | "language" | "persona_name" | "voice_id" | "script" | "custom_expressions" | "knowledge" | "workflow" | "disposition_list" | "phone_number">
 > & {
   /** Deep-merged over the saved personality by the server; {preset} alone applies that preset's values. */
   personality?: Partial<Omit<AgentPersonality, "traits" | "resolved_gender">> & { traits?: Partial<AgentPersonality["traits"]> };
@@ -913,4 +936,91 @@ export function useRequestIntegration() {
 /** Field errors arrive on current_password and new_password. */
 export function useChangePassword() {
   return useMutation({ mutationFn: (body: { current_password: string; new_password: string }) => apiFetch<void>("/api/me/password", { method: "POST", json: body }) });
+}
+
+// ---- dispositions ----
+
+export const dispositionListsKey = ["dispositions"] as const;
+export const dispositionListKey = (id: number) => ["dispositions", id] as const;
+
+/** Every disposition list in the workspace, by name. */
+export function useDispositionLists() {
+  return useQuery({ queryKey: dispositionListsKey, queryFn: () => apiFetch<DispositionListRow[]>("/api/dispositions") });
+}
+
+export function useDispositionList(id: number) {
+  return useQuery({ queryKey: dispositionListKey(id), queryFn: () => apiFetch<DispositionList>(`/api/dispositions/${id}`) });
+}
+
+/** What "New list" starts with: one fallback disposition, so the list is valid from the start. */
+export const NEW_DISPOSITION_LIST: DispositionListUpdate = {
+  name: "New list",
+  items: [{ code: "UNRESOLVED", name: "No clear outcome", description: "Use when the outcome is unclear. Don't guess.", group: "Dropped", fields: [] }],
+  fallback_code: "UNRESOLVED",
+};
+
+/** A list the server just returned: cached, and the lists refetched. */
+function useRememberDispositionList() {
+  const qc = useQueryClient();
+  return (list: DispositionList) => {
+    qc.setQueryData(dispositionListKey(list.id), list);
+    return qc.invalidateQueries({ queryKey: dispositionListsKey, exact: true });
+  };
+}
+
+export function useCreateDispositionList() {
+  const remember = useRememberDispositionList();
+  const toast = useToast();
+  return useMutation({
+    mutationFn: (body: DispositionListUpdate) =>
+      apiFetch<DispositionList>("/api/dispositions", { method: "POST", json: body }),
+    onSuccess: remember,
+    onError: (e) => toast.show(e instanceof ApiError ? e.detail : "Could not create the list.", "bad"),
+  });
+}
+
+/** PATCH the name, the whole items array and / or the fallback. Agents using the list become outdated.
+ *  Errors (DRF fields: `name`, `items`, `fallback_code`) stay on the error for the screen to show. */
+export function useSaveDispositionList(id: number) {
+  const qc = useQueryClient();
+  const remember = useRememberDispositionList();
+  const toast = useToast();
+  return useMutation({
+    mutationFn: (body: DispositionListUpdate) =>
+      apiFetch<DispositionList>(`/api/dispositions/${id}`, { method: "PATCH", json: body, signInRedirect: false }),
+    onSuccess: (list) => {
+      toast.show(list.used_by.length > 0 ? "Saved. Agents using this list need republishing before calls use the change." : "Saved.", "ok");
+      void invalidateOutdatedFlags(qc);
+      return remember(list);
+    },
+  });
+}
+
+/** DELETE a list. The server refuses (409) while an agent uses it; that reason is toasted. */
+export function useDeleteDispositionList() {
+  const qc = useQueryClient();
+  const toast = useToast();
+  return useMutation({
+    mutationFn: (id: number) => apiFetch<void>(`/api/dispositions/${id}`, { method: "DELETE" }),
+    onSuccess: (_, id) => {
+      qc.setQueryData<DispositionListRow[]>(dispositionListsKey, (lists) => lists?.filter((l) => l.id !== id));
+      qc.removeQueries({ queryKey: dispositionListKey(id) });
+      toast.show("Deleted.", "ok");
+      return qc.invalidateQueries({ queryKey: dispositionListsKey, exact: true });
+    },
+    onError: (e) => toast.show(e instanceof ApiError ? e.detail : "Could not delete the list.", "bad"),
+  });
+}
+
+export function useDuplicateDispositionList() {
+  const remember = useRememberDispositionList();
+  const toast = useToast();
+  return useMutation({
+    mutationFn: (id: number) => apiFetch<DispositionList>(`/api/dispositions/${id}/duplicate`, { method: "POST" }),
+    onSuccess: (copy) => {
+      toast.show(`Duplicated as ${copy.name}.`, "ok");
+      return remember(copy);
+    },
+    onError: (e) => toast.show(e instanceof ApiError ? e.detail : "Could not duplicate the list.", "bad"),
+  });
 }

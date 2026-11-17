@@ -230,7 +230,7 @@ test("7. call history is empty and exports a date range", async ({ page }) => {
 /** Every screen, for the dark pass. */
 async function darkPass(page: Page, browser: Browser) {
   const screens: [string, string][] = [
-    ["02-today", "/"], ["03-agents", "/agents"], ["06-knowledge", "/knowledge"], ["07-live-calls", "/live"],
+    ["02-today", "/"], ["03-agents", "/agents"], ["06-knowledge", "/knowledge"], ["06b-dispositions", "/dispositions"], ["07-live-calls", "/live"],
     ["08-call-history", "/calls"], ["09-settings", "/settings"], ["09b-settings-calls", "/settings/calls"],
     ["10-integrations", "/integrations"],
   ];

@@ -4,6 +4,7 @@ from collections import deque
 
 from voiceagents.tokens import long_pause_errors, unknown_expressions
 
+# The built-in driver-hiring codes; workspaces add their own through disposition lists (KAP-46).
 DISPOSITIONS = {
     "INTERESTED", "NI", "NE", "CBR", "CDRP", "ISUDO", "ISUID", "HND", "WRGN",
     "OWNVA", "ABULR", "LANGUAGE_BARRIER", "NOT_CONNECTED", "UNRESOLVED",
@@ -36,8 +37,11 @@ def _label(step: dict) -> str:
     return name if isinstance(name, str) and name.strip() else str(step.get("id"))
 
 
-def validate(graph, knowledge_ids: set[int], custom_expressions: dict[str, str] | None = None) -> list[str]:
+def validate(graph, knowledge_ids: set[int], custom_expressions: dict[str, str] | None = None,
+             outcomes: set[str] | None = None) -> list[str]:
+    """`outcomes`: the codes an end or transfer step may end with (default: the built-in ones)."""
     custom = custom_expressions or {}
+    outcomes = DISPOSITIONS if outcomes is None else outcomes
     if not isinstance(graph, dict):
         return ["The workflow graph must be an object with steps and paths."]
     steps, paths = graph.get("steps"), graph.get("paths")
@@ -93,12 +97,12 @@ def validate(graph, knowledge_ids: set[int], custom_expressions: dict[str, str] 
         if kind == "end":
             if not outcome:
                 errors.append(f'End step "{name}" needs an outcome.')
-            elif not isinstance(outcome, str) or outcome not in DISPOSITIONS:
+            elif not isinstance(outcome, str) or outcome not in outcomes:
                 errors.append(f'End step "{name}" has an unknown outcome "{outcome}".')
             if out[sid]:
                 errors.append(f'End step "{name}" cannot have paths leaving it.')
         else:
-            if kind == "transfer" and outcome and (not isinstance(outcome, str) or outcome not in DISPOSITIONS):
+            if kind == "transfer" and outcome and (not isinstance(outcome, str) or outcome not in outcomes):
                 errors.append(f'Step "{name}" has an unknown outcome "{outcome}".')
             if kind != "transfer" and not out[sid]:
                 errors.append(f'Step "{name}" has no way out. Add a path or make it an end step.')
@@ -147,3 +151,13 @@ def validate(graph, knowledge_ids: set[int], custom_expressions: dict[str, str] 
             if s["id"] not in reached:
                 errors.append(f'Step "{_label(s)}" can never be reached from the start step.')
     return errors
+
+
+def workspace_outcomes(workspace_id) -> set[str]:
+    """The built-in codes plus every code in the workspace's disposition lists."""
+    from dispositions.models import DispositionList
+
+    codes = set(DISPOSITIONS)
+    for items in DispositionList.objects.filter(workspace_id=workspace_id).values_list("items", flat=True):
+        codes.update(i.get("code") for i in items or [] if isinstance(i, dict) and isinstance(i.get("code"), str))
+    return codes

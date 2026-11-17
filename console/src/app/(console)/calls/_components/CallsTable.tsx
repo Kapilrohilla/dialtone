@@ -15,6 +15,14 @@ export function OutcomeChip({ outcome }: { outcome: string }) {
   return outcome ? <Chip tone={outcomeTone(outcome)}>{outcome}</Chip> : <span className={styles.none}>—</span>;
 }
 
+/** The call's disposition by name, in its report group's colour. Older servers send no `disposition`: their
+ *  report group shows instead. */
+export function DispositionChip({ call }: { call: Pick<CallRow, "disposition" | "outcome"> }) {
+  if (call.disposition === undefined) return <OutcomeChip outcome={call.outcome} />;
+  if (call.disposition === null) return <span className={styles.noDisposition}>No disposition</span>;
+  return <Chip tone={outcomeTone(call.disposition.group)}>{call.disposition.name}</Chip>;
+}
+
 export type CallsTableProps = {
   page: CallPage;
   timeZone: string;
@@ -40,7 +48,7 @@ export function CallsTable({ page, timeZone, stale, onOpen, onPage, openRoom, pl
           <tr>
             <Th>When</Th>
             <Th>Caller</Th>
-            <Th>Outcome</Th>
+            <Th>Disposition</Th>
             <Th>Mood</Th>
             <Th>Score</Th>
             <Th>Duration</Th>
@@ -59,7 +67,7 @@ export function CallsTable({ page, timeZone, stale, onOpen, onPage, openRoom, pl
                   </button>
                 </Td>
                 <Td className="mono">{caller}</Td>
-                <Td><OutcomeChip outcome={call.outcome} /></Td>
+                <Td><DispositionChip call={call} /></Td>
                 <Td>{call.mood ? capitalise(call.mood) : <span className={styles.none}>—</span>}</Td>
                 <Td><ScoreChip score={call.audit_score} /></Td>
                 <Td className={styles.durationCell}>

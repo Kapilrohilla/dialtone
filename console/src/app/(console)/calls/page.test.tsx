@@ -4,6 +4,7 @@ import { http, HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { agentListItem, callDetail, callPage, callRow, me } from "@/test/fixtures";
 import { QueryClientProvider } from "@tanstack/react-query";
+import { VoiceTestProvider } from "@/components/sim/VoiceTest";
 import { Toast } from "@/components/ui";
 import { setRoute } from "@/test/navigation";
 import { renderWithProviders, router } from "@/test/render";
@@ -69,12 +70,13 @@ describe("call history", () => {
   it("shows dashes for a call with no report yet", async () => {
     server.use(
       http.get("*/api/calls", () =>
-        HttpResponse.json({ ...callPage, results: [{ ...callRow, outcome: "", mood: "", summary: "", duration_s: null }] }),
+        HttpResponse.json({ ...callPage, results: [{ ...callRow, outcome: "", disposition: null, mood: "", summary: "", duration_s: null }] }),
       ),
     );
     renderWithProviders(<CallsPage />, { route: `/calls?${RANGE}` });
     const row = (await screen.findByRole("button", { name: /Open call from/ })).closest("tr")!;
-    expect(within(row).getAllByText("—")).toHaveLength(4); // outcome, mood, score, duration
+    expect(within(row).getAllByText("—")).toHaveLength(3); // mood, score, duration
+    expect(within(row).getByText("No disposition")).toBeInTheDocument();
     expect(within(row).getByText("No summary")).toBeInTheDocument();
   });
 
@@ -101,7 +103,9 @@ describe("call history", () => {
       view.rerender(
         <QueryClientProvider client={view.queryClient}>
           <Toast>
-            <CallsPage />
+            <VoiceTestProvider>
+              <CallsPage />
+            </VoiceTestProvider>
           </Toast>
         </QueryClientProvider>,
       );
@@ -129,18 +133,20 @@ describe("call history", () => {
     view.rerender(
       <QueryClientProvider client={view.queryClient}>
         <Toast>
-          <CallsPage />
+          <VoiceTestProvider>
+            <CallsPage />
+          </VoiceTestProvider>
         </Toast>
       </QueryClientProvider>,
     );
     expect(box).toHaveValue("");
   });
 
-  it("outcome and agent filters update the URL and request", async () => {
+  it("report group and agent filters update the URL and request", async () => {
     const user = userEvent.setup();
     renderWithProviders(<CallsPage />, { route: `/calls?${RANGE}&page=3` });
     await screen.findByRole("table", { name: "Calls" });
-    await user.selectOptions(screen.getByRole("combobox", { name: "Outcome" }), "Call back");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Report group" }), "Call back");
     expect(lastUrl(router.push)).toBe(`/calls?outcome=Call+back&${RANGE}`);
     await user.selectOptions(await screen.findByRole("combobox", { name: "Agent" }), String(agentListItem.id));
     expect(lastUrl(router.push)).toContain(`agent=${agentListItem.id}`);
@@ -151,8 +157,34 @@ describe("call history", () => {
     renderWithProviders(<CallsPage />, { route: `/calls?outcome=Dropped&agent=${agentListItem.id}&mood=angry&city=Pune&q=98&${RANGE}` });
     await screen.findByRole("table", { name: "Calls" });
     expect(Object.fromEntries(seen[0])).toMatchObject({ outcome: "Dropped", agent: String(agentListItem.id), mood: "angry", city: "Pune", q: "98", from: "2026-10-30" });
-    expect(screen.getByRole("combobox", { name: "Outcome" })).toHaveValue("Dropped");
+    expect(screen.getByRole("combobox", { name: "Report group" })).toHaveValue("Dropped");
     expect(screen.getByLabelText("Mood")).toHaveValue("angry");
+  });
+
+  it("filters by disposition code, or calls with none", async () => {
+    const user = userEvent.setup();
+    const seen = recordLists();
+    renderWithProviders(<CallsPage />, { route: `/calls?disposition=CBR&${RANGE}` });
+    await screen.findByRole("table", { name: "Calls" });
+    expect(seen[0].get("disposition")).toBe("CBR");
+    const select = screen.getByRole("combobox", { name: "Disposition" });
+    expect(await within(select).findByRole("option", { name: "Call back requested (CBR)" })).toBeInTheDocument();
+    expect(select).toHaveValue("CBR");
+    await user.selectOptions(select, "No disposition");
+    expect(lastUrl(router.push)).toBe(`/calls?disposition=none&${RANGE}`);
+    expect(screen.getByRole("link", { name: "Export" })).toHaveAttribute("href", `/api/calls/export.csv?disposition=CBR&${RANGE}`);
+  });
+
+  it("shows each call's disposition by name", async () => {
+    server.use(
+      http.get("*/api/calls", () =>
+        HttpResponse.json({ ...callPage, results: [{ ...callRow, disposition: { code: "CBR", name: "Call back requested", group: "Call back", source: "ai" } }] }),
+      ),
+    );
+    renderWithProviders(<CallsPage />, { route: `/calls?${RANGE}` });
+    const row = (await screen.findByRole("button", { name: /Open call from/ })).closest("tr")!;
+    expect(within(row).getByText("Call back requested")).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Disposition" })).toBeInTheDocument();
   });
 
   it("export link carries the same filters", async () => {
@@ -189,7 +221,9 @@ describe("call history", () => {
     view.rerender(
       <QueryClientProvider client={view.queryClient}>
         <Toast>
-          <CallsPage />
+          <VoiceTestProvider>
+            <CallsPage />
+          </VoiceTestProvider>
         </Toast>
       </QueryClientProvider>,
     );

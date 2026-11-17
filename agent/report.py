@@ -25,10 +25,12 @@ def build_report(
     captured: dict | None = None,
     recording: dict | None = None,
     response_gap: dict | None = None,
+    dispositions: tuple[bool, dict | None] = (False, None),
 ) -> dict:
     """turns, when given, are {"role", "text", "at_s"}; at_s and timeline times are seconds since the call started.
     captured, when given, is the workflow's {field: value} answers (collect steps). recording, when given, is
-    {"egress_id", "started_at", "filepath", "error"} (recording.report_field)."""
+    {"egress_id", "started_at", "filepath", "error"} (recording.report_field). dispositions is (send it, the
+    list or None)."""
     report = {
         "room": room,
         "disposition": outcome.get("disposition"),
@@ -53,6 +55,11 @@ def build_report(
         report["captured"] = captured
     if recording is not None:
         report["recording"] = recording
+    send_list, lst = dispositions
+    if send_list:
+        # The disposition list the call ran with (None: none); the server needs it for voice tests, whose
+        # draft has no saved version to read it from.
+        report["dispositions"] = lst
     return report
 
 
