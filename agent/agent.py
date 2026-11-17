@@ -51,7 +51,7 @@ from livekit.agents import (
 from livekit.agents.metrics import EOUMetrics, LLMMetrics, RealtimeModelMetrics, TTSMetrics
 from livekit.plugins import silero
 
-from adapt import apply_mood, sends_mood_notes
+from adapt import apply_mood, sends_mood_notes, set_tts_speed
 from console_config import Config, dashboard_url, load_config, load_draft_config, web_test_agent_id
 from behavior import BehaviorTracker, reply_latency_reliable
 from dead_air import DeadAirConfig, DeadAirWatcher
@@ -84,7 +84,7 @@ from recording import RecordingHandle, recording_wanted, report_field, start_rec
 from report import build_report, send_report
 from response_gap import GapAudioTap, ResponseGapTracker, watch_caller_speech
 from sentiment import make_classifier
-from tone import mood_message, tone_guide
+from tone import effective_speed, mood_message, tone_guide
 from workflow import PathTool, Step, WorkflowRun, path_tool_schema  # noqa: F401
 
 load_dotenv()
@@ -349,6 +349,11 @@ class PhoneAgent(Agent):
         )
         return f"{text}\n\n{opening_instructions(self.lead, self.persona_name, self.recording, self.identity)}"
 
+    @property
+    def speaker(self) -> Identity:
+        """Who the call speaks as (gender, personality): the snapshot's identity, else the env's."""
+        return self.identity or identity()
+
     def _path_tool(self, tool: PathTool):
         async def take_path(raw_arguments: dict) -> str:
             return await self._take_path(tool.name, raw_arguments)
@@ -586,7 +591,8 @@ def gemini_live_session(
     rules = GEMINI_LANGUAGE_RULES
     if mood_on:
         # Gemini hears the caller's tone itself; it gets the guide once instead of mid-call notes.
-        rules += "\n\n" + tone_guide(handoff_available=bool(HANDOFF_SIP_URI))
+        gender = identity(cfg.snapshot).gender
+        rules += "\n\n" + tone_guide(handoff_available=bool(HANDOFF_SIP_URI), gender=gender)
     return AgentSession(llm=llm), PhoneAgent(
         lead, language_rules=rules, cfg=cfg, pipeline="gemini-live", recording=recording
     )
@@ -851,6 +857,10 @@ async def entrypoint(ctx: JobContext) -> None:
         logger.warning("console config unusable, the call runs the built-in agent", extra={"source": cfg.source})
         cfg = used
         mood_on = mood_enabled(settings)
+    # The personality's baseline pace (Gemini Live has no speed control: its prompt says the pace instead).
+    who = agent.speaker
+    if session.tts is not None and who.personality.pace != 1.0:
+        set_tts_speed(session.tts, effective_speed(who.personality.pace, "neutral"))
     if agent.workflow is not None and agent.workflow.current is not None:
         sink.add("step_entered", {"step_id": agent.workflow.current.id, "step_name": agent.workflow.current.name})
 
@@ -878,9 +888,15 @@ async def entrypoint(ctx: JobContext) -> None:
                 return
             # Under the lock, so the base is the current workflow step's prompt, never a stale one.
             async with agent.instructions_lock:
-                agent.mood_note = mood_message(changed, handoff_available=bool(HANDOFF_SIP_URI))
+                agent.mood_note = mood_message(changed, handoff_available=bool(HANDOFF_SIP_URI), gender=who.gender)
                 await apply_mood(
-                    agent, session.tts, changed, agent.base_instructions, handoff_available=bool(HANDOFF_SIP_URI)
+                    agent,
+                    session.tts,
+                    changed,
+                    agent.base_instructions,
+                    handoff_available=bool(HANDOFF_SIP_URI),
+                    pace=who.personality.pace,
+                    gender=who.gender,
                 )
 
     def start_background(coro) -> None:

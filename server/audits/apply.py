@@ -11,8 +11,11 @@ from django.db import transaction
 from django.utils import timezone
 
 from knowledge.models import KnowledgeDocument, KnowledgeRevision
+from voiceagents import personality as personality_mod
 from voiceagents.models import Agent
-from voiceagents.suggestions import validate_agent_item
+from voiceagents.suggestions import (
+    PERSONALITY_TRAIT_KEYS, PERSONALITY_VERBOSITY, personality_update, validate_agent_item,
+)
 from workflows.models import Workflow, WorkflowRevision, WorkflowSuggestion
 from workflows.suggest import custom_expressions_for
 from workflows.suggestions import Invalid, validate_item
@@ -139,7 +142,13 @@ def apply_agent_item(item: AgentSuggestion, user, auto: bool = False) -> Agent:
             agent.knowledge.add(doc)
         else:
             settings = dict(agent.settings) if isinstance(agent.settings, dict) else {}
+            personality = personality_update(payload["changes"])
+            if personality:
+                agent.personality = personality_mod.merge(agent.personality, personality)
+                fields.append("personality")
             for key, value in payload["changes"].items():
+                if key in PERSONALITY_TRAIT_KEYS or key == PERSONALITY_VERBOSITY:
+                    continue
                 if key in ("language", "persona_name"):
                     setattr(agent, key, value)
                     fields.append(key)

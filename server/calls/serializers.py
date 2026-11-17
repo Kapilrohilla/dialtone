@@ -88,6 +88,20 @@ def agent_name(call):
     return name if isinstance(name, str) and name else None
 
 
+def agent_personality(call) -> str | None:
+    """The personality preset of the version that served the call ("Friendly Dost", "Custom"); None for calls
+    without a version or from versions published before personalities (KAP-41)."""
+    from voiceagents.personality import CUSTOM, preset  # calls stays importable without voiceagents loaded
+
+    version = call.agent_version
+    p = _dict(_dict(version.snapshot).get("personality")) if version is not None else {}
+    chosen = p.get("preset")
+    if chosen == CUSTOM:
+        return "Custom"
+    found = preset(chosen) if isinstance(chosen, str) else None
+    return found["name"] if found else None
+
+
 def call_row(call) -> dict:
     """One row of the calls list. Needs `report`, `recording` and `agent_version` loaded (select_related)."""
     report = report_of(call)
@@ -178,6 +192,7 @@ def call_detail(call, events) -> dict:
     return {
         **call_row(call),
         "reason": _text(outcome.get("reason")),
+        "agent_personality": agent_personality(call),
         "answers": answers,
         "step_path": step_path,
         "transcript": transcript(events),

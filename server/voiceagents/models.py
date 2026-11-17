@@ -25,6 +25,8 @@ class Agent(models.Model):
     settings = models.JSONField(default=default_settings)
     script = models.JSONField(default=list)  # [{"id", "title", "body"}]
     custom_expressions = models.JSONField(default=dict)  # {name: hint}
+    # How the agent sounds (KAP-41), fully resolved by voiceagents.personality.merge; {} means the default preset.
+    personality = models.JSONField(default=dict, blank=True)
     knowledge = models.ManyToManyField("knowledge.KnowledgeDocument", blank=True, related_name="agents")
     workflow = models.ForeignKey(
         "workflows.Workflow", null=True, blank=True, on_delete=models.SET_NULL, related_name="agents"

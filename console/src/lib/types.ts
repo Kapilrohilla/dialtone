@@ -166,8 +166,41 @@ export type Agent = Omit<AgentListItem, "calls_this_week"> & {
   /** Knowledge document ids. */
   knowledge: number[];
   published_version: number | null;
+  personality: AgentPersonality;
   created_at: string;
 };
+
+// server/voiceagents/personality.py (KAP-41)
+export type PersonalityTrait = "warmth" | "energy" | "formality" | "humour" | "directness" | "empathy";
+export type SelfGender = "auto" | "female" | "male" | "neutral";
+export type AddressStyle = "sir_maam" | "ji" | "first_name" | "none";
+export type Backchannels = "minimal" | "natural" | "expressive";
+export type Verbosity = "brief" | "normal" | "explanatory";
+
+/** The values a preset sets. self_gender, avoid_phrases and description are the agent's own. */
+export type PersonalityPresetValues = {
+  traits: Record<PersonalityTrait, number>;
+  address_style: AddressStyle;
+  backchannels: Backchannels;
+  disfluencies: boolean;
+  verbosity: Verbosity;
+  /** Baseline speaking speed, 0.85–1.15. */
+  pace: number;
+  signature_phrases: string[];
+};
+
+export type AgentPersonality = PersonalityPresetValues & {
+  /** A preset id, or "custom" once a preset value was changed. */
+  preset: string;
+  self_gender: SelfGender;
+  avoid_phrases: string[];
+  description: string;
+  /** Read only: the gender the agent speaks as ("auto" follows the voice). */
+  resolved_gender?: "female" | "male" | "neutral";
+};
+
+/** GET /api/personality-presets */
+export type PersonalityPreset = { id: string; name: string; summary: string; sample: string; values: PersonalityPresetValues };
 
 /** Average audit scores of a version's calls: overall 0–100, areas 1–5; null when nothing was scored. */
 export type AuditScores = { calls: number; overall: number | null; areas: Record<AuditAreaKey, number | null> };
@@ -194,7 +227,7 @@ export type AgentVersion = {
 export type Expression = { name: string; hint: string; builtin: boolean };
 
 // GET /api/voices
-export type Voice = { id: string; name: string; description: string; sample: string | null };
+export type Voice = { id: string; name: string; gender?: "female" | "male"; description: string; sample: string | null };
 export type VoicesResponse = { pipeline: string; voices: Voice[] };
 
 // server/calls/serializers.py and api.py
@@ -226,6 +259,9 @@ export type TranscriptTurn = { speaker: string; text: string; expressions: strin
 
 export type CallDetail = CallRow & {
   reason: string;
+  /** The personality preset of the version that served the call ("Friendly Dost", "Custom"); null before
+   *  personalities. Missing from older servers. */
+  agent_personality?: string | null;
   answers: Record<string, unknown>;
   step_path: string[];
   transcript: TranscriptTurn[];

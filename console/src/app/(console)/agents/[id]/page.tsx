@@ -8,11 +8,12 @@ import { useVoiceTest } from "@/components/sim/VoiceTest";
 import { TopBar, type Crumb } from "@/components/shell/TopBar";
 import { Button, Chip, StateBlock, useToast } from "@/components/ui";
 import { ApiError } from "@/lib/api";
-import { useAgent, useAgents, useExpressions, useMe } from "@/lib/queries";
+import { useAgent, useAgents, useExpressions, useMe, useVoices } from "@/lib/queries";
 import { canEdit } from "@/lib/roles";
 import type { Agent } from "@/lib/types";
 import { PublishDialog } from "../_components/PublishDialog";
 import { NameCrumb } from "./_components/NameCrumb";
+import { genderMismatch, spokenVoice } from "./_components/personality";
 import { SaveStatus } from "./_components/SaveStatus";
 import { ScriptDocument } from "./_components/ScriptDocument";
 import { SidePanel } from "./_components/SidePanel";
@@ -69,6 +70,8 @@ function AgentEditor({ agent, editable, onReload }: { agent: Agent; editable: bo
   const [publishing, setPublishing] = useState(false);
   const [testing, setTesting] = useState(false);
   const voice = useVoiceTest();
+  const { data: voices } = useVoices();
+  const genderWarning = genderMismatch(agent.personality.self_gender, spokenVoice(agent, voices?.voices));
   const live = agents?.find((a) => a.status === "published") ?? null;
   const isLive = agent.status === "published";
   const upToDate = isLive && !agent.is_outdated;
@@ -183,7 +186,7 @@ function AgentEditor({ agent, editable, onReload }: { agent: Agent; editable: bo
         />
       </div>
       {editable && (
-        <PublishDialog agent={publishing ? agent : null} liveAgent={live} onClose={() => setPublishing(false)} />
+        <PublishDialog agent={publishing ? agent : null} liveAgent={live} warning={genderWarning} onClose={() => setPublishing(false)} />
       )}
       {testing && <Simulator kind="agent" id={agent.id} customExpressions={saves.custom} onClose={() => setTesting(false)} />}
     </>

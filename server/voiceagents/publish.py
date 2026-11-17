@@ -15,6 +15,7 @@ from workflows.graph import validate
 from workflows.models import Workflow, WorkflowRevision
 from workspaces.models import Workspace
 
+from . import personality as personality_mod
 from .models import Agent, AgentVersion
 from .tokens import long_pause_errors, render_hints, unknown_expressions, variables
 
@@ -175,6 +176,8 @@ def build_snapshot(agent, number: int, resolved: Resolved | None = None) -> dict
         "phone_number": agent.phone_number,
         "settings": copy.deepcopy(agent.settings),
         "custom_expressions": dict(custom),
+        # Resolved values, not just the preset id: a later preset change never changes a published version.
+        "personality": personality_mod.resolve(agent.personality),
         "script": _rendered_script(agent),
         "variables": found,
         "knowledge": knowledge,
@@ -271,6 +274,7 @@ def _fingerprint(agent) -> dict:
         "voice_id": agent.voice_id,
         "phone_number": agent.phone_number,
         "custom_expressions": _custom(agent),
+        "personality": personality_mod.resolve(agent.personality),
         "knowledge": knowledge,
         "workflow": workflow,
     }
@@ -286,6 +290,8 @@ def _snapshot_fingerprint(s: dict) -> dict:
         "voice_id": s.get("voice_id"),
         "phone_number": s.get("phone_number"),
         "custom_expressions": s.get("custom_expressions", {}),
+        # Snapshots from before personalities had none: the default.
+        "personality": personality_mod.resolve(s.get("personality")),
         "knowledge": sorted([k["id"], k["revision"]] for k in s.get("knowledge") or []),
         # Snapshots from before the workflow switch existed had it on.
         "workflow": [wf["id"], wf["revision"], wf.get("dead_air_enabled", True)] if wf else None,

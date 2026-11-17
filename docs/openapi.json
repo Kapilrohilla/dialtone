@@ -732,6 +732,89 @@
                 }
             }
         },
+        "/api/calls/{room}/feedback": {
+            "get": {
+                "operationId": "calls_feedback_retrieve",
+                "description": "GET: everyone's feedback on the call, yours first. PUT: save yours (replaces it). Any member may rate a\ncall: rating it changes nothing about the call itself.",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "room",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "calls"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            },
+            "put": {
+                "operationId": "calls_feedback_update",
+                "description": "GET: everyone's feedback on the call, yours first. PUT: save yours (replaces it). Any member may rate a\ncall: rating it changes nothing about the call itself.",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "room",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "calls"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "calls_feedback_destroy",
+                "description": "GET: everyone's feedback on the call, yours first. PUT: save yours (replaces it). Any member may rate a\ncall: rating it changes nothing about the call itself.",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "room",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "calls"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
         "/api/calls/{room}/needs-person": {
             "post": {
                 "operationId": "calls_needs_person_create",
@@ -1327,6 +1410,24 @@
                 "operationId": "me_password_create",
                 "tags": [
                     "me"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                }
+            }
+        },
+        "/api/personality-presets": {
+            "get": {
+                "operationId": "personality_presets_retrieve",
+                "tags": [
+                    "personality-presets"
                 ],
                 "security": [
                     {

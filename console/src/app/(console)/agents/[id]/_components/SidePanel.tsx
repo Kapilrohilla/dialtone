@@ -8,6 +8,7 @@ import { AdvancedSection } from "./AdvancedSection";
 import { AuditFixesSection, type AuditFixesSectionProps } from "./AuditFixesSection";
 import { BehaviourSection } from "./BehaviourSection";
 import { KnowledgeSection } from "./KnowledgeSection";
+import { PersonalitySection } from "./PersonalitySection";
 import { VersionsSection } from "./VersionsSection";
 import { VoiceSection, type MarkInvalid, type PanelSectionProps } from "./VoiceSection";
 import styles from "./editor.module.css";
@@ -18,11 +19,12 @@ export type SidePanelProps = PanelSectionProps &
     markInvalid: MarkInvalid;
   };
 
-/** The 320px settings column: voice, knowledge, workflow, behaviour, advanced, audit fixes, versions. */
+/** The 320px settings column: voice, personality, knowledge, workflow, behaviour, advanced, audit fixes, versions. */
 export function SidePanel({ timingsError, markInvalid, beforeAccept, onAgentChanged, ...props }: SidePanelProps) {
   return (
     <aside aria-label="Agent settings" className={styles.side}>
       <VoiceSection {...props} markInvalid={markInvalid} />
+      <PersonalitySection {...props} />
       <KnowledgeSection {...props} />
       <WorkflowSection {...props} />
       <BehaviourSection {...props} />

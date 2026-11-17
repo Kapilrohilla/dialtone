@@ -14,6 +14,7 @@ from knowledge.models import KnowledgeDocument
 from workflows.models import Workflow
 from workspaces.permissions import CanEdit, IsMember, workspace_for
 
+from . import personality as personality_mod
 from . import publish as pub
 from . import voices
 from .models import Agent
@@ -73,6 +74,9 @@ def _save(agent, data, links, user):
     if "settings" in data:
         agent.settings = merge_settings(agent.settings, data["settings"])
         fields.append("settings")
+    if "personality" in data:
+        agent.personality = personality_mod.merge(agent.personality, data["personality"])
+        fields.append("personality")
     if "workflow" in links:
         agent.workflow = links["workflow"]
         fields.append("workflow")
@@ -177,6 +181,7 @@ class AgentDuplicateView(_Base):
                 settings=copy.deepcopy(src.settings),
                 script=copy.deepcopy(src.script),
                 custom_expressions=copy.deepcopy(src.custom_expressions),
+                personality=copy.deepcopy(src.personality),
                 workflow=src.workflow,
                 updated_by=request.user,
             )
@@ -194,6 +199,11 @@ class AgentVersionsView(_Base):
 class ExpressionsView(_Base):
     def get(self, request):
         return Response([{"name": n, "hint": h, "builtin": True} for n, h in BUILTIN_EXPRESSIONS.items()])
+
+
+class PersonalityPresetsView(_Base):
+    def get(self, request):
+        return Response(personality_mod.presets_payload())
 
 
 class VoicesView(_Base):

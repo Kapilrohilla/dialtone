@@ -1,6 +1,6 @@
 import { BUILTIN_EXPRESSIONS, BUILTIN_HINTS } from "@/lib/tokens";
 import { http, HttpResponse } from "msw";
-import { agent, agentListItem, callDetail, callPage, dashboard, instance, knowledgeDoc, liveCall, me, phoneNumbers, voices, workflow } from "@/test/fixtures";
+import { agent, agentListItem, callDetail, callPage, dashboard, instance, knowledgeDoc, liveCall, me, phoneNumbers, presets, voices, workflow } from "@/test/fixtures";
 
 // Default happy-path responses. Tests override with server.use(...).
 export const handlers = [
@@ -24,6 +24,7 @@ export const handlers = [
   http.get("*/api/workflows/:id", () => HttpResponse.json(workflow)),
   http.get("*/api/workflows/:id/suggestions/current", () => new HttpResponse(null, { status: 204 })),
   http.get("*/api/voices", () => HttpResponse.json({ pipeline: "gemini-live", voices })),
+  http.get("*/api/personality-presets", () => HttpResponse.json(presets)),
   http.get("*/api/expressions", () => HttpResponse.json(BUILTIN_EXPRESSIONS.map((name) => ({ name, hint: BUILTIN_HINTS[name], builtin: true })))),
   http.get("*/api/phone-numbers", () => HttpResponse.json(phoneNumbers)),
 ];

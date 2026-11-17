@@ -58,3 +58,16 @@ def test_mood_notes_only_on_cascaded_pipelines():
     assert sends_mood_notes("gemini-live") is False
     assert sends_mood_notes("sarvam") is True
     assert sends_mood_notes("elevenlabs") is True
+
+
+async def test_apply_mood_scales_the_personality_pace():
+    # KAP-41: the mood's speed multiplies the agent's baseline pace (0.9 x 1.08).
+    tts = sarvam.TTS(api_key="test", target_language_code="hi-IN")
+    await apply_mood(FakeAgent(), tts, "rushed", "BASE", pace=0.9)
+    assert abs(tts._opts.pace - 0.972) < 1e-9
+
+
+async def test_apply_mood_uses_the_agent_gender():
+    agent = FakeAgent()
+    await apply_mood(agent, None, "frustrated", "BASE", gender="male")
+    assert "samajh sakta hoon" in agent.instructions_set[0]

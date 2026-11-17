@@ -22,9 +22,10 @@ from django.conf import settings
 from django.db import close_old_connections, transaction
 from django.utils import timezone
 
+from voiceagents.personality import VERBOSITIES
 from voiceagents.suggestions import (
-    SETTING_KEYS, current_settings, section, validate_knowledge, validate_script,
-    validate_settings,
+    PERSONALITY_TRAIT_KEYS, PERSONALITY_VERBOSITY, SETTING_KEYS, current_settings, section, validate_knowledge,
+    validate_script, validate_settings,
 )
 from voiceagents.tokens import BUILTIN_EXPRESSIONS
 from workflows import suggest
@@ -88,8 +89,11 @@ Each fix has one "kind":
   characters, "knowledge_body" at most 1500 characters). Never invent facts: only use facts found in the script,
   the knowledge or the workflow; if the facts aren't known, write what the agent should say instead (for example
   offer a call back) rather than inventing them.
-- "settings": change the agent's "language", "persona_name", "name_pronunciation", "consent_line" or
-  "mood_adaptation" (tone follows the caller's mood). Only include the settings you change.
+- "settings": change the agent's "language", "persona_name", "name_pronunciation", "consent_line",
+  "mood_adaptation" (tone follows the caller's mood), or its personality: "personality_warmth",
+  "personality_energy", "personality_formality", "personality_humour", "personality_directness",
+  "personality_empathy" (each 1 to 5) or "personality_verbosity" ("brief", "normal" or "explanatory"). For
+  example lower "personality_energy" when callers found the agent pushy. Only include the settings you change.
 
 For every fix also give a "title" (at most 90 characters, what changes, e.g. "Answer price questions at Explain the
 plan"), the rubric "area" it improves, a "reason" of at most 140 characters written in lowercase, and a
@@ -139,6 +143,8 @@ RESPONSE_SCHEMA = {
                             "name_pronunciation": {"type": "string"},
                             "consent_line": {"type": "string"},
                             "mood_adaptation": {"type": "boolean"},
+                            **{key: {"type": "integer", "minimum": 1, "maximum": 5} for key in PERSONALITY_TRAIT_KEYS},
+                            PERSONALITY_VERBOSITY: {"type": "string", "enum": list(VERBOSITIES)},
                         },
                     },
                 },
